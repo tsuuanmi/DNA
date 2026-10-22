@@ -22,7 +22,7 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> \
-  --threads <1-256> [--forms <earlier-run-directory>/forms.tsv] \
+  --threads <1-256> \
   [--review-window <bp>] [--forced-windows <file>] [--recheck <file.tsv>] \
   [--current-since <YYYY-MM>] \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] \
@@ -292,6 +292,22 @@ one.
 - **Record.** `run.json` records the directory, the key, the hits, misses,
   and replaced entries, and the generation's size. `cache prune --keep <n>`
   removes every generation but the `n` most recently used.
+- **Forms cache.** The same directory caches the index of the truth's
+  written forms ([[validation/evaluation-measures#Discrepancy causes|forms]]),
+  which otherwise indexes the whole truth database on every run. A
+  generation is named for the truth database file's SHA-256, the reference
+  sequence's SHA-256, the target profile's repeat windows (each name and
+  bounds, in order), and the index's code identity (`Cargo.lock` and the
+  harness's truth reader, comparison alleles, and index). A run on the same
+  inputs reads the index; a renamed or moved window, another reference or
+  database, or a change to that code is a new generation, so a stale index
+  is never read. An entry that does not decompress or parse is rebuilt and
+  replaced. A harness built with those sources differing from its commit
+  builds the index and stores nothing; the evidence cache still works.
+  `run.json` records the key and whether it was a hit (`forms_cache`), and
+  `cache prune` counts the generation like any other. On development
+  panel v5 the tables are byte-identical with a cold forms cache, a warm
+  one, and none.
 - **Placement cache** ([[ADR-0087]], proposed). The same directory holds
   each evidence document's `dna.placed_read/v1` document, written by
   `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
@@ -376,7 +392,7 @@ or to which files a run writes, is a new contract version
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure |
-| `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; read back with `--forms` |
+| `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; cached with `--evidence-cache` |
 | `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-workload.md#review-workload) of the review workload), timings, and the SHA-256 of every other file (`outputs`, written last, which [`same`](#same-outputs) compares) |
 | `summary.md` | always | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence), the EMPOP queries, the callable yield per HV region (samples, analysed and callable positions, their share, and the samples short of full yield), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the review workload |
 | `truth_changes.tsv` | when the panel's truth changed | the samples whose truth digest differs from the manifest's record |

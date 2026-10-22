@@ -51,7 +51,7 @@ cargo run --release -p dna-eval -- regress check \
   --recheck <frozen re-check list> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --ledger results/regress/ledger --threads <1-256> \
-  [--evidence-cache <dir>] [--run-context <dir>] [--forms <forms.tsv>] \
+  [--evidence-cache <dir>] [--run-context <dir>] \
   [--review-window <bp>] [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
   [--intent crates/dna-eval/baselines/regress-intents/<entry>.tsv] [--rebase] \
   --output <new-directory>

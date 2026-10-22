@@ -22,6 +22,15 @@
 //! is unchanged skips the aligner's search; `dna-align` re-checks every
 //! document it reads back against the read's evidence and the reference.
 //!
+//! The same directory also holds the index of the truth's written forms
+//! (`forms.tsv`, [`crate::cause::forms`]), one per generation named for the
+//! truth database file's SHA-256, the reference sequence's SHA-256, the
+//! target profile's repeat windows, and the index's code identity: a run on
+//! the same truth, reference, and windows reads it instead of indexing the
+//! whole database, and a renamed or moved window is a new generation. A
+//! build whose index sources differ from their commit indexes the database
+//! and stores nothing.
+//!
 //! Entries are gzip-compressed and written to a temporary file then renamed,
 //! so a concurrent run never reads half an entry. An entry that does not
 //! decompress, is not JSON, or names another trace is a miss: it is
@@ -46,8 +55,17 @@ const CODE: &str = env!("DNA_EVAL_READ_STAGE");
 /// The placement stage's code identity, as [`CODE`] for the read stage.
 const PLACEMENT_CODE: &str = env!("DNA_EVAL_PLACEMENT_STAGE");
 
+/// The forms index's code identity, as [`CODE`] for the read stage.
+const FORMS_CODE: &str = env!("DNA_EVAL_FORMS_STAGE");
+
 /// An entry's file name suffix.
 const SUFFIX: &str = ".json.gz";
+
+/// The forms index's entry in its generation.
+const FORMS_ENTRY: &str = "forms.tsv.gz";
+
+/// Largest forms index read back, decompressed.
+const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 
 /// Why the cache cannot be used.
 #[derive(Debug, thiserror::Error)]
@@ -106,6 +124,143 @@ pub(crate) struct Usage {
     pub(crate) replaced: usize,
     /// Bytes of the generation's entries after the run.
     pub(crate) bytes: u64,
+}
+
+/// What the index of the truth's written forms depends on, as `run.json`
+/// records it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct FormsKey {
+    /// The truth database file's SHA-256.
+    pub(crate) truth: String,
+    /// The reference sequence's SHA-256.
+    pub(crate) reference: String,
+    /// The SHA-256 of the target profile's repeat windows: one
+    /// `<name>\t<first>\t<last>` line per window, in the profile's order.
+    pub(crate) windows: String,
+    /// The SHA-256 of the index's code identity.
+    pub(crate) code: String,
+}
+
+impl FormsKey {
+    /// The key of the index of the truth database `truth_sha256` on the
+    /// reference sequence `reference_sha256` over `windows` (name, first,
+    /// last), or `None` when this build has no code identity for the index.
+    pub(crate) fn new<'a>(
+        truth_sha256: &str,
+        reference_sha256: &str,
+        windows: impl IntoIterator<Item = (&'a str, i64, i64)>,
+    ) -> Option<Self> {
+        Self::with_code(truth_sha256, reference_sha256, windows, FORMS_CODE)
+    }
+
+    fn with_code<'a>(
+        truth_sha256: &str,
+        reference_sha256: &str,
+        windows: impl IntoIterator<Item = (&'a str, i64, i64)>,
+        code: &str,
+    ) -> Option<Self> {
+        if code.is_empty() {
+            return None;
+        }
+        let mut hasher = Sha256::new();
+        for (name, first, last) in windows {
+            hasher.update(format!("{name}\t{first}\t{last}\n"));
+        }
+        Some(Self {
+            truth: truth_sha256.to_owned(),
+            reference: reference_sha256.to_owned(),
+            windows: format!("{:x}", hasher.finalize()),
+            code: format!("{:x}", Sha256::digest(code.as_bytes())),
+        })
+    }
+
+    /// The generation directory's name: the SHA-256 of the key's parts.
+    fn generation(&self) -> String {
+        format!(
+            "{:x}",
+            Sha256::digest(format!(
+                "forms\ntruth={}\nreference={}\nwindows={}\ncode={}\n",
+                self.truth, self.reference, self.windows, self.code
+            ))
+        )
+    }
+}
+
+/// A run's use of the forms index cache, as `run.json` records it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct FormsUsage {
+    /// The cache directory, absolute.
+    pub(crate) directory: String,
+    /// The generation's key.
+    pub(crate) key: FormsKey,
+    /// Whether the index was read from the cache rather than built.
+    pub(crate) hit: bool,
+}
+
+/// The generation of a cache directory that holds one forms index.
+pub(crate) struct FormsCache {
+    root: PathBuf,
+    generation: PathBuf,
+    key: FormsKey,
+}
+
+impl FormsCache {
+    /// Opens the generation of `root` for `key`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CacheError::Io`] when the directory cannot be created.
+    pub(crate) fn open(root: &Path, key: FormsKey) -> Result<Self, CacheError> {
+        let io = |path: &Path| {
+            let path = path.to_path_buf();
+            move |source| CacheError::Io { path, source }
+        };
+        let root = std::path::absolute(root).map_err(io(root))?;
+        let generation = root.join(key.generation());
+        fs::create_dir_all(&generation).map_err(io(&generation))?;
+        Ok(Self {
+            root,
+            generation,
+            key,
+        })
+    }
+
+    /// The stored index's text, or `None` when it is absent, does not
+    /// decompress, is not UTF-8, or is larger than its bound: a miss.
+    pub(crate) fn read(&self) -> Option<String> {
+        let file = fs::File::open(self.generation.join(FORMS_ENTRY)).ok()?;
+        let mut text = Vec::new();
+        GzDecoder::new(file)
+            .take(MAX_FORMS_BYTES + 1)
+            .read_to_end(&mut text)
+            .ok()?;
+        if text.len() as u64 > MAX_FORMS_BYTES {
+            return None;
+        }
+        String::from_utf8(text).ok()
+    }
+
+    /// Stores the index's text, replacing an entry that was a miss. A
+    /// failure to store is not an error: the next run builds it again.
+    pub(crate) fn store(&self, table: &str) {
+        let temporary = self
+            .generation
+            .join(format!(".{FORMS_ENTRY}.{}.tmp", std::process::id()));
+        if write_entry(&temporary, table.as_bytes()).is_err()
+            || fs::rename(&temporary, self.generation.join(FORMS_ENTRY)).is_err()
+        {
+            let _ = fs::remove_file(&temporary);
+        }
+    }
+
+    /// The run's use of the cache.
+    pub(crate) fn usage(&self, hit: bool) -> FormsUsage {
+        FormsUsage {
+            directory: self.root.display().to_string(),
+            key: self.key.clone(),
+            hit,
+        }
+    }
 }
 
 /// A run's caches: read evidence documents, and the placed-read documents
@@ -393,6 +548,36 @@ mod tests {
             })?,
             document("bb")
         );
+        Ok(())
+    }
+
+    /// A stored forms index reads back under its key alone; another
+    /// window, reference, or truth is another generation, and a build without
+    /// a code identity has no key.
+    #[test]
+    fn stores_a_forms_index_per_key() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let key = |truth: &str, reference: &str, window: (&'static str, i64, i64)| {
+            FormsKey::with_code(truth, reference, [window], "forms.rs=abc;")
+                .ok_or("a code identity gives a key")
+        };
+        let hv1 = ("hv1_c_tract", 16184, 16193);
+        let cache = FormsCache::open(root.path(), key("t", "r", hv1)?)?;
+        assert_eq!(cache.read(), None);
+        cache.store("table\n");
+        assert_eq!(cache.read().as_deref(), Some("table\n"));
+        assert!(cache.usage(true).hit);
+        for other in [
+            key("t", "r", ("ac_repeat", 16184, 16193))?,
+            key("t", "r", ("hv1_c_tract", 16184, 16194))?,
+            key("t", "other", hv1)?,
+            key("other", "r", hv1)?,
+        ] {
+            assert_eq!(FormsCache::open(root.path(), other)?.read(), None);
+        }
+        assert_eq!(FormsKey::with_code("t", "r", [hv1], ""), None);
+        fs::write(cache.generation.join(FORMS_ENTRY), b"not gzip")?;
+        assert_eq!(cache.read(), None);
         Ok(())
     }
 

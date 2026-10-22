@@ -91,10 +91,6 @@ struct CheckArgs {
     dna: DnaOptions,
     #[command(flatten)]
     review: ReviewOptions,
-    /// An earlier run's `forms.tsv` for the same truth database, as for
-    /// `run --forms`.
-    #[arg(long)]
-    forms: Option<PathBuf>,
     /// The ledger directory (`results/regress/ledger`); its last
     /// `index.tsv` entry is the head. Absent or empty, the check is the
     /// series' first.
@@ -695,7 +691,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
     let started = Instant::now();
     let mut loaded = Loaded::read(
         (&args.manifest, regress_panel),
-        (&args.truth, args.forms.as_deref(), Some(&args.recheck)),
+        (&args.truth, Some(&args.recheck)),
         &args.dna,
         &args.review,
     )?;

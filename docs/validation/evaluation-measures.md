@@ -232,9 +232,10 @@ The written forms group the truth's IUPAC-free samples by the sequence of
 each repeat window, so DNA's form and the truth's are compared for the same
 sequence; outside the windows no sequence groups them, and the count of
 samples carrying each side's calls is a proxy. Each run writes this index as
-`forms.tsv`, keyed by the truth database's SHA-256; `--forms` reads an
-earlier run's instead of indexing the whole database, and a file written for
-another database stops the run. A sample can need more than
+`forms.tsv`, keyed by the truth database's SHA-256. With `--evidence-cache`
+the index is cached per truth database, reference, and repeat windows
+([[validation/evaluation-harness#Running DNA|forms cache]]), so a run on the
+same inputs reads it instead of indexing the whole database. A sample can need more than
 one party: the summary counts the samples per class and cause, defects
 first and then deferred items, each in cause order, and per cause, scope, and evidence the samples with such a
 finding. Insertions are not judged under `sequence` yet: reads showing the

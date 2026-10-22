@@ -14,6 +14,10 @@
 //! document (`dna.placed_read/v1`), so the placement cache misses when the
 //! placement's code changes.
 //!
+//! `DNA_EVAL_FORMS_STAGE` records the identity of the index of the truth's
+//! written forms (`forms.tsv`) the same way, so a cached index misses when
+//! the code that builds it changes.
+//!
 //! `DNA_EVAL_CONTRACTS` records the result contracts DNA emits, for the
 //! version key of `dna-eval regress`: every `dna.<name>/v<n>` a published
 //! schema under `docs/reference/schemas` declares as a constant, but the
@@ -103,6 +107,19 @@ fn main() {
     println!(
         "cargo:rustc-env=DNA_EVAL_PLACEMENT_STAGE={}",
         stage_identity(&placement_stage)
+    );
+    // The index of the truth's written forms: the truth reader, the alleles
+    // and anchors it compares, and the index. The reference and the
+    // profile's windows it reads are keyed by their content.
+    let forms_stage = [
+        "Cargo.lock",
+        "crates/dna-eval/src/cause/forms.rs",
+        "crates/dna-eval/src/compare.rs",
+        "crates/dna-eval/src/truth.rs",
+    ];
+    println!(
+        "cargo:rustc-env=DNA_EVAL_FORMS_STAGE={}",
+        stage_identity(&forms_stage)
     );
 
     let schemas = crate_directory.join("../../docs/reference/schemas");

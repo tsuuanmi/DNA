@@ -495,7 +495,6 @@ impl Set {
                 zone_edge: crate::conventions::ZONE_EDGE,
                 zone_overrun: crate::conventions::ZONE_OVERRUN,
             },
-            forms: None,
             ledger: self.ledger.clone(),
             intent: None,
             rebase: false,

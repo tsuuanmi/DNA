@@ -26,6 +26,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
   is a new optional `run.json` field, absent from runs of earlier
   revisions. No DNA output changes.
+- `dna-eval run --evidence-cache` (and `regress check --evidence-cache`)
+  also caches the index of the truth's
+  written forms (`forms.tsv`), keyed by the truth database file, the
+  reference sequence, the target profile's repeat windows, and the index's
+  code identity, so a renamed or moved window, or a change to the index's
+  code, is a new generation rather than a stale file. It replaces
+  `run --forms` and `regress check --forms`, which read an earlier run's
+  `forms.tsv` checked against the database alone (Breaking for the
+  harness's command line). `run.json` records `forms_cache` (key, hit).
+  Outputs are byte-identical. No DNA output changes.
 - Regression ledger entry `r0001` of regress-v1: the `INITIAL` on the `main`
   revision that introduces `dna-eval regress` (74c9cbaf), one row in
   `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)

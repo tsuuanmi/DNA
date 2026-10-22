@@ -40,10 +40,6 @@ pub(crate) enum Error {
     /// The reference cannot be loaded.
     #[error("reference {path}: {message}")]
     Reference { path: PathBuf, message: String },
-    /// An earlier run's written forms are for another truth database or
-    /// malformed.
-    #[error("forms {path}: {message}")]
-    Forms { path: PathBuf, message: String },
     /// The simulated bench cannot run.
     #[error("simulated bench: {0}")]
     SimBench(String),

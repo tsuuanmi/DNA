@@ -77,8 +77,6 @@ const RUNNABLE_PANELS: [&str; 3] = ["dev", "readiness", "regress"];
 
 /// Largest accepted panel manifest.
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
-/// Largest accepted `forms.tsv`.
-const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted forced-window list.
 const MAX_FORCED_BYTES: u64 = 1024 * 1024;
 /// Largest accepted re-check list.
@@ -149,7 +147,9 @@ pub(crate) struct DnaOptions {
     /// `dna.read_evidence/v1` document, read from the directory or made and
     /// stored there, so a run whose read stage is unchanged skips it. It
     /// needs a harness built from committed read-stage sources; `run.json`
-    /// records its key and hits.
+    /// records its key and hits. The directory also caches the index of the
+    /// truth's written forms, per truth database, reference, and repeat
+    /// windows.
     #[arg(long)]
     evidence_cache: Option<PathBuf>,
     /// A directory of run contexts (PROP-0014), one
@@ -606,10 +606,6 @@ struct RunArgs {
     dna: DnaOptions,
     #[command(flatten)]
     review: ReviewOptions,
-    /// An earlier run's `forms.tsv` for the same truth database, read
-    /// instead of indexing the whole database.
-    #[arg(long)]
-    forms: Option<PathBuf>,
     /// Windows always sent to review, one `start-end` (1-based, inclusive)
     /// per line; the workload is reported again with them reviewed. A list
     /// learned on this run's panel overstates its effect.
@@ -693,6 +689,8 @@ pub(crate) struct Loaded {
     pub(crate) profile: dna_kernel::profile::Profile,
     pub(crate) geometry: Geometry,
     pub(crate) forms: Forms,
+    /// The forms index's cache use, with an evidence cache directory.
+    pub(crate) forms_cache: Option<cache::FormsUsage>,
     /// The re-check list and its identity, when given.
     pub(crate) recheck: Option<(Recheck, RecheckHeader)>,
     pub(crate) widths: zones::Widths,
@@ -701,12 +699,12 @@ pub(crate) struct Loaded {
 impl Loaded {
     /// Reads the manifest at `manifest`, which `accept` must allow, its
     /// whole truth from `truth`, the reference and the target profile, the
-    /// written forms (from `forms` when given, else indexed over the whole
-    /// database), and the re-check list when given; checks the review
-    /// options.
+    /// written forms (from the evidence cache directory when stored there,
+    /// else indexed over the whole database), and the re-check list when
+    /// given; checks the review options.
     pub(crate) fn read(
         (manifest, accept): (&Path, fn(&Manifest) -> Result<()>),
-        (truth, forms, recheck): (&Path, Option<&Path>, Option<&Path>),
+        (truth, recheck): (&Path, Option<&Path>),
         dna: &DnaOptions,
         review: &ReviewOptions,
     ) -> Result<Self> {
@@ -730,23 +728,12 @@ impl Loaded {
         let geometry = Geometry::of(&profile);
         // How the reviewers write each window sequence, over the whole truth,
         // for the cause of a representation discrepancy.
-        let forms = if let Some(path) = forms {
-            let text = read(path, "forms", MAX_FORMS_BYTES)?;
-            let text = String::from_utf8(text).map_err(|error| Error::Forms {
-                path: path.to_path_buf(),
-                message: error.to_string(),
-            })?;
-            Forms::parse(&text, &truth_records.sha256, &geometry).map_err(|message| {
-                Error::Forms {
-                    path: path.to_path_buf(),
-                    message,
-                }
-            })?
-        } else {
-            let corpus = truth::sample_ids(truth)?;
-            let corpus = truth::load(truth, &corpus.iter().map(String::as_str).collect())?;
-            Forms::new(corpus.samples.values(), &reference.sequence, &geometry)
-        };
+        let (forms, forms_cache) = forms(
+            (truth, &truth_records.sha256),
+            dna.evidence_cache.as_deref(),
+            (&reference.sequence, &reference.sequence_sha256),
+            &geometry,
+        )?;
         let widths = review.widths()?;
         let recheck = recheck
             .map(|path| -> Result<_> {
@@ -773,6 +760,7 @@ impl Loaded {
             profile,
             geometry,
             forms,
+            forms_cache,
             recheck,
             widths,
         })
@@ -916,7 +904,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     let started = Instant::now();
     let mut loaded = Loaded::read(
         (&cli.manifest, runnable),
-        (&cli.truth, cli.forms.as_deref(), cli.recheck.as_deref()),
+        (&cli.truth, cli.recheck.as_deref()),
         &cli.dna,
         &cli.review,
     )?;
@@ -994,6 +982,7 @@ fn run(cli: &RunArgs) -> Result<String> {
     );
     header.recheck = recheck_header;
     header.evidence_cache = ran.cache.as_ref().map(|cache| cache.evidence.usage());
+    header.forms_cache.clone_from(&loaded.forms_cache);
     header.placement_cache = ran.cache.as_ref().map(|cache| cache.placed.usage());
     header.run_context = cli.dna.context_header(&ran);
     for (name, contents) in report.files(&context(&header)) {
@@ -1063,6 +1052,52 @@ fn run(cli: &RunArgs) -> Result<String> {
         started.elapsed().as_secs_f64(),
         cli.output.display()
     ))
+}
+
+/// The index of how the reviewers write each window sequence, over the
+/// whole truth database at `truth` (whose file SHA-256 is `truth_sha256`),
+/// on the reference `sequence` (whose SHA-256 is given), over the repeat
+/// windows of `geometry`. With an evidence cache directory it is read from
+/// the directory when stored under the same key, and stored when built;
+/// without a code identity for the index, it is built and not stored.
+fn forms(
+    (truth, truth_sha256): (&Path, &str),
+    cache_root: Option<&Path>,
+    (sequence, sequence_sha256): (&str, &str),
+    geometry: &Geometry,
+) -> Result<(Forms, Option<cache::FormsUsage>)> {
+    let build = || -> Result<Forms> {
+        let corpus = truth::sample_ids(truth)?;
+        let corpus = truth::load(truth, &corpus.iter().map(String::as_str).collect())?;
+        Ok(Forms::new(corpus.samples.values(), sequence, geometry))
+    };
+    let key = cache_root.and_then(|root| {
+        let windows = geometry
+            .window_bounds()
+            .map(|(window, first, last)| (window.label().to_owned(), first, last))
+            .collect::<Vec<_>>();
+        cache::FormsKey::new(
+            truth_sha256,
+            sequence_sha256,
+            windows
+                .iter()
+                .map(|(name, first, last)| (name.as_str(), *first, *last)),
+        )
+        .map(|key| (root, key))
+    });
+    let Some((root, key)) = key else {
+        return Ok((build()?, None));
+    };
+    let cache = cache::FormsCache::open(root, key)?;
+    if let Some(forms) = cache
+        .read()
+        .and_then(|text| Forms::parse(&text, truth_sha256, geometry).ok())
+    {
+        return Ok((forms, Some(cache.usage(true))));
+    }
+    let forms = build()?;
+    cache.store(&forms.table(truth_sha256));
+    Ok((forms, Some(cache.usage(false))))
 }
 
 /// The target profile `config` names, resolved against the configuration
@@ -1319,6 +1354,7 @@ fn header(
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         recheck: None,
         evidence_cache: None,
+        forms_cache: None,
         placement_cache: None,
         run_context: None,
         constants: Constants::current(),
