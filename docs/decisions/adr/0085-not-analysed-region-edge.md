@@ -53,7 +53,8 @@ reads' unreliable spans (SRS-CONS-012).
   - The variants document lists the intervals as `not_analysed`. The EMPOP
     query cuts them with the reason `not_analysed`.
 - **Review.** The review lists the stretches as `not_analysed`, with their
-  reason, and holds no item or zone over them. It also guards the rest of the
+  reason, and holds no zone over them; since the amendment of 2026-10-22
+  (below), each is held by a check item labelled `not_analysed`. It also guards the rest of the
   region's edge zone. Every difference DNA calls within `review.edge_zone`
   positions of a region end it leaves out is a check, labelled
   `beside_not_analysed`. The reads there sit right after their poor start,
@@ -143,6 +144,53 @@ ae98063 (`dna-eval diff`, GATE PASS):
 - **Het.** One of them, 2526880 (2025), has an unreviewed `16086Y` in an
   `interior@HVS-I` zone that no check touched before either.
 - **Configuration.** The configuration schema is 20. Plugin `review` 22.
+
+### A stretch not analysed is a check
+
+Amended 2026-10-22. The review held no item over a stretch, so a truth
+allele inside one was omitted from a report that could still be clear. On
+development panel v5, current period, 117 clear samples omitted such an
+allele: `73G` in 112, `16362C` in 3, `93G` and `103A` in one each. The
+user decided that the omission is acceptable for now only when the sample
+carries a flag there, never as a silent clear; rescuing the allele is later
+work. Letting the stretch pass without a flag where nothing covers it was
+rejected.
+
+Each stretch is now held by a check item labelled `not_analysed`, with the
+stretch's reason, and every covering read's observations there as its
+evidence (review rules 36, SRS-CONS-012). The stretch keeps no zone, and
+the call is unchanged. No position or threshold enters the rule.
+
+Two variants were measured; the goal is no unflagged error first, the clear
+rate second.
+
+- **(i) Every stretch is a check (chosen).** It flags every truth omission
+  of the class on both development panels.
+- **(ii) A stretch is a check only when its reads depart from the
+  reference:** at some position, a configured share of the reads'
+  observations, masked ones included, shows another base or a deletion.
+  - The largest share per stretch is 0 or at least 0.5, and every stretch
+    over an omitted `73G`, `16362C`, `93G`, or `103A` has 1.
+  - It keeps 50 more current samples clear on dev v5 (302 rather than 352
+    lose clear) and 56 on readiness-v2 (147 rather than 203).
+  - On readiness-v2, earlier period, it leaves one truth allele unflagged:
+    the heteroplasmy `16037R`, in an HVS-I start stretch whose reads show
+    the reference. A rule that misses a member of the class is not chosen.
+
+Measured against `main` 446a7028 with `dna-eval diff` (GATE PASS on both
+panels; no coverage or status changes; passed non-het zones unchanged):
+
+| Panel, current period | Clear | start@HV2 checks | start@HV1 checks |
+|---|---|---|---|
+| dev v5 | 8,948 → 8,596 (83.7 → 80.4 %) | 225 → 583 | 306 → 415 |
+| readiness-v2 | 15,498 → 15,295 (89.5 → 88.4 %) | 138 → 306 | 191 → 277 |
+
+Of the 352 dev v5 current samples that lose clear, 351 lose it for a
+stretch of at most 40 positions at a region's edge, and one for a longer
+one; on readiness-v2 all 203 are of the first kind. A whole region that
+reads poorly, which an earlier first-pass measurement found clear with HVS-II
+59 of 268 positions callable and HVS-III none, is now two checks. The
+artefact bench passes. Plugin `review` 36.
 
 ## Consequences
 
