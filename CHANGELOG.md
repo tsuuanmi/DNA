@@ -682,6 +682,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The Sanger edge and start identity rules (SRS-CALL-017, SRS-CALL-018)
+  take the read's and a stop's median spacing as the midpoint median, as
+  signal processing and callability do, instead of the upper median.
+  Development panel v5: one `start@HV1` check fewer, 10 fewer positions to
+  review, no unreviewed or clear-state change; readiness-v2 unchanged. Plugin:
+  `sanger` 23.
 - Configuration schema 25: the phase-mixture decomposition and the poor
   start get their own keys instead of reusing other rules' keys.
   `signal_processing.decompose_minimum_calls` (20) and
