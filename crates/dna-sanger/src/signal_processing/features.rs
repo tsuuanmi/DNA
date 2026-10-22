@@ -1,5 +1,6 @@
 //! Rolling sample-domain baseline, noise, and peak-SNR features.
 
+use crate::channel;
 use crate::error::{Result, SignalError};
 use crate::model::basecalls::BaseCalls;
 use crate::model::signal::SignalWindow;
@@ -37,15 +38,10 @@ pub(super) fn calculate(
         let mut minimum_primary_snr = f64::INFINITY;
         let mut maximum_secondary_snr = 0.0_f64;
         for call in selected {
-            let mut ranked = [0_usize, 1, 2, 3];
             let corrected = std::array::from_fn::<_, 4, _>(|channel| {
                 statistics::corrected_amplitude(call.peaks[channel].height, baselines[channel])
             });
-            ranked.sort_by(|left, right| {
-                corrected[*right]
-                    .total_cmp(&corrected[*left])
-                    .then_with(|| left.cmp(right))
-            });
+            let ranked = channel::ranked(&corrected, f64::total_cmp);
             let primary = ranked[0];
             let secondary = ranked[1];
             minimum_primary_snr =
@@ -142,35 +138,8 @@ mod tests {
         let windows = calculate(
             &calls,
             &SignalProcessingConfig {
-                window_size_bases: 5,
                 minimum_primary_snr: 1_000.0,
-                minimum_noisy_windows: 2,
-                minimum_noise_sigma: 1.0,
-                second_floor: 0.21,
-                run_signal: crate::signal_processing::RunSignalParameters {
-                    flank: 2,
-                    resolution: 1000,
-                    minimum_reads: 40,
-                    minimum_calls: 40,
-                    margin: 0.05,
-                    mad_factor: 4.0,
-                },
-
-                second_cause: crate::signal_processing::SecondCauseParameters {
-                    noise_ratio: 3.0,
-
-                    tail_offset: 0.4,
-
-                    blob_width: 1.8,
-
-                    width_calls: 6,
-                },
-                decompose_unexplained_quantile: 0.99,
-                spike: crate::signal_processing::SpikeParameters {
-                    height: 3.0,
-                    span: 1.5,
-                    level_calls: 6,
-                },
+                ..crate::signal_processing::fixture(5)
             },
             &mut SpanEstimates::new(&trace, 1.0),
         )?;
@@ -195,33 +164,7 @@ mod tests {
         let channels_before = trace.channels.clone();
         let loci_before = trace.locus_positions.clone();
         let calls_before = format!("{calls:?}");
-        let config = SignalProcessingConfig {
-            window_size_bases: 5,
-            minimum_primary_snr: 3.0,
-            minimum_noisy_windows: 2,
-            minimum_noise_sigma: 1.0,
-            second_floor: 0.21,
-            run_signal: crate::signal_processing::RunSignalParameters {
-                flank: 2,
-                resolution: 1000,
-                minimum_reads: 40,
-                minimum_calls: 40,
-                margin: 0.05,
-                mad_factor: 4.0,
-            },
-            second_cause: crate::signal_processing::SecondCauseParameters {
-                noise_ratio: 3.0,
-                tail_offset: 0.4,
-                blob_width: 1.8,
-                width_calls: 6,
-            },
-            decompose_unexplained_quantile: 0.99,
-            spike: crate::signal_processing::SpikeParameters {
-                height: 3.0,
-                span: 1.5,
-                level_calls: 6,
-            },
-        };
+        let config = crate::signal_processing::fixture(5);
         let first = crate::signal_processing::analyze(&trace, &calls, &config)?;
         let second = crate::signal_processing::analyze(&trace, &calls, &config)?;
         assert_eq!(trace.channels, channels_before);

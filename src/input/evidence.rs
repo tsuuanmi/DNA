@@ -971,15 +971,19 @@ fn second_peak(second: Option<RawSecond>, cause: Option<RawCause>) -> Result<Opt
     let stands_out = cause != SecondCause::MixedStretch;
     match second {
         Some(second) if second.stands_out == stands_out => Ok(Some(SecondPeak {
-            base: second.base,
-            share: second.share,
-            stands_out,
+            second: SecondBase {
+                base: second.base,
+                share: second.share,
+                stands_out,
+            },
             cause,
         })),
         None if !stands_out => Ok(Some(SecondPeak {
-            base: 'N',
-            share: 0.0,
-            stands_out,
+            second: SecondBase {
+                base: 'N',
+                share: 0.0,
+                stands_out,
+            },
             cause,
         })),
         _ => Err(inconsistent(
@@ -1258,7 +1262,12 @@ mod tests {
             .second
             .ok_or_else(|| inconsistent("no peak"))?;
         assert_eq!(
-            (second.base, second.share, second.stands_out, second.cause),
+            (
+                second.second.base,
+                second.second.share,
+                second.second.stands_out,
+                second.cause,
+            ),
             ('A', 168.0 / 808.0, true, SecondCause::NeighbourTail)
         );
         assert_eq!(example.sanger.calls[0].second, None);
@@ -1271,7 +1280,7 @@ mod tests {
             .second
             .ok_or_else(|| inconsistent("no peak"))?;
         assert_eq!(
-            (mixed.base, mixed.stands_out, mixed.cause),
+            (mixed.second.base, mixed.second.stands_out, mixed.cause),
             ('A', false, SecondCause::MixedStretch)
         );
         Ok(())

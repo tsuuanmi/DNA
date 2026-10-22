@@ -1736,7 +1736,12 @@ impl<'a> Sample<'a> {
     /// reach `signal_processing.second_floor` and it is not masked as mixed.
     fn second_cause(&self, read: &Read<'_>, call: usize) -> Option<&'static str> {
         let peak = read.sanger.calls.get(call)?.second.as_ref()?;
-        let key = Key::of(read.evidence, call, peak.base, self.second.run_signal.flank);
+        let key = Key::of(
+            read.evidence,
+            call,
+            peak.second.base,
+            self.second.run_signal.flank,
+        );
         Some(run_signal::refine(peak, key.as_ref(), self.signal.as_ref(), self.second).label())
     }
 

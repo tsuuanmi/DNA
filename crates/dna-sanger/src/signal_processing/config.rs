@@ -228,6 +228,39 @@ impl RawSignalProcessingConfig {
     }
 }
 
+/// The shipped `[signal_processing]` values with `window_size_bases` calls
+/// per window and a second floor of 0.21: the tests' configuration.
+#[cfg(test)]
+pub(crate) fn fixture(window_size_bases: usize) -> SignalProcessingConfig {
+    SignalProcessingConfig {
+        window_size_bases,
+        minimum_primary_snr: 3.0,
+        minimum_noisy_windows: 2,
+        minimum_noise_sigma: 1.0,
+        second_floor: 0.21,
+        run_signal: RunSignalParameters {
+            flank: 2,
+            resolution: 1000,
+            minimum_reads: 40,
+            minimum_calls: 40,
+            margin: 0.05,
+            mad_factor: 4.0,
+        },
+        second_cause: SecondCauseParameters {
+            noise_ratio: 3.0,
+            tail_offset: 0.4,
+            blob_width: 1.8,
+            width_calls: 6,
+        },
+        decompose_unexplained_quantile: 0.99,
+        spike: SpikeParameters {
+            height: 3.0,
+            span: 1.5,
+            level_calls: 6,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use dna_kernel::error::Error;

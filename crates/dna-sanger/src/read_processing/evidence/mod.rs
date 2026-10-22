@@ -156,7 +156,7 @@ pub fn read_evidence(read: &ProcessedRead, config: &SangerEvidenceConfig) -> Res
             // other than a neighbour's tail or a dye blob leaves it
             // unexplained.
             let peak = second.get(index).copied().flatten();
-            let stands_out = peak.is_some_and(|peak| peak.stands_out);
+            let stands_out = peak.is_some_and(|peak| peak.second.stands_out);
             let artefact = peak.is_some_and(explained);
             let mut evidence = CallEvidence {
                 second: second_base(call).map(|second| SecondBase {

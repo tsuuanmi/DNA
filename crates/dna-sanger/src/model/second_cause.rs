@@ -1,6 +1,7 @@
 //! Why a call shows a second peak (SRS-CALL-021): a label from the peak's
 //! own shape, kept beside the core's records and never read by the core.
 
+use dna_kernel::read_evidence::SecondBase;
 use serde::Serialize;
 
 /// The cause of a call's second peak, from its shape against the call's
@@ -52,12 +53,11 @@ impl SecondCause {
 /// A call's second peak and its cause.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SecondPeak {
-    /// The second base on the read strand: the strongest other channel.
-    pub base: char,
-    /// Its share of the call's two strongest bases (SRS-CALL-015).
-    pub share: f64,
-    /// The share exceeds `signal_processing.second_floor`.
-    pub stands_out: bool,
+    /// The second base on the read strand (the strongest other channel), its
+    /// share of the call's two strongest bases (SRS-CALL-015), and whether
+    /// the share exceeds `signal_processing.second_floor`. A call masked as
+    /// mixed without a second base has base `N` and share zero.
+    pub second: SecondBase,
     /// Why the call shows it.
     pub cause: SecondCause,
 }

@@ -253,9 +253,11 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
     let peak = |cause| {
         let mut second = vec![None; 5];
         second[2] = Some(SecondPeak {
-            base: 'C',
-            share: 0.3,
-            stands_out: cause != SecondCause::MixedStretch,
+            second: SecondBase {
+                base: 'C',
+                share: 0.3,
+                stands_out: cause != SecondCause::MixedStretch,
+            },
             cause,
         });
         second
@@ -288,9 +290,11 @@ fn an_isolated_tail_or_blob_mixed_call_is_reference_only() -> Result<()> {
     let neighbour = |cause| {
         let mut second = peak(SecondCause::DyeBlob);
         second[3] = Some(SecondPeak {
-            base: 'G',
-            share: 0.3,
-            stands_out: true,
+            second: SecondBase {
+                base: 'G',
+                share: 0.3,
+                stands_out: true,
+            },
             cause,
         });
         second
@@ -323,9 +327,11 @@ const UNEXPLAINED: [SecondCause; 3] = [
 fn stand_out(count: usize, index: usize, cause: SecondCause) -> Vec<Option<SecondPeak>> {
     let mut second = vec![None; count];
     second[index] = Some(SecondPeak {
-        base: 'C',
-        share: 0.3,
-        stands_out: true,
+        second: SecondBase {
+            base: 'C',
+            share: 0.3,
+            stands_out: true,
+        },
         cause,
     });
     second

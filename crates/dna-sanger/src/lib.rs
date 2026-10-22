@@ -7,6 +7,7 @@
 pub mod abif;
 pub mod basecalling;
 pub mod callability;
+mod channel;
 pub mod error;
 pub mod locus;
 mod median;
