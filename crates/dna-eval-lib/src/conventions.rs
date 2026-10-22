@@ -44,3 +44,17 @@ pub(crate) const ZONE_OVERRUN: i64 = 2;
 /// The default fewest reads of a batch for its own run signal
 /// (`--run-signal-batch-reads`, PROP-0009).
 pub(crate) const RUN_SIGNAL_BATCH_READS: usize = 40;
+
+/// The default share of the gated group's samples the clear samples may move
+/// by before `diff` warns (`--clear-tolerance`): one percentage point.
+pub(crate) const CLEAR_TOLERANCE: f64 = 0.01;
+
+/// The default share of the base's positions to review they may move by
+/// before `diff` warns (`--positions-tolerance`): 5 %.
+pub(crate) const POSITIONS_TOLERANCE: f64 = 0.05;
+
+/// The default points a gated measure of the simulated bench may worsen by
+/// against its baseline (`sim-bench --tolerance`): none, since the frozen
+/// cases render the same reads on every run, so any worsening is the
+/// decoder's.
+pub(crate) const SIM_BENCH_TOLERANCE: f64 = 0.0;

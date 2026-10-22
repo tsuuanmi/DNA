@@ -305,7 +305,15 @@ impl Golden {
                         Some(Class::LengthNote) => counts.blocks_length_note += 1,
                         Some(Class::TruthN) => counts.blocks_truth_n += 1,
                         Some(Class::Recheck) => counts.blocks_recheck += 1,
-                        None => {}
+                        // Omitted truth alleles are golden lines but no
+                        // ledger count.
+                        Some(
+                            Class::OmittedOther
+                            | Class::OmittedNotAnalysed
+                            | Class::OmittedTract
+                            | Class::NoteMisread,
+                        )
+                        | None => {}
                     }
                 }
                 _ => {}
@@ -424,7 +432,7 @@ pub(crate) fn build(sources: &Sources<'_>) -> Golden {
         // and written for every analysed one.
         let review = workload::of(
             &called.checks,
-            &[],
+            &workload::Differences::default(),
             sources.windows,
             &[],
             Some(sources.zones),
@@ -690,6 +698,7 @@ pub(crate) mod tests {
                 components: Vec::new(),
                 tracts: Vec::new(),
                 length_context: None,
+                not_analysed: Vec::new(),
                 rejected: index % 2,
                 alleles,
                 not_recorded: BTreeSet::new(),

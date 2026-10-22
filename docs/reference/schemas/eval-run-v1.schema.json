@@ -163,6 +163,7 @@
       "required": [
         "harness",
         "harness_version",
+        "workload_version",
         "source",
         "threads",
         "manifest",
@@ -185,6 +186,11 @@
           "description": "The harness crate's version.",
           "type": "string",
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+        },
+        "workload_version": {
+          "description": "The version of the review workload's counting (which differences are unreviewed, their classes, how a passed unit counts them) the passes and unreviewed.tsv follow; dna-eval diff refuses runs that count otherwise, or a run without it, unless forced.",
+          "type": "integer",
+          "minimum": 1
         },
         "source": {
           "description": "The checkout the harness was built from, recorded by its build script.",
@@ -368,6 +374,11 @@
         },
         "run_signal_batch_reads": {
           "description": "With `run_signal` `batch`: the fewest reads of a batch for its own run signal (`--run-signal-batch-reads`); absent otherwise.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "run_signal_failed": {
+          "description": "With `run_signal`: the samples whose analysis failed or rejected every read in the signal's first pass, which add nothing to any signal.",
           "type": "integer",
           "minimum": 0
         },
@@ -1002,6 +1013,25 @@
               ]
             }
           }
+        },
+        {
+          "if": {
+            "required": [
+              "run_signal"
+            ]
+          },
+          "then": {
+            "required": [
+              "run_signal_failed"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "run_signal_failed"
+              ]
+            }
+          }
         }
       ]
     },
@@ -1040,7 +1070,7 @@
           }
         },
         "regions": {
-          "description": "One region per sample and region of the target profile's zones: `total`, those needing a check (a check item touches one of its zones, `<kind>@<region>`), and the passed ones holding an unreviewed block's first position; overall and per region, in profile order.",
+          "description": "One region per sample and region of the target profile's zones: `total`, those needing a check (a check item touches one of its zones, `<kind>@<region>`), and the passed ones holding an unreviewed difference (a block's unreviewed position, or an omission); overall and per region, in profile order.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -1070,7 +1100,7 @@
           }
         },
         "zones": {
-          "description": "One zone per sample and zone instance of the target profile (a kind in a region): `total`, those a check item touches (the sum of `review_zone_count`), and the passed ones holding an unreviewed block's first position; overall and per zone, in the order of the summary's zone table.",
+          "description": "One zone per sample and zone instance of the target profile (a kind in a region): `total`, those a check item touches (the sum of `review_zone_count`), and the passed ones holding an unreviewed difference (a block's unreviewed position, or an omission); overall and per zone, in the order of the summary's zone table.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -1128,21 +1158,25 @@
           "minimum": 0
         },
         "unreviewed": {
-          "description": "The other samples whose unreviewed blocks start in the region or zone (by first position).",
+          "description": "The other samples with an unreviewed difference in the region or zone.",
           "$ref": "#/$defs/escaped"
         }
       }
     },
     "escaped": {
-      "description": "The passed samples, regions, or zones that hold an unreviewed difference block (one no check item overlaps): in all, and split by the most severe class of their blocks. A block is re-check when the run's `recheck` list names a span it overlaps for its sample, else truth N when the truth writes `N` in it or every difference is an insertion past the truth's analysed interval (anchored at its last base), else length note when it lies in a profile length tract and differs only in the count of the tract's base, else het when the truth writes an IUPAC code of two or three bases in it, else non-het: a DNA error that neither a heteroplasmy, a truth `N`, a tract length, nor the re-check list explains. A unit is `non_het` with a non-het block, else `truth_n_only` with a truth N block, else `het_only` with a het block, else `recheck_only` with a re-check block, else `length_note_only`; the five sum to `total`, and `recheck_only` is 0 without a `recheck` list.",
+      "description": "The passed samples, regions, or zones that hold an unreviewed difference: in all, and split by the most severe class of their differences, from the most to the least severe: `non_het`, `omitted_other`, `omitted_not_analysed`, `truth_n_only`, `het_only`, `recheck_only`, `note_misread_only`, `omitted_tract_only`, `length_note_only`. They sum to `total`, and `recheck_only` is 0 without a `recheck` list. A difference block is decided per differing position (a rule position of the `haplotype_lod` comparison inside it): a position is reviewed when a check item touches its reach (the position, or for an indel the reference run of its anchor base), and the block is unreviewed when any position is. A position the run's `recheck` list names for its sample is `recheck`; otherwise the whole block is `truth_n` when every difference is an insertion past the truth's analysed interval, and `length_note` when it lies in a profile length tract and differs only in the count of the tract's base by one; else a position is `truth_n` where the truth writes `N`, `het` where it writes an IUPAC code of two or three bases, and `non_het` anywhere else. A truth allele inside the truth's analysed interval and outside DNA's callable intervals (the strict measure's `uncovered`) that no check item touches is omitted from the report: `omitted_not_analysed` in a stretch DNA did not analyse, `omitted_tract` in a profile length tract under a `tract_length` note whose reading (or convention reading) is the truth's count of the tract's base, `note_misread` there when it is not, and `omitted_other` anywhere else.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "total",
         "non_het",
+        "omitted_other",
+        "omitted_not_analysed",
         "het_only",
         "truth_n_only",
         "recheck_only",
+        "note_misread_only",
+        "omitted_tract_only",
         "length_note_only"
       ],
       "properties": {
@@ -1151,6 +1185,14 @@
           "minimum": 0
         },
         "non_het": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_other": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_not_analysed": {
           "type": "integer",
           "minimum": 0
         },
@@ -1163,6 +1205,14 @@
           "minimum": 0
         },
         "recheck_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "note_misread_only": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "omitted_tract_only": {
           "type": "integer",
           "minimum": 0
         },
@@ -1897,7 +1947,7 @@
       }
     },
     "unreviewed": {
-      "description": "One row per sample and `haplotype_lod` difference block that no check item overlaps, in `sample_id` then block order: its first and last anchors (1-based), its text as in `scores.tsv` `unreviewed`, its class as the pass measures split it (the first that applies: the re-check list, truth `N`, a length note, a truth heteroplasmy, else a non-het DNA error), the review zone that holds its first anchor, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it.",
+      "description": "One row per sample and unreviewed difference, in `sample_id` order, then the blocks in block order (one row per zone that holds an unreviewed position of the block), then the omitted truth alleles: its first and last anchors (1-based; an omission's anchor twice), its text (the block as in `scores.tsv` `unreviewed`, or the omitted allele as the truth writes it), its class as the pass measures split it, its class without the re-check list, the review zone that holds its positions, and whether a check item touches that zone. `dna-eval diff` counts the passes of two runs from it. A difference block is decided per differing position (a rule position of the `haplotype_lod` comparison inside it): a position is reviewed when a check item touches its reach (the position, or for an indel the reference run of its anchor base), and the block is unreviewed when any position is. A position the run's `recheck` list names for its sample is `recheck`; otherwise the whole block is `truth_n` when every difference is an insertion past the truth's analysed interval, and `length_note` when it lies in a profile length tract and differs only in the count of the tract's base by one; else a position is `truth_n` where the truth writes `N`, `het` where it writes an IUPAC code of two or three bases, and `non_het` anywhere else. A truth allele inside the truth's analysed interval and outside DNA's callable intervals (the strict measure's `uncovered`) that no check item touches is omitted from the report: `omitted_not_analysed` in a stretch DNA did not analyse, `omitted_tract` in a profile length tract under a `tract_length` note whose reading (or convention reading) is the truth's count of the tract's base, `note_misread` there when it is not, and `omitted_other` anywhere else.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1916,6 +1966,7 @@
             "last",
             "block",
             "class",
+            "class_unlisted",
             "zone",
             "zone_checked"
           ]
@@ -1931,6 +1982,7 @@
               "last",
               "block",
               "class",
+              "class_unlisted",
               "zone",
               "zone_checked"
             ],
@@ -1940,7 +1992,7 @@
                 "$ref": "#/$defs/text"
               },
               "first": {
-                "description": "The block's first anchor, 1-based.",
+                "description": "The block's first anchor, or the omitted allele's anchor, 1-based; a block has one row per zone holding its unreviewed positions.",
                 "$ref": "#/$defs/count"
               },
               "last": {
@@ -1948,21 +2000,38 @@
                 "$ref": "#/$defs/count"
               },
               "block": {
-                "description": "The block, `<first>-<last>[+]:<dna>/<truth>` as in `scores.tsv`.",
+                "description": "The block's text as in `scores.tsv` `unreviewed`, or the omitted truth allele (`73G`, `309.1C`).",
                 "$ref": "#/$defs/nonempty"
               },
               "class": {
-                "description": "`non_het`, `het`, `truth_n`, `recheck` (the re-check list names it), or `length_note` (it differs only in the length of a profile length tract, the structure equal; reported, never gated).",
+                "description": "The class (see the table's description); `non_het`, `omitted_other`, and `omitted_not_analysed` gate `dna-eval diff` by default.",
                 "enum": [
                   "non_het",
-                  "het",
+                  "omitted_other",
+                  "omitted_not_analysed",
                   "truth_n",
+                  "het",
                   "recheck",
+                  "note_misread",
+                  "omitted_tract",
+                  "length_note"
+                ]
+              },
+              "class_unlisted": {
+                "description": "The class without the re-check list: `class`, or for a `recheck` row the class it would take.",
+                "enum": [
+                  "non_het",
+                  "omitted_other",
+                  "omitted_not_analysed",
+                  "truth_n",
+                  "het",
+                  "note_misread",
+                  "omitted_tract",
                   "length_note"
                 ]
               },
               "zone": {
-                "description": "The review zone (`kind@region`) holding the block's first anchor; `.` outside every zone.",
+                "description": "The review zone (`kind@region`) holding the unreviewed positions this row counts, or the omitted allele's anchor; `.` outside every zone.",
                 "type": "string",
                 "pattern": "^([a-z_]+@([A-Z0-9]+|[0-9]+-[0-9]+)|\\.)$"
               },
@@ -2715,7 +2784,7 @@
     },
     "failure": {
       "type": "string",
-      "pattern": "^((trace|rejected|dna|panic|notation|truth_missing|reference): .*)?$"
+      "pattern": "^((trace|duplicate_trace|rejected|dna|panic|notation|truth_missing|reference): .*)?$"
     },
     "zones": {
       "description": "`<kind>@<region>`, space-separated.",

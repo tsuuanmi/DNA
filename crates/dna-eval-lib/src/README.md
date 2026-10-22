@@ -43,7 +43,8 @@ describes them.
   `cache`, `bench`, `sim-bench`, `regress`) and run orchestration: the options that
   run DNA (`DnaOptions`, shared by `run`, `bench`, and `regress check`) and
   count the review workload (`ReviewOptions`, shared by `run` and `regress
-  check`), a panel's inputs loaded and checked before DNA runs (`Loaded`),
+  check`), the run signal options (`SignalOptions`, shared by `run` and
+  `bench`), a panel's inputs loaded and checked before DNA runs (`Loaded`),
   and DNA's outcomes over them with the caches and run contexts it read
   (`Ran`), which `run` and `regress check` share.
 - `rundir.rs` — the run directory: its file names, the run header
@@ -63,7 +64,8 @@ describes them.
   the outcome DNA must keep there), judges each case from DNA's alleles,
   check items, and callable intervals for its sample, and reports `BENCH
   FAIL` when a guarded case regresses; known failures are reported, not
-  gated. It runs DNA with `run`'s options, the run contexts included. The
+  gated. It runs DNA with `run`'s options, the run contexts and run signal
+  included. The
   case list names samples, so it stays under `results/`.
 - `regress/` — `dna-eval regress`: the versioned regression set, its golden
   output, intents, verdict, and ledger ([regress](regress/README.md)).
@@ -75,7 +77,8 @@ describes them.
   truth. It reports the measures per tract and noise level against the
   committed baseline of the set's size: `baselines/sim-bench.tsv` for the
   gating set (60 reads per cell), `baselines/sim-bench-smoke.tsv` for the
-  smoke set (6).
+  smoke set (6), read strictly, and gives a verdict: `SIM-BENCH FAIL` when
+  a gated measure of a cell worsens beyond the tolerance.
 - `manifest.rs` — panel manifests: header fields, body hash, sample rows, and
   the optional `retired`, `truth_digest`, and `batch_date` columns; the
   validated `Month` (`YYYY-MM`) a batch date and `--current-since` parse
@@ -84,15 +87,17 @@ describes them.
 - `truth.rs` — reviewer truth from the lab's statistics database, opened
   read-only with `rusqlite`; the sample and panel truth digests and the check
   of a panel's recorded truth.
-- `runner.rs` — the scoped thread pool that removes repeated traces and runs
-  DNA per sample, with typed failures, in sample order, and takes the
-  positions where a read shows a second base at the limit of detection. With
-  `run --run-signal` it first builds a run signal per batch and per batch
-  month from every sample's admitted reads, then runs again with each
-  sample's review judged against its group's signal. With `run
-  --run-context` it reads each batch's `dna.run_context/v1` from the
-  directory (`contexts`) and rebuilds each sample's consensus under its
-  batch's context; `main.rs` writes the coverage (`run_context.tsv`).
+- `runner.rs` — the scoped thread pool that runs DNA per sample, with typed
+  failures (a trace given twice fails the sample, ADR-0090), in sample
+  order, and takes the positions where a read shows a second base at the
+  limit of detection and the stretches DNA did not analyse. With
+  `--run-signal` it first builds a run signal per batch and per batch month
+  from every sample's admitted reads, counting the samples that add
+  nothing, then runs again with each sample's review judged against its
+  group's signal. With `--run-context` it reads each batch's
+  `dna.run_context/v1` from the directory (`contexts`) and rebuilds each
+  sample's consensus under its batch's context; `lib.rs` writes the
+  coverage (`run_context.tsv`).
 - `geometry.rs` — the target geometry, read once from the configuration's
   target profile: the reportable regions (named `HV1`, `HV2`, … in the
   profile's order) that bound the comparison, the callable yield, the
@@ -125,13 +130,15 @@ describes them.
   ([cause](cause/README.md)).
 - `estimate.rs` — stratified weighted rates with their variance and 95 % intervals.
 - `workload.rs` — the review workload: windows over the HV regions, each
-  sample's positions to review and unreviewed difference blocks from `dna
-  review`'s check items (`SampleAnalysis::review_list`), forced-window
-  lists, the Wilson bound of `windows.tsv`, and what passes without review
-  (samples, regions, and zones no check item touches, and the passed ones
-  with an unreviewed block by the class of their blocks: non-het, truth N,
-  het, re-check, or length note) for the summary and `run.json`. The
-  counting is `PassSample`'s, which `diff` counts a run's files with too.
+  sample's positions to review and unreviewed differences from `dna
+  review`'s check items (`SampleAnalysis::review_list`), decided per
+  differing position, and the truth alleles its report omits;
+  forced-window lists, the Wilson bound of `windows.tsv`, and what passes
+  without review (samples, regions, and zones no check item touches, and
+  the passed ones with an unreviewed difference by the class of their
+  differences) for the summary and `run.json`. The counting is
+  `PassSample`'s, which `diff` counts a run's files with too. `report.rs`
+  gives it each block's differing positions and each omission.
 - `recheck.rs` — the re-check list of `run --recheck`: the difference blocks
   whose truth is under re-check, per sample and span, that the pass
   measures count in their own class.
@@ -160,10 +167,10 @@ describes them.
 - `zones.rs` — the review zones of the target profile's regions (repeat
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
-- `report.rs` — scores, estimates, anchors, the unreviewed blocks
-  (`unreviewed.tsv`), and the Markdown summary; a row's unreviewed blocks
-  and cause cells as these files write them, which the regression set's
-  golden output reads too.
+- `report.rs` — scores, estimates, anchors, the unreviewed differences
+  (`unreviewed.tsv`), and the Markdown summary; a row's unreviewed
+  differences and cause cells as these files write them, which the
+  regression set's golden output reads too.
 - `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
   of a panel as a manifest of its own, every stratum kept, for a first-pass
   `diff`; a pre-filter, never the gate.
@@ -172,10 +179,12 @@ describes them.
   measure different things, a sample scored twice, or files that count
   other passes than their `run.json` records over all samples or the
   current data; it counts the passes per group (all, period, source) and
-  zone with the review workload's counting, and gives the verdict
-  that gates a probe on non-het blocks in the current period alone (all
-  samples when the runs record no current-data month); het blocks, the
-  earlier period, and the sources are reported only.
+  zone with the review workload's counting, and gives the verdict: in the
+  current period alone (all samples when the runs record no current-data
+  month), per zone kind, the escapes of a gated class in a passed zone it
+  adds and removes, failing when it adds more, with the same gate without
+  the re-check list, a workload warning, and the samples not counted on one
+  side; the rest is reported only.
 - `error.rs` — failures that stop a run.
 - `contract.rs` — test support: the `dna.eval_run/v1` schema, read so the
   tests check each table's header and cells, and `run.json`'s fields, as the

@@ -1,6 +1,6 @@
 ---
 implements: [SRS-ALN, SRS-API, SRS-CALL, SRS-COMPAT, SRS-CONS, SRS-NOM, SRS-SAMPLE]
-decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082, ADR-0087]
+decided-by: [ADR-0065, ADR-0069, ADR-0075, ADR-0076, ADR-0077, ADR-0082, ADR-0087, ADR-0090]
 ---
 
 # Evaluation harness
@@ -62,7 +62,8 @@ recommendation 5; [[engineering/improvement-method#6. Panels and their uses]]).
 
 ```bash
 cargo run --release -p dna-eval -- diff --base <run-directory> --run <run-directory> \
-  [--output <new-directory>] [--force]
+  [--output <new-directory>] [--force] [--gate <class,...>] \
+  [--clear-tolerance <share>] [--positions-tolerance <share>]
 ```
 
 `diff` compares a candidate run with a base run of the same panel from
@@ -71,18 +72,17 @@ their directories alone, and gates it.
 - **Comparability.** Both runs must record the same manifest body, truth
   digest, re-check list, current-data month, review window, zone widths,
   reference and profile (their SHA-256 in `identities`), run signal grouping
-  and batch reads, and run contexts (their digest), each from a clean build;
-  the configuration may differ, since a candidate changes it. The manifest
-  the base run names must still hash to the body it recorded, since the
-  periods and sources are read from it. Otherwise `diff` refuses, or with
-  `--force` it
-  compares and warns at the top of the report.
+  and batch reads, and run contexts (their digest), each from a clean build,
+  and this harness's workload counting version (`workload_version`; a run of
+  an earlier harness records none); the configuration may differ. The
+  manifest the base run names must still hash to the body it recorded.
+  Otherwise `diff` refuses, or with `--force` compares and warns at the top.
 - **Reading.** It reads each run's `run.json`, `scores.tsv`, and
   `unreviewed.tsv` strictly: a missing or unparsable header field, a table
   without a column `diff` reads or with a column twice, a row of another
   width, a sample scored twice, an unknown block class, or a block whose
   `zone_checked` disagrees with its sample's `review_zones` stops the
-  comparison.
+  comparison. `class_unlisted` is optional, for a run that predates it.
 - **Counting.** From each run's `scores.tsv` and `unreviewed.tsv`, it counts
   the passes with the review workload's own counting, as the run's summary
   does: a passed unit counts under its most severe unreviewed block. It
@@ -96,10 +96,12 @@ their directories alone, and gates it.
 
 The report (`diff.md`) shows, before and after:
 
-- **Samples:** samples, clear samples, samples with a non-het unreviewed
-  block and those whose only unreviewed blocks are het, passed samples by
-  their most severe block (length notes reported, never gated), and
-  positions to review.
+- **Samples:** samples, clear samples, samples with a non-het unreviewed block
+  and those whose only unreviewed blocks are het, passed samples by their most
+  severe difference, and positions to review; reported, never gated.
+- **Gate:** per zone kind in the gated group, the zones newly passed
+  (`n_new`) and the escapes added (`b`), removed (`c`), and carried; then the
+  same without the re-check list (`class_unlisted`).
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -118,15 +120,32 @@ period. A sample without a `batch_date` is in no period and does not gate.
 When the runs record no current-data month, the verdict reads all samples.
 The report names the group under **Verdict**.
 
-The verdict is `GATE FAIL`, with exit status 2, when in that group more
-passed samples carry a non-het block, more samples carry a non-het
-unreviewed block, or more passed units of any zone carry a non-het block. It
-also fails when the samples that failed to score in that group differ
-between the runs, whatever the cause (the change, or a transient read
-error): the group then holds different samples. Failures that differ only
-outside it are a warning. Heteroplasmy is optional (user decision): het
-blocks are reported, beside re-check and truth-`N` blocks, and never gate.
+The gate compares sets, not counts (evaluation validity review,
+recommendation 1, approved 2026-10-21). An escape is a sample's unreviewed
+difference of a gated class in a zone no check item touches, keyed by the
+sample, the zone, the block's text (or the omitted allele), and the class,
+over the samples both runs count. The verdict is `GATE FAIL`, with exit
+status 2, when in that group the run adds more escapes than it removes in
+any zone kind (`b > c`; a removal in one kind never pays for an addition in
+another, user decision 2026-10-22). Every new escape is listed under
+**Verdict**, to be adjudicated before a merge, also when the gate passes. It also fails when the samples the runs
+could not count in that group differ, whatever the cause (the change, a
+side left without an allele, or a transient read error): the group then
+holds different samples. Differences only outside it are a warning.
 Otherwise it is `GATE PASS`.
+
+- **Gated classes** (`--gate`, comma-separated `unreviewed.tsv` labels): by
+  default `non_het`, `omitted_other`, and `omitted_not_analysed` (an omission
+  not analysed needs a check, user decision 2026-10-22); length notes,
+  omitted tracts, misread notes, het, truth `N`, and re-check gate only when named.
+- **Without the re-check list.** The verdict gives `b`, `c`, and the gate
+  from each escape's class without the list, reported, not gated: a candidate
+  that passes only through rows added after its own failure has not passed
+  (validity review, recommendation 2).
+- **Warnings** under **Verdict**: the gated group's clear samples moving by
+  more than `--clear-tolerance` of its samples (0.01), its positions to
+  review by more than `--positions-tolerance` of the base's (0.05), and
+  newly uncovered truth alleles.
 
 ### Same outputs
 
@@ -160,12 +179,13 @@ the base and the candidate on the same subset and compare them with `diff`.
 it must still pass `diff` on the full development panel before a pull
 request.**
 
-`bench` checks adjudicated artefact cases before any panel run:
-[[validation/artefact-bench]]. `sim-bench` measures the tract decoder on
-simulated length mixtures against the committed baseline:
-[[validation/simulated-bench]]. `regress check` compares a build's output on
-the frozen regression set with the head of its version ledger, and `regress
-record` appends a checked run of `main` to it: [[validation/regression-set]].
+`bench` checks adjudicated artefact cases before any panel run, with
+`run`'s options for running DNA: [[validation/artefact-bench]]. `sim-bench`
+measures the tract decoder on simulated length mixtures against the
+committed baseline: [[validation/simulated-bench]]. `regress check` compares
+a build's output on the frozen regression set with the head of its version
+ledger, and `regress record` appends a checked run of `main` to it:
+[[validation/regression-set]].
 
 `run`, `bench`, and `regress check` take one set of options for running DNA
 (`--config`, `--reference`, `--threads`, `--evidence-cache`,
@@ -282,17 +302,18 @@ version is due. A manifest without a digest (versions 1 and 2) reports
 
 ## Running DNA
 
-For each sample the harness removes repeated trace content (keeping the first
-path of each content), then runs `dna::sample_analysis::analyze_sanger` with
-one worker and `SampleAnalysis::call`: the `consensus` then `call` workflow in
-process, with the configuration and reference given. Its notation calls become alleles (`309.1C` →
-`309.1`, `-`, `C`; `249DEL` → `249`, `A`, `-`), and the consensus reads'
-callable reference segments become DNA's intervals. Samples run on a pool of
-scoped threads (`--threads`). A sample whose traces cannot be read, that DNA
-rejects, or on which DNA panics gets a failure row; the others continue. The
-truth of the whole panel and the reference load before DNA runs, so a
-database that cannot be opened, has another schema, or fails a query, or a
-reference that cannot be read, stops the run first. The haplotype measures
+A trace given twice (two inputs of one content) fails its sample typed
+(`duplicate_trace`, ADR-0090). Each other sample runs
+`dna::sample_analysis::analyze_sanger` with one worker and
+`SampleAnalysis::call`: the `consensus` then `call` workflow in process, with
+the configuration and reference given. Its notation calls become alleles
+(`309.1C` → `309.1`, `-`, `C`; `249DEL` → `249`, `A`, `-`), and the consensus
+reads' callable reference segments become DNA's intervals. Samples run on a
+pool of scoped threads (`--threads`). A sample whose traces cannot be read,
+that DNA rejects, or on which DNA panics gets a failure row; the others
+continue. The truth of the whole panel and the reference load before DNA runs,
+so a database that cannot be opened, has another schema, or fails a query, or
+a reference that cannot be read, stops the run first. The haplotype measures
 compare on that reference sequence; a sample that DNA analyses on another
 sequence gets a failure row (kind `reference`).
 
@@ -395,7 +416,9 @@ pass analyses every sample and adds its admitted reads' contributions
 (`SampleAnalysis::signal_contributions`) to its groups' run signals: its
 manifest `batch` and its batch month (`batch_date`, `unknown` without one).
 A second pass runs DNA again and reviews each sample against its group's
-signal, the sample's own reads taken out. With `batch`, a sample uses its
+signal, the sample's own reads taken out. A sample the first pass cannot
+analyse, or whose reads are all rejected, adds to no signal; `run.json`
+counts them (`run_signal_failed`). With `batch`, a sample uses its
 batch's signal when that batch has at least `--run-signal-batch-reads` reads
 (default 40), otherwise its month's; with `month`, always its month's. The
 manifest's batch stands for the laboratory's run, which the panel does not
@@ -455,7 +478,7 @@ or to which files a run writes, is a new contract version
 | `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
 | `notes.tsv` | always | per sample, `dna review` item, and run its `tract_length` label notes: the tract, the run, its status, DNA's length, the reading, and the convention's reading |
-| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check, length note), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
+| `unreviewed.tsv` | always | per sample, unreviewed difference (a `haplotype_lod` block, or a truth allele the report omits), and zone holding its unreviewed positions: its anchors and text, its class as the pass measures split it ([[validation/evaluation-workload]]) with and without the re-check list, the zone, and whether a check item touches it; `dna-eval diff` counts the passes from it |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure |

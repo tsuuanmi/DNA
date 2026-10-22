@@ -12,7 +12,9 @@ use std::fmt::Write as _;
 use crate::cause::forms::Forms;
 use crate::cause::{self, Cause, Finding, Scope};
 use crate::classes::{Discrepancy, StatusClass};
-use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Side, Yield};
+use crate::compare::{
+    self, Allele, Comparison, Concordance, Failure, Measure, Reason, Side, Yield,
+};
 use crate::conventions;
 use crate::estimate::{self, Estimate, Observation};
 use crate::geometry::{Geometry, Window as RepeatWindow};
@@ -319,19 +321,23 @@ impl Metric {
 
 /// The header of `unreviewed.tsv`.
 pub(crate) const UNREVIEWED_HEADER: &str =
-    "sample_id\tfirst\tlast\tblock\tclass\tzone\tzone_checked\n";
+    "sample_id\tfirst\tlast\tblock\tclass\tclass_unlisted\tzone\tzone_checked\n";
 
-/// One unreviewed difference block of a row, as `unreviewed.tsv` writes it.
+/// One unreviewed difference of a row (a block or an omitted truth allele)
+/// in one zone, as `unreviewed.tsv` writes it.
 pub(crate) struct UnreviewedBlock<'r> {
     /// The row's index in [`Report::rows`].
     pub(crate) row: usize,
-    /// The block's first and last anchors, 1-based.
+    /// The block's first and last anchors, or the omitted allele's anchor,
+    /// 1-based.
     pub(crate) first: i64,
     pub(crate) last: i64,
-    /// The block's text.
+    /// The block's text, or the omitted allele's.
     pub(crate) text: &'r str,
     pub(crate) class: BlockClass,
-    /// The zone that holds its first anchor, `.` without zones.
+    /// Its class without the re-check list.
+    pub(crate) unlisted: BlockClass,
+    /// The zone that holds its unreviewed positions, `.` without zones.
     pub(crate) zone: String,
     /// `yes` when a check item touches that zone, `no` when none does, `.`
     /// without zones.
@@ -342,6 +348,8 @@ pub(crate) struct UnreviewedBlock<'r> {
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
     geometry: &'a Geometry,
+    /// The reference sequence DNA ran on.
+    reference: &'a str,
     check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
     /// Per row, its cause and findings.
@@ -369,7 +377,7 @@ struct Review {
 impl Review {
     fn of(
         rows: &[Row<'_>],
-        (window, geometry): (i64, &Geometry),
+        (window, geometry, reference): (i64, &Geometry, &str),
         (forced, zones): (Option<Vec<(i64, i64)>>, Option<Zones>),
         recheck: Option<Recheck>,
         tracts: Vec<Tract>,
@@ -380,9 +388,10 @@ impl Review {
             .map(|row| {
                 let called = row.outcome.result.as_ref().ok()?;
                 let comparison = row.comparison(Measure::HaplotypeLod).ok()?;
+                let differences = differences(row, comparison, reference, &tracts);
                 Some(workload::of(
                     &called.checks,
-                    &comparison.blocks,
+                    &differences,
                     &windows,
                     forced.as_deref().unwrap_or_default(),
                     zones.as_ref(),
@@ -428,7 +437,7 @@ impl<'a> Report<'a> {
     pub(crate) fn new(
         rows: &'a [Row<'a>],
         (geometry, check): (&'a Geometry, &'a TruthCheck),
-        (forms, reference): (&Forms, &str),
+        (forms, reference): (&Forms, &'a str),
     ) -> Self {
         let estimates = Weighting::ALL
             .into_iter()
@@ -453,12 +462,13 @@ impl<'a> Report<'a> {
         Self {
             rows,
             geometry,
+            reference,
             check,
             estimates,
             causes,
             review: Review::of(
                 rows,
-                (conventions::REVIEW_WINDOW, geometry),
+                (conventions::REVIEW_WINDOW, geometry, reference),
                 (None, None),
                 None,
                 Vec::new(),
@@ -504,7 +514,7 @@ impl<'a> Report<'a> {
     ) -> Self {
         self.review = Review::of(
             self.rows,
-            (window, self.geometry),
+            (window, self.geometry, self.reference),
             (forced, zones),
             recheck,
             tracts,
@@ -530,22 +540,25 @@ impl<'a> Report<'a> {
         files
     }
 
-    /// `unreviewed.tsv`: one row per sample and unreviewed difference block,
-    /// in sample order then block order: its anchors, its text, its class as
-    /// the pass measures split it, the zone that holds its first anchor, and
-    /// whether a check item touches that zone, so that a later comparison of
-    /// two runs (`dna-eval diff`) counts the same passes from the files.
+    /// `unreviewed.tsv`: one row per sample, unreviewed difference (a block
+    /// or an omitted truth allele), and zone, in sample order then block
+    /// order: its anchors, its text, its class as the pass measures split it
+    /// and without the re-check list, the zone that holds its unreviewed
+    /// positions, and whether a check item touches that zone, so that a later
+    /// comparison of two runs (`dna-eval diff`) counts the same passes from
+    /// the files.
     fn unreviewed(&self) -> String {
         let mut text = String::from(UNREVIEWED_HEADER);
         for block in self.unreviewed_blocks() {
             let _ = writeln!(
                 text,
-                "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
                 self.rows[block.row].sample.id,
                 block.first,
                 block.last,
                 block.text,
                 block.class.label(),
+                block.unlisted.label(),
                 block.zone,
                 block.checked,
             );
@@ -553,15 +566,15 @@ impl<'a> Report<'a> {
         text
     }
 
-    /// Every unreviewed difference block, in row order then block order, as
-    /// `unreviewed.tsv` writes them.
+    /// Every unreviewed difference per zone, in row order then block order,
+    /// as `unreviewed.tsv` writes them.
     pub(crate) fn unreviewed_blocks(&self) -> Vec<UnreviewedBlock<'_>> {
         let mut blocks = Vec::new();
         for (index, workload) in self.review.workloads.iter().enumerate() {
             let Some(workload) = workload else {
                 continue;
             };
-            for (escape, text) in workload.escapes.iter().zip(&workload.unreviewed) {
+            for escape in &workload.escapes {
                 let (zone, checked) = match (escape.zone, self.review.zones.as_ref()) {
                     (Some(instance), Some(zones)) => (
                         zones.label(instance),
@@ -577,8 +590,9 @@ impl<'a> Report<'a> {
                     row: index,
                     first: escape.first,
                     last: escape.last,
-                    text,
+                    text: &escape.text,
                     class: escape.class,
+                    unlisted: escape.unlisted,
                     zone,
                     checked,
                 });
@@ -1088,6 +1102,8 @@ impl<'a> Report<'a> {
     /// and zones that carry an unreviewed difference, by the class of their
     /// blocks; with a re-check list, the unreviewed blocks on it.
     fn pass_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
+        const SPLIT: &str = "Non-het | Omitted (other) | Omitted (not analysed) | Truth N only \
+             | Het only | Re-check only | Note misread only | Omitted tract only | Length note only";
         let Some(geometry) = &self.review.zones else {
             return;
         };
@@ -1107,11 +1123,31 @@ impl<'a> Report<'a> {
         };
         let split = |escaped: &Escaped| {
             format!(
-                "non-het {}, truth N only {}, het only {}, re-check only {}, length note only {}",
+                "non-het {}, omitted (other) {}, omitted (not analysed) {}, truth N only {}, \
+                 het only {}, re-check only {}, note misread only {}, omitted tract only {}, \
+                 length note only {}",
                 escaped.non_het,
+                escaped.omitted_other,
+                escaped.omitted_not_analysed,
                 escaped.truth_n_only,
                 escaped.het_only,
                 escaped.recheck_only,
+                escaped.note_misread_only,
+                escaped.omitted_tract_only,
+                escaped.length_note_only
+            )
+        };
+        let columns = |escaped: &Escaped| {
+            format!(
+                "{} | {} | {} | {} | {} | {} | {} | {} | {}",
+                escaped.non_het,
+                escaped.omitted_other,
+                escaped.omitted_not_analysed,
+                escaped.truth_n_only,
+                escaped.het_only,
+                escaped.recheck_only,
+                escaped.note_misread_only,
+                escaped.omitted_tract_only,
                 escaped.length_note_only
             )
         };
@@ -1121,12 +1157,17 @@ impl<'a> Report<'a> {
         let _ = write!(
             text,
             "\nPasses (a sample, region, or zone that no check item touches passes unreviewed; \
-             a difference block counts for the region of its first position. A block is \
-             re-check when the re-check list names it, else truth N when the truth writes `N` \
-             in it, else length note when it differs only in the length of a profile length \
-             tract, else het when the truth writes an IUPAC code of two or three bases in it, \
-             else non-het; a passed unit counts under its most severe block, in the order \
-             non-het, truth N, het, re-check, length note; length notes are never gated):\n\n\
+             a difference is decided per differing position and counts for the zone of each \
+             unreviewed position, and for the region holding it. A position the \
+             re-check list names is re-check, else truth N when the truth writes `N` there or the \
+             block is an insertion past the truth's interval, else length note when the block \
+             differs only in the length of a profile length tract by one, else het when the \
+             truth writes an IUPAC code of two or three bases there, else non-het. A truth \
+             allele the report omits (outside DNA's callable intervals, no check item over it) \
+             is omitted: not analysed, tract (under a note whose reading is the truth's \
+             length), note misread, or other. A passed unit counts under its most severe \
+             difference, in the order non-het, omitted (other), omitted (not analysed), truth N, \
+             het, re-check, note misread, omitted tract, length note):\n\n\
              | Measure | Value |\n|---|---:|\n\
              | Auto-pass samples (no check item) | {} of {} ({:.2} %) |\n\
              | Auto-pass samples with an unreviewed difference | {} ({:.2} % of them): {} |\n\
@@ -1168,49 +1209,41 @@ impl<'a> Report<'a> {
                 "| Unreviewed blocks on the re-check list | {listed} |"
             );
         }
-        text.push_str(
-            "\n| Region | Needing a check | Passed | Passed with an unreviewed difference \
-             | Non-het | Truth N only | Het only | Re-check only | Length note only |\n\
-             |---|---:|---:|---:|---:|---:|---:|---:|---:|\n",
+
+        let _ = write!(
+            text,
+            "\n| Region | Needing a check | Passed | Passed with an unreviewed difference | {SPLIT} \
+             |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n",
         );
         for region in &regions.by_region {
             let _ = writeln!(
                 text,
-                "| {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} | {} |",
+                "| {} | {} ({:.2} %) | {:.2} % | {} | {} |",
                 region.name,
                 region.checked,
                 percent(region.checked, region.total),
                 percent(region.total - region.checked, region.total),
                 region.unreviewed.total,
-                region.unreviewed.non_het,
-                region.unreviewed.truth_n_only,
-                region.unreviewed.het_only,
-                region.unreviewed.recheck_only,
-                region.unreviewed.length_note_only,
+                columns(&region.unreviewed),
             );
         }
         let table = |text: &mut String, label: &str, units: &[Unit]| {
             let _ = write!(
                 text,
                 "\n| {label} | Zones | Needing a check | Passed | Passed with an unreviewed \
-                 difference | Non-het | Truth N only | Het only | Re-check only | Length note \
-                 only |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
+                 difference | {SPLIT} |\n|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n"
             );
             for unit in units {
                 let _ = writeln!(
                     text,
-                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} ({:.2} %) | {:.2} % | {} | {} |",
                     unit.name,
                     unit.total,
                     unit.checked,
                     percent(unit.checked, unit.total),
                     percent(unit.total - unit.checked, unit.total),
                     unit.unreviewed.total,
-                    unit.unreviewed.non_het,
-                    unit.unreviewed.truth_n_only,
-                    unit.unreviewed.het_only,
-                    unit.unreviewed.recheck_only,
-                    unit.unreviewed.length_note_only,
+                    columns(&unit.unreviewed),
                 );
             }
         };
@@ -1315,8 +1348,9 @@ impl<'a> Report<'a> {
 
     /// The zones to check of `samples`: per sample (mean, median, 90th
     /// percentile, none), the items that touch more than one zone, the
-    /// samples with a check in each zone, the unreviewed blocks by the zone
-    /// of their first position.
+    /// samples with a check in each zone, the unreviewed differences by zone
+    /// kind (a block once per zone holding its unreviewed positions, an
+    /// omission in the zone of its anchor).
     fn zone_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
         let Some(zones) = &self.review.zones else {
             return;
@@ -1958,6 +1992,216 @@ fn labels(reasons: &BTreeSet<Reason>) -> String {
         .join(",")
 }
 
+/// The reference stretch a check item must touch to review a difference at
+/// `position`: its anchor, or for an indel the reference run of the anchor's
+/// base around it, where the indel may lie written elsewhere.
+fn reach(position: &str, indel: bool, reference: &[u8]) -> Option<(i64, i64)> {
+    let anchor = compare::anchor(position)?;
+    if !indel {
+        return Some((anchor, anchor));
+    }
+    let at = |position: i64| {
+        usize::try_from(position - 1)
+            .ok()
+            .and_then(|index| reference.get(index))
+    };
+    let Some(&base) = at(anchor) else {
+        return Some((anchor, anchor));
+    };
+    let (mut first, mut last) = (anchor, anchor);
+    while at(first - 1) == Some(&base) {
+        first -= 1;
+    }
+    while at(last + 1) == Some(&base) {
+        last += 1;
+    }
+    Some((first, last))
+}
+
+/// Whether an allele is an insertion or a deletion.
+fn indel(allele: &Allele) -> bool {
+    allele.position.contains('.') || allele.reference == "-" || allele.alternate == "-"
+}
+
+/// The truth's length of `tract`'s run, counted as a note reads it: the
+/// tract's base over its window, the reference's with the truth's
+/// substitutions, deletions, and insertions there applied, and the run of
+/// that base continuing past either end of the window, as far as the
+/// tract's search window reaches (a truth `302C` lengthens the HVS-II run
+/// that starts at 303).
+fn truth_length(tract: &Tract, alleles: &[Allele], reference: &[u8]) -> i64 {
+    let first = tract.first.min(tract.search.0);
+    let last = tract.last.max(tract.search.1);
+    // The truth's sequence over `first..=last`: each reference position's
+    // base (a substitution's, none when deleted), then its inserted bases.
+    let mut sequence = Vec::new();
+    for position in first..=last {
+        let text = position.to_string();
+        let changed = alleles
+            .iter()
+            .find(|allele| allele.position == text && allele.reference != allele.alternate);
+        let base = match changed {
+            Some(allele) => allele.alternate.chars().next().filter(|base| *base != '-'),
+            None => usize::try_from(position - 1)
+                .ok()
+                .and_then(|index| reference.get(index))
+                .map(|symbol| char::from(*symbol)),
+        };
+        sequence.extend(base.map(|base| (position, base)));
+        let mut inserted = alleles
+            .iter()
+            .filter(|allele| {
+                allele.position.contains('.')
+                    && compare::anchor(&allele.position) == Some(position)
+                    && allele.alternate != "-"
+            })
+            .collect::<Vec<_>>();
+        inserted.sort_by_key(|allele| {
+            allele
+                .position
+                .split_once('.')
+                .and_then(|(_, ordinal)| ordinal.parse::<u32>().ok())
+                .unwrap_or(0)
+        });
+        sequence.extend(
+            inserted
+                .into_iter()
+                .filter_map(|allele| allele.alternate.chars().next())
+                .map(|base| (position, base)),
+        );
+    }
+    let inside = |&&(position, _): &&(i64, char)| (tract.first..=tract.last).contains(&position);
+    let count = |bases: &mut dyn Iterator<Item = &(i64, char)>| {
+        bases.take_while(|(_, base)| *base == tract.base).count()
+    };
+    let within = sequence.iter().filter(inside).collect::<Vec<_>>();
+    let mut length = within
+        .iter()
+        .filter(|(_, base)| *base == tract.base)
+        .count();
+    // The run continues past the window's first or last base when that base
+    // is the tract's.
+    if within.first().is_some_and(|(_, base)| *base == tract.base) {
+        length += count(
+            &mut sequence
+                .iter()
+                .rev()
+                .filter(|element| element.0 < tract.first),
+        );
+    }
+    if within.last().is_some_and(|(_, base)| *base == tract.base) {
+        length += count(&mut sequence.iter().filter(|element| element.0 > tract.last));
+    }
+    i64::try_from(length).unwrap_or(i64::MAX)
+}
+
+/// The class of a truth allele omitted under a tract note: the note's
+/// `reading` of the tract's length against the truth's `length`. A reading
+/// one unit off is a length note (user decision 2026-10-22); two or more
+/// units off is a DNA error, as for a block; a note without a reading says
+/// nothing of the length, so the omission is as anywhere else.
+fn noted(reading: Option<i64>, length: i64) -> BlockClass {
+    match reading.map(|reading| (reading - length).abs()) {
+        Some(0) => BlockClass::OmittedTract,
+        Some(1) => BlockClass::NoteMisread,
+        Some(_) => BlockClass::NonHet,
+        None => BlockClass::OmittedOther,
+    }
+}
+
+/// What a row's workload is measured on: its `haplotype_lod` blocks with
+/// their differing positions (the comparison's rule positions inside each),
+/// and the truth alleles its report omits (the strict measure's uncovered
+/// alleles), each with its class.
+fn differences<'r>(
+    row: &'r Row<'_>,
+    comparison: &'r Comparison,
+    reference: &str,
+    tracts: &[Tract],
+) -> workload::Differences<'r> {
+    let reference = reference.as_bytes();
+    let truth = row.truth.map_or(&[][..], |truth| truth.alleles.as_slice());
+    let indel_at = |position: &str| {
+        comparison
+            .dna_unique
+            .iter()
+            .chain(&comparison.truth_unique)
+            .any(|allele| allele.position == position && indel(allele))
+    };
+    let blocks = comparison
+        .blocks
+        .iter()
+        .map(|block| {
+            let positions = comparison
+                .positions
+                .iter()
+                .filter_map(|position| {
+                    let anchor = compare::anchor(position)?;
+                    if !(block.start..=block.end).contains(&anchor) {
+                        return None;
+                    }
+                    let symbols = truth
+                        .iter()
+                        .filter(|allele| allele.position == *position)
+                        .map(|allele| allele.alternate.as_str())
+                        .collect::<String>();
+                    Some(workload::Position {
+                        anchor,
+                        reach: reach(position, indel_at(position), reference)?,
+                        truth: BlockClass::of_truth(&symbols),
+                    })
+                })
+                .collect::<Vec<_>>();
+            (block, positions)
+        })
+        .collect();
+    let called = row.outcome.result.as_ref().ok();
+    let omissions = row
+        .comparison(Measure::Strict)
+        .ok()
+        .map(|strict| &strict.uncovered[..])
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|allele| {
+            let anchor = compare::anchor(&allele.position)?;
+            let inside = |&(first, last): &(i64, i64)| (first..=last).contains(&anchor);
+            let class = if called.is_some_and(|called| called.not_analysed.iter().any(inside)) {
+                BlockClass::OmittedNotAnalysed
+            } else if let Some((tract, note)) = tracts
+                .iter()
+                .filter(|tract| inside(&(tract.first, tract.last)))
+                .find_map(|tract| {
+                    let note = called?.notes.iter().find(|note| {
+                        note.tract == tract.name
+                            && inside(&(
+                                i64::try_from(note.first).unwrap_or(i64::MAX),
+                                i64::try_from(note.last).unwrap_or(i64::MAX),
+                            ))
+                    })?;
+                    Some((tract, note))
+                })
+            {
+                let reading = note
+                    .runs
+                    .iter()
+                    .map(|run| run.reading.or(run.convention))
+                    .sum::<Option<usize>>()
+                    .and_then(|reading| i64::try_from(reading).ok());
+                noted(reading, truth_length(tract, truth, reference))
+            } else {
+                BlockClass::OmittedOther
+            };
+            Some(workload::Omission {
+                text: allele.text(),
+                anchor,
+                reach: reach(&allele.position, indel(allele), reference)?,
+                class,
+            })
+        })
+        .collect();
+    workload::Differences { blocks, omissions }
+}
+
 /// The windows of a comparison's discordant positions.
 fn regions(geometry: &Geometry, comparison: &Comparison) -> BTreeSet<RepeatWindow> {
     comparison
@@ -1984,6 +2228,55 @@ mod tests {
     use crate::compare::Allele;
     use crate::runner::{Called, Identity, Threads};
 
+    /// The truth's run continues past the tract's window within its search
+    /// window, as the note reads it: `302C 309.1C 309.2C` is a run of 10.
+    #[test]
+    fn the_truths_run_continues_past_the_window_as_the_note_reads_it() {
+        // rCRS 300-316 (`AAACCCCCCCTCCCCCG`) at its own positions.
+        let reference = format!("{}AAACCCCCCCTCCCCCG", "N".repeat(299));
+        let tract = Tract {
+            name: "hvs2_c_tract".to_owned(),
+            first: 303,
+            last: 309,
+            base: 'C',
+            search: (302, 316),
+        };
+        let allele = |position: &str, reference: &str, alternate: &str| {
+            Allele::new(position, reference, alternate)
+        };
+        let length = |alleles: &[Allele]| truth_length(&tract, alleles, reference.as_bytes());
+        assert_eq!(&reference[299..316], "AAACCCCCCCTCCCCCG");
+        assert_eq!(length(&[]), 7);
+        assert_eq!(
+            length(&[allele("309.1", "-", "C"), allele("309.2", "-", "C")]),
+            9
+        );
+        // A truth 302C joins the run: 10, one unit from a note reading 11.
+        let joined = [
+            allele("302", "A", "C"),
+            allele("309.1", "-", "C"),
+            allele("309.2", "-", "C"),
+        ];
+        assert_eq!(length(&joined), 10);
+        assert_eq!(noted(Some(11), length(&joined)), BlockClass::NoteMisread);
+        // A note reading 1 against a run of 9 stays a DNA error.
+        assert_eq!(noted(Some(1), 9), BlockClass::NonHet);
+        // The run stops at the anchor 310T: run 2 is not counted.
+        assert_eq!(length(&[allele("315.1", "-", "C")]), 7);
+        // A deletion in the window shortens the run.
+        assert_eq!(length(&[allele("309", "C", "-")]), 6);
+    }
+
+    #[test]
+    fn an_omission_under_a_note_one_unit_off_is_a_length_note() {
+        assert_eq!(noted(Some(9), 9), BlockClass::OmittedTract);
+        assert_eq!(noted(Some(8), 9), BlockClass::NoteMisread);
+        assert_eq!(noted(Some(10), 9), BlockClass::NoteMisread);
+        assert_eq!(noted(None, 9), BlockClass::OmittedOther);
+        assert_eq!(noted(Some(7), 9), BlockClass::NonHet);
+        assert_eq!(noted(Some(12), 9), BlockClass::NonHet);
+    }
+
     fn identity() -> Identity {
         Identity {
             configuration_sha256: "c".into(),
@@ -2004,7 +2297,7 @@ mod tests {
         let second = directory.path().join("second.ab1");
         std::fs::write(&first, b"first trace")?;
         std::fs::write(&second, b"second trace")?;
-        let traces = format!("{0};{1};{0}", first.display(), second.display());
+        let traces = format!("{0};{1}", first.display(), second.display());
         let lines = (0..30)
             .map(|index| {
                 let (stratum, weight) = if index % 3 == 0 {
@@ -2076,6 +2369,7 @@ mod tests {
                 components: Vec::new(),
                 tracts: Vec::new(),
                 length_context: None,
+                not_analysed: Vec::new(),
                 rejected: index % 2,
                 alleles,
                 not_recorded: BTreeSet::new(),
@@ -2139,7 +2433,7 @@ mod tests {
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thvs_i\tdiscordant\tN\t\t\
              concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thvs_i\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
-            // Duplicate trace content is removed before DNA runs.
+            // Duplicate trace content fails the sample (ADR-0090).
             "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\t\t\t\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\

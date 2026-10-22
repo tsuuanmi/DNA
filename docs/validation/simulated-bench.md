@@ -15,7 +15,7 @@ truth, and gates every decoder change of [[PROP-0015]] beside the
 cargo run --release -p dna-eval -- sim-bench \
   --config config/dna.toml --reference references/rCRS.fasta \
   --threads <1-256> --output <new-directory> [--baseline <bench.tsv>] \
-  [--reps <n>] [--keep-traces]
+  [--reps <n>] [--keep-traces] [--tolerance <points>]
 ```
 
 ## What it measures
@@ -72,6 +72,15 @@ Measures, per tract and noise level (percentages):
 `bench.md` reports the measures with their change from the committed
 baseline of the set's size (`crates/dna-eval-lib/baselines/sim-bench.tsv` for the
 gating set, `sim-bench-smoke.tsv` for the smoke set) or from `--baseline`.
+The baseline reads strictly: a cell is a finite number or `-`, and a tract
+and noise level appear once. Against it the bench gives a verdict: `SIM-BENCH
+FAIL`, with exit status 2, when `decoded`, `structure_right`,
+`dominant_right`, or `right_given_structure` of a cell falls, or
+`clear_wrong` rises, by more than `--tolerance` points (default 0: the
+frozen cases render the same reads every run), when a cell is missing on
+either side, or when a read has no read evidence; otherwise `SIM-BENCH
+PASS`. A validation set without a committed baseline is reported, not
+gated.
 `bench.tsv` holds the measures and `cases.tsv` every case. Any other
 `--reps` is a validation run without a committed baseline.
 

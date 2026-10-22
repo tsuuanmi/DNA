@@ -13,13 +13,16 @@ cargo run --release -p dna-eval -- bench \
   --cases <cases.tsv> --manifest <panel.tsv> [--manifest <panel.tsv>...] \
   --config config/dna.toml --reference references/rCRS.fasta \
   --threads <1-256> [--evidence-cache <dir>] [--run-context <dir>] \
-  [--output <new-directory>]
+  [--run-signal batch|month [--run-signal-batch-reads <n>]] [--output <new-directory>]
 ```
 
-`--evidence-cache` and `--run-context` are `run`'s: the bench runs DNA with
-the same options, so a case under its batch's run context is judged as the
-panel run analyses it. With `--run-context`, `bench.md` names the directory,
-the batches with a context, and their digest beside the harness revision.
+`--evidence-cache`, `--run-context`, and `--run-signal` are `run`'s: the
+bench runs DNA with the same options, so a case is judged as a run with the
+same options judges its sample. With `--run-context`, its batch's context
+calibrates the consensus, and `bench.md` names the directory, the batches
+with a context, and their digest beside the harness revision; with
+`--run-signal`, the signal is built from the cases' samples alone. A sample
+with two traces of one content fails (`duplicate_trace`), as in `run`.
 
 ## What it checks
 

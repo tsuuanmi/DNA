@@ -181,6 +181,7 @@ fn failed(failure: Option<&Failure>) -> Vec<Finding> {
     let (cause, evidence) = match failure {
         Some(Failure::TruthMissing) => (Cause::Lab, "truth_missing"),
         Some(Failure::Trace { .. }) => (Cause::Lab, "unreadable_trace"),
+        Some(Failure::DuplicateTrace { .. }) => (Cause::Lab, "duplicate_trace"),
         Some(Failure::Rejected { .. }) => (Cause::Lab, "no_admitted_read"),
         Some(Failure::Dna(_) | Failure::Panic | Failure::Notation) => (Cause::Dna, "dna_failure"),
         Some(Failure::Reference { .. }) | None => (Cause::Undetermined, "failure"),

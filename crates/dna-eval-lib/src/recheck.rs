@@ -11,8 +11,6 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::haplotype::Block;
-
 /// The header of a re-check list.
 pub(crate) const HEADER: &str = "sample_id\tfirst\tlast\treason\tsource";
 
@@ -94,13 +92,6 @@ impl Recheck {
     }
 }
 
-/// Whether `block` overlaps one of `spans`, the listed spans of its sample.
-pub(crate) fn listed(block: &Block, spans: &[(i64, i64)]) -> bool {
-    spans
-        .iter()
-        .any(|&(first, last)| block.overlaps(first, last))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,14 +156,5 @@ mod tests {
                 "{text:?}: {message:?}"
             );
         }
-    }
-
-    #[test]
-    fn a_block_is_listed_when_it_overlaps_a_listed_span() {
-        let spans = [(303, 309)];
-        assert!(listed(&Block::fixture(309, 340, "C", "T"), &spans));
-        assert!(listed(&Block::fixture(300, 303, "C", "T"), &spans));
-        assert!(!listed(&Block::fixture(310, 340, "C", "T"), &spans));
-        assert!(!listed(&Block::fixture(309, 340, "C", "T"), &[]));
     }
 }

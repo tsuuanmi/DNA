@@ -67,10 +67,21 @@ Ownership of each step is in the [crate router](../../crates/README.md).
 
 - **A flag beats a wrong pass.** An error the review flags costs a reviewer a
   look; an unflagged error reaches a result.
-- **The gate** counts non-het unreviewed blocks in the current period, the
+- **The gate** compares the sets of escapes in the current period, the
   samples whose `batch_date` is at or after `--current-since`
-  ([[validation/evaluation-harness#Comparing two runs]]). A change must not
-  raise it.
+  ([[validation/evaluation-harness#Comparing two runs]]): per zone kind, the
+  non-het blocks and the truth alleles the report omits outside a noted
+  tract, in zones no check item touches, that a change adds and removes. A
+  change must not add more than it removes in any zone kind (user decision
+  2026-10-22), and every escape it adds is adjudicated before a merge.
+- **Omissions and length notes** (user decisions 2026-10-22). An allele the
+  report omits in a stretch not analysed is acceptable only under a check
+  (the review's `not_analysed` item), so an unflagged one is gated. A clear
+  sample with an ISFG/EMPOP length note (HVS-II 309/315, HVS-I 16193) stays
+  clear: length notes, omitted tract lengths whose note reads the truth,
+  and notes one unit off are reported, not gated; two or more units off is
+  non-het, and an omission under a note without a reading is gated as
+  `omitted_other`.
 - **Heteroplasmy is optional** but always reported: het changes go in every
   result, beside the gate.
 - **Measure before adopting.** An earlier blanket rule, "every `phase_shift`

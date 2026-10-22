@@ -300,6 +300,7 @@
   "run.json": {
     "harness": "dna-eval",
     "harness_version": "0.1.0",
+    "workload_version": 2,
     "source": {
       "revision": "0123456789abcdef0123456789abcdef01234567",
       "dirty": false
@@ -348,6 +349,7 @@
     "current_since": "2026-01",
     "run_signal": "batch",
     "run_signal_batch_reads": 40,
+    "run_signal_failed": 0,
     "recheck": {
       "path": "/data/recheck-blocks.tsv",
       "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
@@ -437,9 +439,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           }
         },
@@ -449,9 +455,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           },
           "by_region": [
@@ -462,9 +472,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -475,9 +489,13 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -488,9 +506,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             }
@@ -502,9 +524,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           },
           "by_zone": [
@@ -515,9 +541,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -528,9 +558,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -541,9 +575,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -554,9 +592,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -567,9 +609,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -580,9 +626,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -593,9 +643,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -606,9 +660,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -619,9 +677,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -632,9 +694,13 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -645,9 +711,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -658,9 +728,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -671,9 +745,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -684,9 +762,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -697,9 +779,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             }
@@ -713,9 +799,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           }
         },
@@ -725,9 +815,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           },
           "by_region": [
@@ -738,9 +832,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -751,9 +849,13 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -764,9 +866,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             }
@@ -778,9 +884,13 @@
           "unreviewed": {
             "total": 1,
             "non_het": 1,
+            "omitted_other": 0,
+            "omitted_not_analysed": 0,
             "het_only": 0,
             "truth_n_only": 0,
             "recheck_only": 0,
+            "note_misread_only": 0,
+            "omitted_tract_only": 0,
             "length_note_only": 0
           },
           "by_zone": [
@@ -791,9 +901,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -804,9 +918,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -817,9 +935,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -830,9 +952,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -843,9 +969,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -856,9 +986,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -869,9 +1003,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -882,9 +1020,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -895,9 +1037,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -908,9 +1054,13 @@
               "unreviewed": {
                 "total": 1,
                 "non_het": 1,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -921,9 +1071,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -934,9 +1088,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -947,9 +1105,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -960,9 +1122,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             },
@@ -973,9 +1139,13 @@
               "unreviewed": {
                 "total": 0,
                 "non_het": 0,
+                "omitted_other": 0,
+                "omitted_not_analysed": 0,
                 "het_only": 0,
                 "truth_n_only": 0,
                 "recheck_only": 0,
+                "note_misread_only": 0,
+                "omitted_tract_only": 0,
                 "length_note_only": 0
               }
             }
@@ -1004,7 +1174,7 @@
       "summary.md": "f3aa9c94270011849f0c25e7e4f63823f80580fcf456fb40497a68e4c0e463fc",
       "tracts.tsv": "50ad4ac946253d6d9a9e57de0868dd4fb86f11bd4cce452aea58f125005b7e4f",
       "truth_changes.tsv": "17806ca099a3a12c9a485563a96899d08f4933363e8c33891b53c7a1eb08ba92",
-      "unreviewed.tsv": "383c1e0026125b33c806421095266cc9116a89bfd33ef92c5c2c4cf927c5d047",
+      "unreviewed.tsv": "1299344a1b23841c59c6f2cd9a56b705a491d669cebccf4eac01d99718bda132",
       "windows.tsv": "a8ec1538798465f0d1fb2ce008bfd8eabbe5b78bbd299137a9b79767dbe8bc50"
     }
   },
@@ -1547,17 +1717,19 @@
       "last",
       "block",
       "class",
+      "class_unlisted",
       "zone",
       "zone_checked"
     ],
     "rows": [
       {
-        "sample_id": "S01",
-        "first": "309",
-        "last": "309",
-        "block": "309-309+:CC/C",
+        "sample_id": "S04",
+        "first": "150",
+        "last": "150",
+        "block": "150-150:T/C",
         "class": "non_het",
-        "zone": "window@HV2",
+        "class_unlisted": "non_het",
+        "zone": "interior@HV2",
         "zone_checked": "no"
       }
     ]

@@ -69,10 +69,11 @@ committed read-stage sources, since a plugin version does not move on a
 work-in-progress commit; `run.json` records its key and hits. Compare a probe with its base run with
 `dna-eval diff --base <run> --run <run>`: it refuses runs that measure
 different things, and exits 2 with `GATE FAIL` when, in the current period
-(`--current-since`), more samples, passed samples, or passed zones carry a
-non-het unreviewed block, or when the two runs failed on different current
-samples (rerun a side that failed transiently); het blocks and the earlier
-period are reported, not gated. Keep one cache
+(`--current-since`), the probe adds more escapes of a gated class (`--gate`,
+by default `non_het`, `omitted_other`, `omitted_not_analysed`) in passed
+zones than it removes, or when the two runs could not count different
+current samples (rerun a side that failed transiently); the other classes
+and the earlier period are reported, not gated. Keep one cache
 directory per machine; `dna-eval cache list --dir <dir>` shows its
 generations by kind and last use, and
 `dna-eval cache prune --dir <dir> --keep <n> [--dry-run]` keeps the `n` most

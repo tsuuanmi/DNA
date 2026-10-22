@@ -118,9 +118,9 @@ enum Command {
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
     /// 2 with `GATE FAIL` when, in the current period (all samples without
-    /// `--current-since`), more samples, passed samples, or passed zones
-    /// carry a non-het unreviewed block; het blocks and the earlier period
-    /// are reported, not gated.
+    /// `--current-since`), the run adds more escapes of a gated class in
+    /// passed zones than it removes, or counts a sample on one side only;
+    /// the other classes and the earlier period are reported, not gated.
     Diff(DiffArgs),
     /// Says whether two runs' outputs are byte-identical (every file but
     /// `run.json`, by SHA-256) and which files differ: exits 2 with
@@ -257,10 +257,34 @@ struct SimBenchArgs {
     /// the renderer's realism.
     #[arg(long)]
     keep_traces: bool,
+    /// Points a gated measure may worsen by against the baseline before the
+    /// bench fails.
+    #[arg(long, default_value_t = conventions::SIM_BENCH_TOLERANCE)]
+    tolerance: f64,
 }
 
-/// Runs `dna-eval sim-bench` and prints its report.
-fn sim_bench(args: &SimBenchArgs, identity: &Identity) -> Result<String> {
+/// Runs `dna-eval sim-bench`: prints the report and exits 2 when a gated
+/// measure worsens against the baseline.
+fn sim_bench(args: &SimBenchArgs, identity: &Identity) -> ExitCode {
+    match run_sim_bench(args, identity) {
+        Ok((report, failed)) => {
+            print!("{report}");
+            if failed {
+                ExitCode::from(2)
+            } else {
+                ExitCode::SUCCESS
+            }
+        }
+        Err(error) => {
+            eprintln!("dna-eval: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Runs the simulated bench, writes its files, and returns the report and
+/// whether it fails.
+fn run_sim_bench(args: &SimBenchArgs, identity: &Identity) -> Result<(String, bool)> {
     let threads = Threads::new(args.threads)?;
     let reference = dna_kernel::reference::load(&args.reference, ReferenceTopology::Linear)
         .map_err(|error| Error::Reference {
@@ -312,11 +336,64 @@ fn sim_bench(args: &SimBenchArgs, identity: &Identity) -> Result<String> {
             None => " (dirty state unknown)",
         }
     );
-    let report = simbench::report(&revision, args.reps, &rows, &outcomes, baseline.as_ref());
+    let mut report = simbench::report(&revision, args.reps, &rows, &outcomes, baseline.as_ref());
+    let failures = baseline
+        .as_ref()
+        .map(|baseline| simbench::verdict(&rows, &outcomes, baseline, args.tolerance));
+    report.push_str("\n## Verdict\n\n");
+    match &failures {
+        None => report.push_str("NO BASELINE: a validation set, not gated\n"),
+        Some(failures) if failures.is_empty() => {
+            let _ = writeln!(
+                report,
+                "SIM-BENCH PASS (tolerance {} points)",
+                args.tolerance
+            );
+        }
+        Some(failures) => {
+            let _ = writeln!(
+                report,
+                "SIM-BENCH FAIL (tolerance {} points)\n",
+                args.tolerance
+            );
+            for failure in failures {
+                let _ = writeln!(report, "- {failure}");
+            }
+        }
+    }
     write(&args.output, "bench.md", &report)?;
     write(&args.output, "bench.tsv", &simbench::table(&rows))?;
     write(&args.output, "cases.tsv", &simbench::cases_table(&outcomes))?;
-    Ok(report)
+    Ok((
+        report,
+        failures.is_some_and(|failures| !failures.is_empty()),
+    ))
+}
+
+/// The run signal options `run` and `bench` share.
+#[derive(Debug, Args)]
+struct SignalOptions {
+    /// Judge each review against a run signal (PROP-0009) built in process
+    /// from the samples: `batch` takes a sample's batch when it has at least
+    /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
+    /// the month alone. DNA then runs twice.
+    #[arg(long, value_enum)]
+    run_signal: Option<SignalGrouping>,
+    /// Fewest reads of a batch for `--run-signal batch` to use it.
+    #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
+    run_signal_batch_reads: usize,
+}
+
+impl SignalOptions {
+    /// The runner's grouping, when a run signal is asked for.
+    fn grouping(&self) -> Option<runner::Grouping> {
+        self.run_signal.map(|grouping| match grouping {
+            SignalGrouping::Month => runner::Grouping::Month,
+            SignalGrouping::Batch => runner::Grouping::Batch {
+                batch_reads: self.run_signal_batch_reads,
+            },
+        })
+    }
 }
 
 /// Arguments of `dna-eval bench`.
@@ -331,6 +408,8 @@ struct BenchArgs {
     manifest: Vec<PathBuf>,
     #[command(flatten)]
     dna: DnaOptions,
+    #[command(flatten)]
+    signal: SignalOptions,
     /// A new directory for `bench.md` and `bench.tsv`.
     #[arg(long)]
     output: Option<PathBuf>,
@@ -357,7 +436,6 @@ fn bench(args: &BenchArgs, identity: &Identity) -> ExitCode {
 
 /// Runs DNA once on each sample the cases name and judges every case.
 fn run_bench(args: &BenchArgs, identity: &Identity) -> Result<bench::Report> {
-    let threads = Threads::new(args.dna.threads)?;
     let invalid = |message: String| Error::Cases {
         path: args.cases.clone(),
         message,
@@ -410,17 +488,14 @@ fn run_bench(args: &BenchArgs, identity: &Identity) -> Result<bench::Report> {
         samples.push(sample.clone());
     }
     let reference = load_reference(&args.dna.reference)?;
-    let cache = args.dna.caches(&reference.sequence_sha256, identity)?;
-    let (contexts, contexts_sha256) = args.dna.contexts(&samples)?;
-    let outcomes = runner::run(
+    let profile = target_profile(&args.dna.config)?;
+    let ran = args.dna.run(
         &samples,
-        (&args.dna.reference, &reference.sequence_sha256),
-        &args.dna.config,
-        threads,
-        None,
-        (cache.as_ref(), &contexts),
-        &mut Vec::new(),
+        (&reference, &profile),
+        args.signal.grouping(),
+        identity,
     )?;
+    let outcomes = &ran.outcomes;
     let judged = cases
         .iter()
         .map(|case| {
@@ -446,9 +521,10 @@ fn run_bench(args: &BenchArgs, identity: &Identity) -> Result<bench::Report> {
     if let Some(directory) = &args.dna.run_context {
         let _ = write!(
             revision,
-            "; run contexts {} ({} batches, sha256 {contexts_sha256})",
+            "; run contexts {} ({} batches, sha256 {})",
             directory.display(),
-            contexts.len()
+            ran.contexts.len(),
+            ran.contexts_sha256
         );
     }
     let report = bench::report(&revision, &cases, &judged);
@@ -477,6 +553,33 @@ struct DiffArgs {
     /// with a warning in the report.
     #[arg(long)]
     force: bool,
+    /// The classes whose escapes in a passed zone gate, comma-separated
+    /// (`unreviewed.tsv` labels).
+    #[arg(
+        long,
+        value_delimiter = ',',
+        value_parser = parse_class,
+        default_value = "non_het,omitted_other,omitted_not_analysed"
+    )]
+    gate: Vec<workload::Class>,
+    /// The share of the gated group's samples the clear samples may move by
+    /// before the report warns.
+    #[arg(long, default_value_t = conventions::CLEAR_TOLERANCE)]
+    clear_tolerance: f64,
+    /// The share of the base's positions to review they may move by before
+    /// the report warns.
+    #[arg(long, default_value_t = conventions::POSITIONS_TOLERANCE)]
+    positions_tolerance: f64,
+}
+
+/// A class of `unreviewed.tsv`, by its label.
+fn parse_class(label: &str) -> std::result::Result<workload::Class, String> {
+    workload::Class::parse(label).ok_or_else(|| {
+        format!(
+            "{label:?} is not a class; expected one of {}",
+            workload::Class::ALL.map(workload::Class::label).join(", ")
+        )
+    })
 }
 
 /// Arguments of `dna-eval same`.
@@ -543,7 +646,12 @@ enum CacheAction {
 /// Runs `dna-eval diff`: prints the comparison, writes its files when asked,
 /// and exits 2 when the gate fails.
 fn diff(args: &DiffArgs) -> ExitCode {
-    let compared = rundiff::compare(&args.base, &args.run, args.force)
+    let policy = rundiff::Policy {
+        gated: args.gate.iter().copied().collect(),
+        clear_tolerance: args.clear_tolerance,
+        positions_tolerance: args.positions_tolerance,
+    };
+    let compared = rundiff::compare(&args.base, &args.run, args.force, &policy)
         .map_err(Error::from)
         .and_then(|comparison| {
             if let Some(output) = &args.output {
@@ -673,15 +781,8 @@ struct RunArgs {
     /// `diff` gates on them alone.
     #[arg(long)]
     current_since: Option<Month>,
-    /// Judge each review against a run signal (PROP-0009) built in process
-    /// from the panel: `batch` takes a sample's batch when it has at least
-    /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
-    /// the month alone. The run takes two passes.
-    #[arg(long, value_enum)]
-    run_signal: Option<SignalGrouping>,
-    /// Fewest reads of a batch for `--run-signal batch` to use it.
-    #[arg(long, default_value_t = conventions::RUN_SIGNAL_BATCH_READS)]
-    run_signal_batch_reads: usize,
+    #[command(flatten)]
+    signal: SignalOptions,
 }
 
 /// Runs the `dna-eval` command line of this process, built as `identity`
@@ -692,7 +793,7 @@ pub fn main(identity: &Identity) -> ExitCode {
         Command::Diff(args) => return diff(&args),
         Command::Same(args) => return same(&args),
         Command::Bench(args) => return bench(&args, identity),
-        Command::SimBench(args) => sim_bench(&args, identity),
+        Command::SimBench(args) => return sim_bench(&args, identity),
         Command::Regress(args) => return regress::main(&args, identity),
         Command::Run(args) => run(&args, identity),
         Command::Panel(args) => derive_panel(&args),
@@ -829,6 +930,10 @@ impl Loaded {
                 first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
                 last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
                 base: char::from(tract.base),
+                search: (
+                    i64::try_from(tract.search[0]).unwrap_or(i64::MAX),
+                    i64::try_from(tract.search[1]).unwrap_or(i64::MAX),
+                ),
             })
             .collect()
     }
@@ -850,8 +955,8 @@ pub(crate) struct Ran {
     pub(crate) cache: Option<cache::Caches>,
     pub(crate) contexts: runner::Contexts,
     pub(crate) contexts_sha256: String,
-    /// The run signal groups, with a grouping.
-    pub(crate) signal_groups: Vec<String>,
+    /// The run signal's first pass, with a grouping.
+    pub(crate) signal: Option<runner::SignalPass>,
     /// Wall time of DNA, in seconds.
     pub(crate) seconds: f64,
 }
@@ -866,22 +971,48 @@ impl Ran {
         grouping: Option<runner::Grouping>,
         identity: &Identity,
     ) -> Result<Self> {
-        let threads = Threads::new(dna.threads)?;
-        let started = Instant::now();
-        let cache = dna.caches(&loaded.reference.sequence_sha256, identity)?;
-        let (contexts, contexts_sha256) = dna.contexts(&loaded.manifest.samples)?;
-        let mut signal_groups = Vec::new();
-        let outcomes = runner::run(
+        dna.run(
             &loaded.manifest.samples,
-            (&dna.reference, &loaded.reference.sequence_sha256),
-            &dna.config,
-            threads,
+            (&loaded.reference, &loaded.profile),
             grouping,
-            (cache.as_ref(), &contexts),
-            &mut signal_groups,
+            identity,
+        )
+    }
+}
+
+impl DnaOptions {
+    /// Runs DNA over `samples` on `reference` with the target `profile`,
+    /// with each review judged against its group's run signal under
+    /// `grouping`, and checks that DNA analysed with that profile.
+    fn run(
+        &self,
+        samples: &[manifest::Sample],
+        (reference, profile): (
+            &dna_kernel::model::reference::Reference,
+            &dna_kernel::profile::Profile,
+        ),
+        grouping: Option<runner::Grouping>,
+        identity: &Identity,
+    ) -> Result<Ran> {
+        let threads = Threads::new(self.threads)?;
+        let started = Instant::now();
+        let cache = self.caches(&reference.sequence_sha256, identity)?;
+        let (contexts, contexts_sha256) = self.contexts(samples)?;
+        let (outcomes, signal) = runner::run(
+            samples,
+            &runner::Setup {
+                reference: &self.reference,
+                reference_sha256: &reference.sequence_sha256,
+                config: &self.config,
+                regions: &profile.regions,
+                threads,
+                grouping,
+                cache: cache.as_ref(),
+                contexts: &contexts,
+            },
         )?;
         let seconds = started.elapsed().as_secs_f64();
-        let analysed = &loaded.profile.identity().sha256;
+        let analysed = &profile.identity().sha256;
         if let Some(other) = outcomes
             .iter()
             .filter_map(|outcome| outcome.result.as_ref().ok())
@@ -889,22 +1020,20 @@ impl Ran {
             .find(|sha256| *sha256 != analysed)
         {
             return Err(Error::Profile {
-                path: dna.config.clone(),
+                path: self.config.clone(),
                 message: format!("DNA analysed with profile {other}, not {analysed}"),
             });
         }
-        Ok(Self {
+        Ok(Ran {
             outcomes,
             cache,
             contexts,
             contexts_sha256,
-            signal_groups,
+            signal,
             seconds,
         })
     }
-}
 
-impl DnaOptions {
     /// The evidence and placement caches, when a cache directory is given,
     /// under the stage identities of `identity`; the placement cache is
     /// keyed by the reference and the target profile too.
@@ -1013,17 +1142,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         })
         .transpose()?;
     prepare_output(&cli.output)?;
-    let ran = Ran::run(
-        &loaded,
-        &dna,
-        cli.run_signal.map(|grouping| match grouping {
-            SignalGrouping::Month => runner::Grouping::Month,
-            SignalGrouping::Batch => runner::Grouping::Batch {
-                batch_reads: cli.run_signal_batch_reads,
-            },
-        }),
-        identity,
-    )?;
+    let ran = Ran::run(&loaded, &dna, cli.signal.grouping(), identity)?;
     let (recheck, recheck_header) = loaded.recheck.take().unzip();
     let zones = loaded.zones();
     let tracts = loaded.tracts();
@@ -1076,6 +1195,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     header.forms_cache.clone_from(&loaded.forms_cache);
     header.placement_cache = ran.cache.as_ref().map(|cache| cache.placed.usage());
     header.run_context = dna.context_header(&ran);
+    header.run_signal_failed = ran.signal.as_ref().map(|pass| pass.failed);
     // Every pinned input still has its pin, so `run.json` may record the
     // inputs file.
     inputs.verify()?;
@@ -1090,12 +1210,8 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
             &rundir::context_coverage(samples, outcomes, &ran.contexts),
         )?;
     }
-    if cli.run_signal.is_some() {
-        write(
-            &cli.output,
-            rundir::SIGNALS,
-            &rundir::signals(&ran.signal_groups),
-        )?;
+    if let Some(pass) = &ran.signal {
+        write(&cli.output, rundir::SIGNALS, &rundir::signals(&pass.groups))?;
     }
     write(
         &cli.output,
@@ -1427,6 +1543,7 @@ fn header(
     RunHeader {
         harness: identity.name.to_owned(),
         harness_version: identity.version.to_owned(),
+        workload_version: Some(workload::COUNTING_VERSION),
         source: source(identity),
         threads: dna.threads,
         manifest: ManifestHeader {
@@ -1449,9 +1566,10 @@ fn header(
         reference_path: absolute(&dna.reference),
         identities: identities.into_iter().collect(),
         review_window: cli.review.review_window,
-        run_signal: cli.run_signal,
-        run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
-            .then_some(cli.run_signal_batch_reads),
+        run_signal: cli.signal.run_signal,
+        run_signal_batch_reads: (cli.signal.run_signal == Some(SignalGrouping::Batch))
+            .then_some(cli.signal.run_signal_batch_reads),
+        run_signal_failed: None,
         current_since: inputs.current_since,
         forced_windows: inputs.forced_windows.as_deref().map(absolute),
         recheck: None,

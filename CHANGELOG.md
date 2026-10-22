@@ -767,6 +767,65 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval`'s gate is hardened (user decisions 2026-10-21: the evaluation
+  reviewers' proposals approved; correctness audit F1, F2, F5, F6):
+  - **Set-based diff gate.** `dna-eval diff` compares, per zone kind in the
+    current period, the escapes of a gated class in a zone no check item
+    touches that the candidate adds (`b`) and removes (`c`), with the zones
+    it newly passes (`n_new`); it fails when `b > c` in any zone kind (user
+    decision 2026-10-22: a removal in one kind never pays for an addition in
+    another) and lists every new escape under **Verdict**, so a swap no
+    longer passes unseen. `run.json` records the workload's counting version
+    (`workload_version`), and `diff` refuses runs that count otherwise, or a
+    run of an earlier harness without it, unless forced. Passed samples with a non-het
+    block, samples with one, and zone counts are reported, not gated. The
+    gated classes are `--gate` (default `non_het`, `omitted_other`,
+    `omitted_not_analysed`); the gate is also reported without the re-check
+    list; a move of the clear samples or positions to review beyond
+    `--clear-tolerance` (0.01) or `--positions-tolerance` (0.05) and newly
+    uncovered truth alleles are warned of; samples counted on one side only
+    (failed, or a side without an allele) fail the gate.
+  - **Per-position review.** A difference block is reviewed only when a
+    check item touches each differing position (an indel's reference run);
+    its class is the most severe of its unreviewed positions, from the truth
+    there, and it counts in the zone of each. On development panel v5, 4
+    blocks a far check item reviewed become unreviewed.
+  - **Omitted truth alleles.** A truth allele outside DNA's callable
+    intervals that no check item touches is an unreviewed difference:
+    `omitted_not_analysed` (a stretch DNA did not analyse), `omitted_tract`
+    (under a tract note whose reading is the truth's length), `note_misread`
+    (one whose reading is not), or `omitted_other`. On development panel v5,
+    current data, 526 of 8,813 clear samples omit one: 117 not analysed
+    (mostly `73G`), 357 omitted tract and 48 misread notes (HVS-II), and 4
+    other. User decisions 2026-10-22: an omission in a stretch not analysed
+    is acceptable only under a check (#306 adds the `not_analysed` item), so
+    `omitted_not_analysed` gates; length notes, omitted tracts, and a note
+    one unit off (`note_misread`) are reported, not gated; a note two or
+    more units off is `non_het`, and one without a reading `omitted_other`.
+    The truth's length is its run as the note reads it, continuing past the
+    tract's window within its search window (a truth `302C` joins the HVS-II
+    run).
+  - **Length notes** are a one-unit difference only; two or more is non-het,
+    for a block and for an omission under a tract note alike.
+  - **Duplicate traces** fail the sample typed (`duplicate_trace`,
+    ADR-0090) instead of being dropped.
+  - **Run signal**: the first pass counts the samples it cannot use
+    (`run.json` `run_signal_failed`).
+  - **`bench`** takes `run`'s run signal options (`--run-signal`,
+    `--run-signal-batch-reads`), beside the options for running DNA it
+    already shares.
+  - **`regress check`**: the golden `block` lines carry the omitted truth
+    alleles and one line per zone, as `unreviewed.tsv` does; the omission
+    classes add to no ledger count, and `forbidden:escape` stays about
+    `non_het` blocks in unchecked zones.
+  - **`sim-bench`** reads its baseline strictly and gives a verdict,
+    `SIM-BENCH FAIL` with exit status 2 when a gated measure worsens beyond
+    `--tolerance` (default 0).
+  `dna.eval_run/v1` changes in place: `unreviewed.tsv` gains
+  `class_unlisted` and the omission classes and lists a block once per zone
+  of its unreviewed positions; `run.json` `workload` gains the omission
+  counts and `run_signal_failed`; a run that predates them reads with them
+  0 or absent.
 - Review rules 36 (plugin `review` 36): a stretch at a reportable region's
   end that the call does not analyse (SRS-CONS-012), touching stretches
   merged, is now one check item labelled `not_analysed` with its reasons and

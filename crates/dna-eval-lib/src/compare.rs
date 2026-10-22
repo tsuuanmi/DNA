@@ -741,8 +741,11 @@ pub(crate) fn texts(alleles: &[Allele]) -> String {
 /// Why a sample has no comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Failure {
-    /// A trace could not be read for duplicate removal.
+    /// A trace could not be read for the duplicate check.
     Trace { path: PathBuf, message: String },
+    /// A trace's content repeats an earlier trace of the sample: one trace
+    /// given twice (ADR-0090).
+    DuplicateTrace { path: PathBuf },
     /// DNA rejected every trace of the sample before the consensus.
     Rejected { reads: usize },
     /// DNA returned an error.
@@ -763,6 +766,7 @@ impl Failure {
     pub(crate) const fn kind(&self) -> &'static str {
         match self {
             Self::Trace { .. } => "trace",
+            Self::DuplicateTrace { .. } => "duplicate_trace",
             Self::Rejected { .. } => "rejected",
             Self::Dna(_) => "dna",
             Self::Panic => "panic",
@@ -779,6 +783,11 @@ impl fmt::Display for Failure {
             Self::Trace { path, message } => {
                 write!(formatter, "cannot read trace {}: {message}", path.display())
             }
+            Self::DuplicateTrace { path } => write!(
+                formatter,
+                "trace {} repeats the content of an earlier trace of the sample",
+                path.display()
+            ),
             Self::Rejected { reads } => write!(formatter, "DNA rejected every trace ({reads})"),
             Self::Dna(message) => formatter.write_str(message),
             Self::Panic => formatter.write_str("DNA panicked"),

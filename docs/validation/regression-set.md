@@ -140,7 +140,7 @@ thread count, cache state, and host.
 | `review` | truth-free | `clear`, `zones`, `positions` | `Y`/`N`; the checked zones, sorted, comma-joined; the positions to review |
 | `empop` | truth-free | `ranges`, `mitotype` | as in `scores.tsv`, when the profile declares an EMPOP query |
 | `rejected` | truth-free | `-` | the traces set aside |
-| `block` | evaluation | `first-last:<block text>` | `class zone zone_checked` of an unreviewed block, as in `unreviewed.tsv` |
+| `block` | evaluation | `first-last:<text>` of an unreviewed block or omitted truth allele | `class zone zone_checked`, one line per zone, as in `unreviewed.tsv` |
 | `status` | evaluation | each measure; `class`; `cause` | the status; the class and its regions; the cause, scope, and evidence, as in `scores.tsv` |
 
 The review lines read the check items alone, so they are truth-free and
@@ -258,8 +258,9 @@ configuration change.
   series=regress-v1`.
 
 `clear` and `with_check` count samples; `checks`, `notes`, and `alleles`
-count golden lines; the `blocks_*` count block lines by class; `escapes`
-counts the non-het blocks in unchecked zones.
+count golden lines; the `blocks_*` count block lines by class (the
+omission classes have no count); `escapes` counts the non-het blocks in
+unchecked zones.
 
 **For each output-changing pull request:**
 

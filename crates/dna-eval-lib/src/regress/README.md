@@ -3,7 +3,7 @@
 `dna-eval regress`: the versioned regression set
 ([regression set](../../../../docs/validation/regression-set.md)). `check`
 runs DNA on a `panel=regress` manifest through the harness's shared run
-(`Loaded`, `Ran`, and the report of `main.rs` and `report.rs`), writes the
+(`Loaded`, `Ran`, and the report of `lib.rs` and `report.rs`), writes the
 golden output, and judges it against the head of the version ledger;
 `record` appends a checked run of `main` to the ledger. It reads the facade's
 plugin registry (`dna::plugins()`) and the contracts `build.rs` records for

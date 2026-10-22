@@ -62,6 +62,12 @@ pub(crate) const NOTES_HEADER: &str =
 pub(crate) struct RunHeader {
     pub(crate) harness: String,
     pub(crate) harness_version: String,
+    /// The version of the workload's counting
+    /// ([`crate::workload::COUNTING_VERSION`]) the run's passes and
+    /// `unreviewed.tsv` classes follow; absent in a run of a harness before
+    /// it, whose classes `diff` cannot compare.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) workload_version: Option<u32>,
     pub(crate) source: Source,
     pub(crate) threads: usize,
     pub(crate) manifest: ManifestHeader,
@@ -83,6 +89,10 @@ pub(crate) struct RunHeader {
     /// `run_signal` `batch`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) run_signal_batch_reads: Option<usize>,
+    /// With a run signal: the samples whose analysis failed or rejected every
+    /// read in the signal's first pass, which add nothing to any signal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) run_signal_failed: Option<usize>,
     /// The forced-window list the workload also counts as reviewed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) forced_windows: Option<PathBuf>,
@@ -477,31 +487,36 @@ fn failure(path: &Path, message: impl std::fmt::Display) -> DiffError {
     }
 }
 
-/// One row of a table read by [`read_table`]: its line number and the cells
-/// of the columns asked for, in the order asked.
+/// One row of a table read by [`read_table`]: its line number, the cells
+/// of the columns asked for, in the order asked, and those of the optional
+/// columns, `None` where the table lacks one.
 pub(crate) struct Line {
     pub(crate) number: usize,
     pub(crate) cells: Vec<String>,
+    pub(crate) optional: Vec<Option<String>>,
 }
 
 /// Reads the table `name` of the run in `directory`, keeping the cells of
-/// `columns` in that order. Comment lines (`# `) may come before the
-/// header only. The table must name every column of `columns`, and no
-/// column twice; every row must have as many cells as the header.
+/// `columns` and of the `optional` columns, in that order. Comment lines
+/// (`# `) may come before the header only. The table must name every column
+/// of `columns`, and no column twice; every row must have as many cells as
+/// the header.
 pub(crate) fn read_table(
     directory: &Path,
     name: &str,
     columns: &[&str],
+    optional: &[&str],
 ) -> std::result::Result<Vec<Line>, DiffError> {
     let path = directory.join(name);
     let text = fs::read_to_string(&path).map_err(|error| failure(&path, error))?;
-    parse_table(&path, &text, columns)
+    parse_table(&path, &text, columns, optional)
 }
 
 fn parse_table(
     path: &Path,
     text: &str,
     columns: &[&str],
+    optional: &[&str],
 ) -> std::result::Result<Vec<Line>, DiffError> {
     let mut lines = text
         .lines()
@@ -522,6 +537,10 @@ fn parse_table(
                 .ok_or_else(|| failure(path, format!("no column {column}")))
         })
         .collect::<std::result::Result<Vec<_>, _>>()?;
+    let optional = optional
+        .iter()
+        .map(|column| header.iter().position(|name| name == column))
+        .collect::<Vec<_>>();
     lines
         .map(|(index, line)| {
             let number = index + 1;
@@ -539,6 +558,10 @@ fn parse_table(
             Ok(Line {
                 number,
                 cells: indices.iter().map(|&at| cells[at].to_owned()).collect(),
+                optional: optional
+                    .iter()
+                    .map(|at| at.map(|at| cells[at].to_owned()))
+                    .collect(),
             })
         })
         .collect()
@@ -573,6 +596,7 @@ pub(crate) mod tests {
         RunHeader {
             harness: "dna-eval".to_owned(),
             harness_version: env!("CARGO_PKG_VERSION").to_owned(),
+            workload_version: Some(workload::COUNTING_VERSION),
             source: Source {
                 revision: Some("0".repeat(40)),
                 dirty: Some(false),
@@ -607,6 +631,7 @@ pub(crate) mod tests {
             current_since: "2026-01".parse().ok(),
             run_signal: Some(SignalGrouping::Batch),
             run_signal_batch_reads: Some(40),
+            run_signal_failed: Some(0),
             forced_windows: Some(PathBuf::from("/forced.txt")),
             recheck: Some(RecheckHeader {
                 path: PathBuf::from("/recheck.tsv"),
@@ -698,6 +723,7 @@ pub(crate) mod tests {
             current_since: None,
             run_signal: None,
             run_signal_batch_reads: None,
+            run_signal_failed: None,
             forced_windows: None,
             recheck: None,
             inputs: None,
@@ -756,7 +782,13 @@ pub(crate) mod tests {
     fn reads_the_columns_asked_for_and_refuses_a_malformed_table()
     -> std::result::Result<(), DiffError> {
         let path = Path::new("t.tsv");
-        let lines = parse_table(path, "# c\na\tb\tc\n1\t2\t3\n4\t5\t6\n", &["c", "a"])?;
+        let lines = parse_table(
+            path,
+            "# c\na\tb\tc\n1\t2\t3\n4\t5\t6\n",
+            &["c", "a"],
+            &["b", "d"],
+        )?;
+        assert_eq!(lines[0].optional, [Some("2".to_owned()), None]);
         assert_eq!(
             lines
                 .iter()
@@ -775,7 +807,7 @@ pub(crate) mod tests {
         ] {
             assert!(
                 matches!(
-                    parse_table(path, text, &["a", "c"]),
+                    parse_table(path, text, &["a", "c"], &[]),
                     Err(DiffError::Run { message: found, .. }) if found == message
                 ),
                 "{text:?}"
