@@ -12,6 +12,7 @@
 use std::ops::Range;
 
 use crate::error::{EvidenceError, Result};
+use crate::model::nucleotide::is_canonical;
 
 /// Normalized non-negative A/C/G/T evidence at one call.
 ///
@@ -475,7 +476,6 @@ impl TractLengths {
     /// [`ReadEvidence::with_tracts`] requires it.
     #[must_use]
     pub fn valid(&self, calls: usize) -> bool {
-        let base = |base: char| "ACGT".contains(base);
         let longest = self.total.lengths.last().copied().unwrap_or(0);
         let chosen = self
             .candidates
@@ -486,8 +486,10 @@ impl TractLengths {
             && self.extent > 0
             && self.window >= self.extent
             && self.call_start + self.window <= calls
-            && base(self.run)
-            && self.mark.is_none_or(|mark| base(mark) && mark != self.run)
+            && is_canonical(self.run)
+            && self
+                .mark
+                .is_none_or(|mark| is_canonical(mark) && mark != self.run)
             && self
                 .candidates
                 .first()
@@ -497,7 +499,7 @@ impl TractLengths {
                     && candidate.residual >= 0.0
                     && candidate
                         .mark
-                        .is_none_or(|mark| base(mark) && mark != self.run)
+                        .is_none_or(|mark| is_canonical(mark) && mark != self.run)
             })
             && chosen.is_some_and(|chosen| {
                 chosen.residual == self.residual

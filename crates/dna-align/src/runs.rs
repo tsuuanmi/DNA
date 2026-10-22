@@ -13,6 +13,7 @@
 //! stretch are kept.
 
 use crate::traceback::{self, RawAlignment, RawColumn};
+use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::model::reference::Reference;
 
 /// Columns between two anchors: `left` and `right` are the anchor columns and
@@ -89,7 +90,7 @@ fn run_end(reference: &Reference, mut index: usize) -> usize {
 }
 
 const fn exact(column: &RawColumn) -> bool {
-    column.query_base == column.reference_base && matches!(column.query_base, 'A' | 'C' | 'G' | 'T')
+    column.query_base == column.reference_base && is_canonical(column.query_base)
 }
 
 /// Disturbed blocks grown to whole reference runs and bounded by anchors:
@@ -282,10 +283,7 @@ fn rebuild(
         .iter()
         .filter_map(|column| column.query_index.map(|index| (index, column.query_base)))
         .collect::<Vec<_>>();
-    if !calls
-        .iter()
-        .all(|(_, call)| matches!(call, 'A' | 'C' | 'G' | 'T'))
-    {
+    if !calls.iter().all(|(_, call)| is_canonical(*call)) {
         return None;
     }
     let read = runs(calls.iter().map(|(_, call)| *call));

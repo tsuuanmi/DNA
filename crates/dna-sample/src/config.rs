@@ -8,10 +8,22 @@ use dna_kernel::error::{ConfigError, Result};
 /// Cross-read overlap admission settings used before sample consensus.
 #[derive(Debug, Clone)]
 pub struct SampleReconciliationConfig {
+    pub(crate) minimum_comparable_bases: usize,
+    pub(crate) minimum_overlap_agreement: f64,
+}
+
+impl SampleReconciliationConfig {
     /// Fewest comparable canonical bases for an admitted overlap.
-    pub minimum_comparable_bases: usize,
+    #[must_use]
+    pub const fn minimum_comparable_bases(&self) -> usize {
+        self.minimum_comparable_bases
+    }
+
     /// Smallest canonical-base agreement for an admitted overlap.
-    pub minimum_overlap_agreement: f64,
+    #[must_use]
+    pub const fn minimum_overlap_agreement(&self) -> f64 {
+        self.minimum_overlap_agreement
+    }
 }
 
 /// The `[sample_reconciliation]` section as written in the configuration.
