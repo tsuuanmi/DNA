@@ -34,6 +34,12 @@ pub struct SignalProcessingConfig {
     /// Nearest-rank quantile of a read's in-phase residuals above which a
     /// call of a phase mixture is unexplained (SRS-CALL-023).
     pub(crate) decompose_unexplained_quantile: f64,
+    /// Fewest in-phase single-channel calls a read needs to measure its own
+    /// noise before any phase mixture is fitted (SRS-CALL-023).
+    pub(crate) decompose_minimum_calls: usize,
+    /// Calls from a dephased segment's start within which the run that
+    /// opens its phase mixture must end (SRS-CALL-023).
+    pub(crate) decompose_onset_window: usize,
     /// How an electrophoretic spike is found (SRS-SIG-012).
     pub(crate) spike: SpikeParams,
 }
@@ -109,6 +115,8 @@ pub struct RawSignalProcessingConfig {
     pub(crate) second_cause_blob_width: f64,
     pub(crate) second_cause_width_calls: usize,
     pub(crate) decompose_unexplained_quantile: f64,
+    pub(crate) decompose_minimum_calls: usize,
+    pub(crate) decompose_onset_window: usize,
     pub(crate) spike_height: f64,
     pub(crate) spike_span: f64,
     pub(crate) spike_level_calls: usize,
@@ -187,6 +195,14 @@ impl RawSignalProcessingConfig {
             "signal_processing.second_cause_width_calls",
             self.second_cause_width_calls,
         )?;
+        bounds::positive_count(
+            "signal_processing.decompose_minimum_calls",
+            self.decompose_minimum_calls,
+        )?;
+        bounds::positive_count(
+            "signal_processing.decompose_onset_window",
+            self.decompose_onset_window,
+        )?;
         if !(self.spike_height.is_finite() && self.spike_height >= 1.0) {
             return Err(ConfigError::Constraint(
                 "signal_processing.spike_height must be finite and at least 1",
@@ -219,6 +235,8 @@ impl RawSignalProcessingConfig {
                 width_calls: self.second_cause_width_calls,
             },
             decompose_unexplained_quantile: self.decompose_unexplained_quantile,
+            decompose_minimum_calls: self.decompose_minimum_calls,
+            decompose_onset_window: self.decompose_onset_window,
             spike: SpikeParams {
                 height: self.spike_height,
                 span: self.spike_span,
@@ -253,6 +271,8 @@ pub(crate) fn fixture(window_size_bases: usize) -> SignalProcessingConfig {
             width_calls: 6,
         },
         decompose_unexplained_quantile: 0.99,
+        decompose_minimum_calls: 20,
+        decompose_onset_window: 16,
         spike: SpikeParams {
             height: 3.0,
             span: 1.5,
@@ -289,6 +309,8 @@ mod tests {
             second_cause_blob_width: 1.8,
             second_cause_width_calls: 6,
             decompose_unexplained_quantile: 0.99,
+            decompose_minimum_calls: 20,
+            decompose_onset_window: 16,
             spike_height: 3.0,
             spike_span: 1.5,
             spike_level_calls: 6,

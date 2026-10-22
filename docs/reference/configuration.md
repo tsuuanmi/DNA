@@ -15,11 +15,11 @@ Every command loads exactly one strict TOML file selected by `DNA_CONFIG` or `co
 
 Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions, non-finite numbers, invalid ranges, and config sources above 1 MiB are errors. No scientific value falls back silently.
 
-## Schema version 24
+## Schema version 25
 
 | Section | Key | Value | Validation |
 |---|---|---:|---|
-| root | `schema_version` | `24` | exactly 24 |
+| root | `schema_version` | `25` | exactly 25 |
 | | `profile` | `profiles/human-mtdna-rcrs.toml` | non-empty path to a [target profile](profiles.md), resolved against this file's directory when relative |
 | `basecalling` | `secondary_peak_ratio` | `0.33` | finite `(0,1]` |
 | `signal_processing` | `window_size_bases` | `10` | integer `5..=10` |
@@ -37,6 +37,8 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `second_cause_tail_offset` | `0.4` | finite and positive: offset from the call's centre, in call spacings, from which a second peak is a `neighbour_tail` or `off_centre` |
 | | `second_cause_blob_width` | `1.8` | finite and positive: multiple of the neighbouring calls' median primary width from which a centred second peak is a `dye_blob` |
 | | `decompose_unexplained_quantile` | `0.99` | finite, in `(0, 1)`: nearest-rank quantile of a read's own in-phase residuals above which a call of a phase mixture is unexplained (SRS-CALL-023) |
+| | `decompose_minimum_calls` | `20` | positive: in-phase single-channel calls a read needs to measure its own noise before any phase mixture is fitted (SRS-CALL-023) |
+| | `decompose_onset_window` | `16` | positive: calls from a dephased segment's start within which the run that opens its phase mixture ends (SRS-CALL-023) |
 | | `second_cause_width_calls` | `6` | integer at least `1`: calls on each side whose primary widths give that median |
 | | `spike_height` | `3.0` | finite, at least `1`: multiple of the local level, the median primary peak of the neighbouring calls, that every channel's apex of an electrophoretic spike reaches (SRS-SIG-012) |
 | | `spike_span` | `1.5` | finite and positive: median call spacings within which a spike's four apexes lie |
@@ -80,6 +82,7 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `end_norm_calls` | `30` | positive: last scored single-channel calls before a stop (the informative end, or a post-repeat phase loss inside it) whose medians judge the calls before the run that closes it (SRS-CALL-017) |
 | | `end_height_fraction` | `0.3` | finite and positive: smallest primary peak of such a call, against those medians (SRS-CALL-017) |
 | | `start_identity_margin` | `12` | non-negative integer: reach of the start identity rule past the callable span's start (SRS-CALL-018) |
+| | `poor_start_calls` | `12` | positive: consecutive sound calls that end a read's poor start (SRS-CALL-024) |
 | | `start_norm_calls` | `30` | positive (SRS-CALL-018) |
 | | `start_height_fraction` | `0.5` | finite and positive (SRS-CALL-018) |
 | | `start_second_share` | `0.15` | finite `[0,1]`: second-channel share below which a start call's signal is clean (SRS-CALL-018) |

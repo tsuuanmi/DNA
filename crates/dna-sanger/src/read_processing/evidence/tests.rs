@@ -66,6 +66,7 @@ fn config(margin: usize) -> SangerEvidenceConfig {
         edge_spacing_minimum: 0.5,
         edge_spacing_maximum: 1.5,
         start_identity_margin: margin,
+        poor_start_calls: margin.max(1),
         start_norm_calls: 30,
         end_norm_calls: 30,
         end_height_fraction: 0.5,

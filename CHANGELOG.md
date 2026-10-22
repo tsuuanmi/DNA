@@ -682,6 +682,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Configuration schema 25: the phase-mixture decomposition and the poor
+  start get their own keys instead of reusing other rules' keys.
+  `signal_processing.decompose_minimum_calls` (20) and
+  `signal_processing.decompose_onset_window` (16) replace
+  `callability.minimum_callable_calls` and `callability.repeat_window_calls`
+  in SRS-CALL-023, and `sanger_evidence.poor_start_calls` (12) replaces
+  `sanger_evidence.start_identity_margin` in SRS-CALL-024. The shipped
+  values are the old ones, so no call, label, or check changes; documents
+  record the new configuration digest.
 - **Breaking (Rust API):** the Sanger-only failures leave the kernel.
   `LocusWindowError` moves from `dna_kernel::error` to `dna_sanger::error`
   (still `dna::error::LocusWindowError`), and `CallEvidenceError` drops

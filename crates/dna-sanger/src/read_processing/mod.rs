@@ -310,8 +310,8 @@ fn phase_mixtures(
         &dephased,
         quality.trim_start_0based,
         config.signal_processing.decompose_unexplained_quantile,
-        config.callability.minimum_callable_calls,
-        config.callability.repeat_window_calls,
+        config.signal_processing.decompose_minimum_calls,
+        config.signal_processing.decompose_onset_window,
     )
     .unwrap_or_default()
 }
