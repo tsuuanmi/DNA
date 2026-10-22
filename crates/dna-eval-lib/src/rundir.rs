@@ -89,6 +89,9 @@ pub(crate) struct RunHeader {
     /// The re-check list the pass measures read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) recheck: Option<RecheckHeader>,
+    /// The inputs file the run's inputs came from (`--inputs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) inputs: Option<InputsHeader>,
     /// The read evidence cache the run read and filled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) evidence_cache: Option<cache::Usage>,
@@ -159,6 +162,14 @@ impl Constants {
 pub(crate) struct RunContextHeader {
     pub(crate) directory: PathBuf,
     pub(crate) batches: usize,
+    pub(crate) sha256: String,
+}
+
+/// The inputs file of `run --inputs`: its path and SHA-256. Every file it
+/// pins had its pinned SHA-256 when the run read it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct InputsHeader {
+    pub(crate) path: PathBuf,
     pub(crate) sha256: String,
 }
 
@@ -602,6 +613,10 @@ pub(crate) mod tests {
                 sha256: "b".repeat(64),
                 rows: 2,
             }),
+            inputs: Some(InputsHeader {
+                path: PathBuf::from("/inputs.toml"),
+                sha256: "d".repeat(64),
+            }),
             evidence_cache: Some(cache::Usage {
                 directory: "/cache/evidence".into(),
                 key: cache::Key {
@@ -685,6 +700,7 @@ pub(crate) mod tests {
             run_signal_batch_reads: None,
             forced_windows: None,
             recheck: None,
+            inputs: None,
             outputs: BTreeMap::new(),
             forms_cache: None,
             workload: WorkloadHeader {

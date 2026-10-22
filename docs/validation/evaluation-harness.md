@@ -30,6 +30,9 @@ cargo run --release -p dna-eval -- run \
   [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
   [--evidence-cache <dir>] [--run-context <dir>]
 
+cargo run --release -p dna-eval -- run --inputs <inputs.toml> \
+  --output <new-run-directory> --threads <1-256> [other options]
+
 cargo run --release -p dna-eval -- cache list --dir <dir>
 cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n> [--dry-run]
 
@@ -201,6 +204,33 @@ reads the batch (`samples`), the reviewed alleles (`variants`: `pos`, `ref`,
 `seq`, with `-` for an inserted or deleted base; at most 10,000 per sample),
 the analysed intervals (`intervals`), and the sample's status in its batch
 (`sample_status`). Sample flags and counts are not used.
+
+**Inputs file.** `run --inputs <file>` takes the run's inputs from one TOML
+file instead of the options, so a probe names them once and a changed or
+replaced file is refused before anything runs. `manifest`, `truth`,
+`config`, `profile`, and `reference` are required and `recheck` and
+`forced_windows` optional, each `{ path = "…", sha256 = "…" }` with the
+SHA-256 as 64 lowercase hexadecimal digits: the run stops when a file's
+SHA-256 is not the pinned one, and `profile` must be the file the
+configuration's `profile` key names. Every pinned file is checked again
+before the run writes its outputs, and a file that changed during the run
+stops it there, so `run.json` never records a pin that did not hold. `current_since`, `evidence_cache`, and
+`run_context` are optional and not pinned: the caches key themselves, and
+the run records the run contexts' digest. A relative path is resolved
+against the file's directory; unknown keys are refused, and none of these
+options may be given beside it. `run.json` records the file and its
+SHA-256 (`inputs`). `sha256sum <file>` gives a pin.
+
+```toml
+current_since = "2026-01"
+evidence_cache = "/data/evidence-cache"
+manifest = { path = "test-panel/dev-v5.tsv", sha256 = "…" }
+truth = { path = "pins/statistics.sqlite", sha256 = "…" }
+config = { path = "dna.toml", sha256 = "…" }
+profile = { path = "profiles/human-mtdna-rcrs.toml", sha256 = "…" }
+reference = { path = "rCRS.fasta", sha256 = "…" }
+recheck = { path = "recheck.tsv", sha256 = "…" }
+```
 
 ## Panel versions
 

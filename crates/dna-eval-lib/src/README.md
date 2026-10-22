@@ -32,6 +32,10 @@ The outputs of `diff`, `bench`, and `sim-bench`, and the manifests `panel`
 and `subset` write, have no schema; the evaluation harness document
 describes them.
 
+- `inputs.rs` — `run --inputs`: the run's inputs from one TOML file, each
+  input file (the configuration's target profile included) pinned by its
+  SHA-256 and refused when its content changed, at load and again before
+  the outputs are written.
 - `identity.rs` — what the binary was built from (`Identity`): its name and
   version, the source revision and dirty state, each cached stage's code
   identity, and the contracts DNA emits, passed in at run time.

@@ -29,6 +29,7 @@ mod estimate;
 mod geometry;
 mod haplotype;
 mod identity;
+mod inputs;
 mod lod;
 mod manifest;
 mod panel;
@@ -67,12 +68,14 @@ use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
 use crate::geometry::Geometry;
+use crate::inputs::Inputs;
 use crate::manifest::{Manifest, Month};
 use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
 use crate::rundir::{
-    Constants, Counts, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader, Seconds,
-    SignalGrouping, Source, TruthHeader, WorkloadHeader, ZoneHeader, prepare_output, write,
+    Constants, Counts, InputsHeader, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader,
+    Seconds, SignalGrouping, Source, TruthHeader, WorkloadHeader, ZoneHeader, prepare_output,
+    write,
 };
 use crate::runner::{Outcome, Threads};
 use crate::truth::TruthCheck;
@@ -614,17 +617,44 @@ struct SubsetArgs {
 /// Arguments of `dna-eval run`.
 #[derive(Debug, Args)]
 struct RunArgs {
+    /// The run's inputs from a TOML file, every input file pinned by its
+    /// SHA-256 (`manifest`, `truth`, `config`, its `profile`, `reference`,
+    /// and optional `recheck`, `forced_windows`, `current_since`,
+    /// `evidence_cache`, `run_context`); a changed file is refused. Given
+    /// with none of those options.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "manifest", "truth", "config", "reference", "recheck",
+            "forced_windows", "current_since", "evidence_cache", "run_context",
+        ],
+    )]
+    inputs: Option<PathBuf>,
     /// Panel manifest (TSV with a `#` comment header).
-    #[arg(long)]
-    manifest: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    manifest: Option<PathBuf>,
     /// The lab's statistics database (`statistics.sqlite`), opened read-only.
-    #[arg(long)]
-    truth: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    truth: Option<PathBuf>,
     /// New or empty output directory.
     #[arg(long)]
     output: PathBuf,
-    #[command(flatten)]
-    dna: DnaOptions,
+    /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
+    #[arg(long, required_unless_present = "inputs")]
+    config: Option<PathBuf>,
+    /// Reference FASTA, as given to `dna --reference`.
+    #[arg(long, required_unless_present = "inputs")]
+    reference: Option<PathBuf>,
+    /// Worker threads that run DNA (1 to 256).
+    #[arg(long)]
+    threads: usize,
+    /// As `--evidence-cache` of `bench` and `regress check`; also caches
+    /// the index of the truth's written forms.
+    #[arg(long)]
+    evidence_cache: Option<PathBuf>,
+    /// As `--run-context` of `bench` and `regress check`.
+    #[arg(long)]
+    run_context: Option<PathBuf>,
     #[command(flatten)]
     review: ReviewOptions,
     /// Windows always sent to review, one `start-end` (1-based, inclusive)
@@ -924,15 +954,50 @@ fn load_reference(path: &Path) -> Result<dna_kernel::model::reference::Reference
     })
 }
 
+/// The run's inputs: from `--inputs`, or from the options. Clap requires
+/// the four files without `--inputs` and refuses them beside it.
+fn run_inputs(cli: &RunArgs) -> Result<Inputs> {
+    if let Some(path) = &cli.inputs {
+        return Inputs::load(path);
+    }
+    let required = |path: &Option<PathBuf>, name: &str| {
+        path.clone().ok_or_else(|| Error::Inputs {
+            path: PathBuf::from(format!("--{name}")),
+            message: "required without --inputs".to_owned(),
+        })
+    };
+    Ok(Inputs {
+        manifest: required(&cli.manifest, "manifest")?,
+        truth: required(&cli.truth, "truth")?,
+        config: required(&cli.config, "config")?,
+        reference: required(&cli.reference, "reference")?,
+        recheck: cli.recheck.clone(),
+        forced_windows: cli.forced_windows.clone(),
+        current_since: cli.current_since,
+        evidence_cache: cli.evidence_cache.clone(),
+        run_context: cli.run_context.clone(),
+        file: None,
+        pins: Vec::new(),
+    })
+}
+
 fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     let started = Instant::now();
+    let inputs = run_inputs(cli)?;
+    let dna = DnaOptions {
+        config: inputs.config.clone(),
+        reference: inputs.reference.clone(),
+        threads: cli.threads,
+        evidence_cache: inputs.evidence_cache.clone(),
+        run_context: inputs.run_context.clone(),
+    };
     let mut loaded = Loaded::read(
-        (&cli.manifest, runnable),
-        (&cli.truth, cli.recheck.as_deref()),
-        (&cli.dna, &cli.review),
+        (&inputs.manifest, runnable),
+        (&inputs.truth, inputs.recheck.as_deref()),
+        (&dna, &cli.review),
         identity,
     )?;
-    let forced = cli
+    let forced = inputs
         .forced_windows
         .as_ref()
         .map(|path| -> Result<_> {
@@ -950,7 +1015,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     prepare_output(&cli.output)?;
     let ran = Ran::run(
         &loaded,
-        &cli.dna,
+        &dna,
         cli.run_signal.map(|grouping| match grouping {
             SignalGrouping::Month => runner::Grouping::Month,
             SignalGrouping::Batch => runner::Grouping::Batch {
@@ -992,10 +1057,11 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         recheck,
         tracts,
     )
-    .with_current_since(cli.current_since);
+    .with_current_since(inputs.current_since);
 
     let mut header = header(
-        (cli, identity),
+        (cli, &inputs, &dna),
+        identity,
         manifest,
         truth,
         &report,
@@ -1009,12 +1075,15 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     header.evidence_cache = ran.cache.as_ref().map(|cache| cache.evidence.usage());
     header.forms_cache.clone_from(&loaded.forms_cache);
     header.placement_cache = ran.cache.as_ref().map(|cache| cache.placed.usage());
-    header.run_context = cli.dna.context_header(&ran);
+    header.run_context = dna.context_header(&ran);
+    // Every pinned input still has its pin, so `run.json` may record the
+    // inputs file.
+    inputs.verify()?;
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
     let (samples, outcomes) = (&manifest.samples, &ran.outcomes);
-    if cli.dna.run_context.is_some() {
+    if dna.run_context.is_some() {
         write(
             &cli.output,
             rundir::RUN_CONTEXT,
@@ -1129,6 +1198,16 @@ fn forms(
 /// The target profile `config` names, resolved against the configuration
 /// file's directory when relative, as DNA resolves it (SRS-CFG-002).
 pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profile> {
+    let path = profile_path(config)?;
+    dna_kernel::profile::Profile::load(&path).map_err(|error| Error::Profile {
+        path,
+        message: error.to_string(),
+    })
+}
+
+/// The path of the target profile `config` names, as [`target_profile`]
+/// resolves it.
+pub(crate) fn profile_path(config: &Path) -> Result<PathBuf> {
     let failure = |message: String| Error::Profile {
         path: config.to_path_buf(),
         message,
@@ -1141,11 +1220,7 @@ pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profi
         .get("profile")
         .and_then(toml::Value::as_str)
         .ok_or_else(|| failure("the configuration names no profile".to_owned()))?;
-    let path = config.parent().unwrap_or(Path::new(".")).join(name);
-    dna_kernel::profile::Profile::load(&path).map_err(|error| Error::Profile {
-        path,
-        message: error.to_string(),
-    })
+    Ok(config.parent().unwrap_or(Path::new(".")).join(name))
 }
 
 /// `dna-eval panel`: writes the new manifest and returns its checksum line.
@@ -1317,7 +1392,8 @@ struct Times {
 }
 
 fn header(
-    (cli, identity): (&RunArgs, &Identity),
+    (cli, inputs, dna): (&RunArgs, &Inputs, &DnaOptions),
+    identity: &Identity,
     manifest: &Manifest,
     truth: &Truth,
     report: &Report<'_>,
@@ -1352,15 +1428,15 @@ fn header(
         harness: identity.name.to_owned(),
         harness_version: identity.version.to_owned(),
         source: source(identity),
-        threads: cli.dna.threads,
+        threads: dna.threads,
         manifest: ManifestHeader {
-            path: absolute(&cli.manifest),
+            path: absolute(&inputs.manifest),
             fields: manifest.header.clone(),
             body_sha256: manifest.body_sha256.clone(),
             rows: manifest.samples.len(),
         },
         truth: TruthHeader {
-            path: absolute(&cli.truth),
+            path: absolute(&inputs.truth),
             sha256: truth.sha256.clone(),
             info: truth.database.info.clone(),
             digest: check.current.clone(),
@@ -1369,16 +1445,20 @@ fn header(
             changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
-        configuration_path: absolute(&cli.dna.config),
-        reference_path: absolute(&cli.dna.reference),
+        configuration_path: absolute(&dna.config),
+        reference_path: absolute(&dna.reference),
         identities: identities.into_iter().collect(),
         review_window: cli.review.review_window,
         run_signal: cli.run_signal,
         run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
             .then_some(cli.run_signal_batch_reads),
-        current_since: cli.current_since,
-        forced_windows: cli.forced_windows.as_deref().map(absolute),
+        current_since: inputs.current_since,
+        forced_windows: inputs.forced_windows.as_deref().map(absolute),
         recheck: None,
+        inputs: inputs.file.as_ref().map(|(path, sha256)| InputsHeader {
+            path: absolute(path),
+            sha256: sha256.clone(),
+        }),
         evidence_cache: None,
         forms_cache: None,
         placement_cache: None,
@@ -1506,6 +1586,40 @@ mod tests {
             body_sha256: String::new(),
             columns: Vec::new(),
             samples: Vec::new(),
+        }
+    }
+
+    /// `run` takes its inputs from `--inputs` or from the options, never
+    /// both, and needs the four input files without it.
+    #[test]
+    fn run_takes_an_inputs_file_or_the_options() {
+        let parse = |extra: &[&str]| {
+            let mut arguments = vec!["dna-eval", "run", "--output", "out", "--threads", "1"];
+            arguments.extend_from_slice(extra);
+            Cli::try_parse_from(arguments)
+        };
+        let files = [
+            "--manifest",
+            "m",
+            "--truth",
+            "t",
+            "--config",
+            "c",
+            "--reference",
+            "r",
+        ];
+        assert!(parse(&["--inputs", "inputs.toml"]).is_ok());
+        assert!(parse(&files).is_ok());
+        assert!(parse(&files[..6]).is_err());
+        for option in [
+            &["--manifest", "m"][..],
+            &["--recheck", "x"],
+            &["--current-since", "2026-01"],
+            &["--evidence-cache", "x"],
+        ] {
+            let mut arguments = vec!["--inputs", "inputs.toml"];
+            arguments.extend_from_slice(option);
+            assert!(parse(&arguments).is_err(), "{option:?}");
         }
     }
 
