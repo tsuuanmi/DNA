@@ -211,6 +211,16 @@ impl Row<'_> {
         )
     }
 
+    /// The windows of the class's discordant positions, comma-joined, as
+    /// `scores.tsv` writes them.
+    pub(crate) fn class_regions(&self) -> String {
+        self.discrepancy_regions(self.discrepancy())
+            .iter()
+            .map(RepeatWindow::label)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
     /// The windows of the class's discordant positions.
     fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<RepeatWindow> {
         discrepancy
@@ -307,11 +317,28 @@ impl Metric {
     }
 }
 
-/// Every derived output of one run.
 /// The header of `unreviewed.tsv`.
 pub(crate) const UNREVIEWED_HEADER: &str =
     "sample_id\tfirst\tlast\tblock\tclass\tzone\tzone_checked\n";
 
+/// One unreviewed difference block of a row, as `unreviewed.tsv` writes it.
+pub(crate) struct UnreviewedBlock<'r> {
+    /// The row's index in [`Report::rows`].
+    pub(crate) row: usize,
+    /// The block's first and last anchors, 1-based.
+    pub(crate) first: i64,
+    pub(crate) last: i64,
+    /// The block's text.
+    pub(crate) text: &'r str,
+    pub(crate) class: BlockClass,
+    /// The zone that holds its first anchor, `.` without zones.
+    pub(crate) zone: String,
+    /// `yes` when a check item touches that zone, `no` when none does, `.`
+    /// without zones.
+    pub(crate) checked: &'static str,
+}
+
+/// Every derived output of one run.
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
     geometry: &'a Geometry,
@@ -510,11 +537,31 @@ impl<'a> Report<'a> {
     /// two runs (`dna-eval diff`) counts the same passes from the files.
     fn unreviewed(&self) -> String {
         let mut text = String::from(UNREVIEWED_HEADER);
-        for (row, workload) in self.rows.iter().zip(&self.review.workloads) {
+        for block in self.unreviewed_blocks() {
+            let _ = writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                self.rows[block.row].sample.id,
+                block.first,
+                block.last,
+                block.text,
+                block.class.label(),
+                block.zone,
+                block.checked,
+            );
+        }
+        text
+    }
+
+    /// Every unreviewed difference block, in row order then block order, as
+    /// `unreviewed.tsv` writes them.
+    pub(crate) fn unreviewed_blocks(&self) -> Vec<UnreviewedBlock<'_>> {
+        let mut blocks = Vec::new();
+        for (index, workload) in self.review.workloads.iter().enumerate() {
             let Some(workload) = workload else {
                 continue;
             };
-            for (escape, block) in workload.escapes.iter().zip(&workload.unreviewed) {
+            for (escape, text) in workload.escapes.iter().zip(&workload.unreviewed) {
                 let (zone, checked) = match (escape.zone, self.review.zones.as_ref()) {
                     (Some(instance), Some(zones)) => (
                         zones.label(instance),
@@ -526,17 +573,37 @@ impl<'a> Report<'a> {
                     ),
                     _ => (".".to_owned(), "."),
                 };
-                let _ = writeln!(
+                blocks.push(UnreviewedBlock {
+                    row: index,
+                    first: escape.first,
+                    last: escape.last,
                     text,
-                    "{}\t{}\t{}\t{block}\t{}\t{zone}\t{checked}",
-                    row.sample.id,
-                    escape.first,
-                    escape.last,
-                    escape.class.label(),
-                );
+                    class: escape.class,
+                    zone,
+                    checked,
+                });
             }
         }
-        text
+        blocks
+    }
+
+    /// Row `index`'s cause, scope, and findings as `scores.tsv` writes them;
+    /// empty for a row without a discrepancy.
+    pub(crate) fn cause_cells(&self, index: usize) -> [String; 3] {
+        self.causes[index].as_ref().map_or_else(
+            || [String::new(), String::new(), String::new()],
+            |(cause, scope, findings)| {
+                [
+                    cause.label().to_owned(),
+                    scope.label().to_owned(),
+                    findings
+                        .iter()
+                        .map(Finding::text)
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                ]
+            },
+        )
     }
 
     /// `scores.tsv`: one row per sample.
@@ -556,12 +623,7 @@ impl<'a> Report<'a> {
              review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\t\
              review_zones\treview_zone_count\n",
         );
-        for ((row, cause), workload) in self
-            .rows
-            .iter()
-            .zip(&self.causes)
-            .zip(&self.review.workloads)
-        {
+        for (index, (row, workload)) in self.rows.iter().zip(&self.review.workloads).enumerate() {
             let sample = row.sample;
             let review = workload.as_ref().map_or_else(
                 || "\t\t\t\t\t\t".to_owned(),
@@ -594,20 +656,7 @@ impl<'a> Report<'a> {
                     )
                 },
             );
-            let (cause, cause_scope, cause_evidence) = cause.as_ref().map_or_else(
-                || (String::new(), String::new(), String::new()),
-                |(cause, scope, findings)| {
-                    (
-                        cause.label().to_owned(),
-                        scope.label().to_owned(),
-                        findings
-                            .iter()
-                            .map(Finding::text)
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    )
-                },
-            );
+            let [cause, cause_scope, cause_evidence] = self.cause_cells(index);
             let primary = row.status(Measure::Primary);
             let strict = row.status(Measure::Strict);
             let compatible = row.status(Measure::IupacCompatible);
@@ -694,12 +743,7 @@ impl<'a> Report<'a> {
                 String::new()
             };
             let discrepancy = row.discrepancy();
-            let class_regions = row
-                .discrepancy_regions(discrepancy)
-                .iter()
-                .map(RepeatWindow::label)
-                .collect::<Vec<_>>()
-                .join(",");
+            let class_regions = row.class_regions();
             let failure = row
                 .comparisons
                 .as_ref()

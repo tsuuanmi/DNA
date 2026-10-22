@@ -16,6 +16,12 @@ use dna_kernel::profile::Profile;
 use dna_sanger::model::sanger::Chromatogram;
 
 use super::{load_config, load_profile, load_reference, require_regular_file};
+use dna_kernel::read_evidence::EvidenceReason;
+
+/// The Sanger plugin's reason a published `label` names, or `None`.
+pub(super) fn reason(label: &str) -> Option<EvidenceReason> {
+    dna_sanger::read_processing::reason(label)
+}
 
 use dna_sanger::abif;
 

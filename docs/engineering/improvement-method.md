@@ -102,6 +102,7 @@ numeric tolerances are not levels.
 | Panel | Use |
 |---|---|
 | development: dev v5 and readiness-v2 | tuning, censuses, per-sample inspection, `dna-eval diff` |
+| development: the regression set regress-v1 | `dna-eval regress`: every output change on its samples declared and recorded per version; counts and changes only, never rates; never the gate ([[validation/regression-set]]) |
 | the untouched test set: readiness-v6 | one logged use per decision, aggregates only, each `source` reported separately; never inspected per sample while tuning |
 | the reserved hold-out remainder: the approval hold-out less the batches readiness-v6 took | none: it stays reserved. `dna-eval` refuses a hold-out panel; the approval path that will read it is designed later, with endpoints per zone kind among auto-passed zones on recent batches (evaluation validity review, recommendation 5) |
 
@@ -119,18 +120,22 @@ numeric tolerances are not levels.
    seconds.
 3. **Simulated bench** (`dna-eval sim-bench`) for any tract-decoder change
    ([[PROP-0015]]).
-4. **`dna-eval diff`** on the development panels, base against candidate. A
-   subset run is a pre-filter only.
-5. **Equal failures.** Check that the samples that failed to score are the
+4. **Regression set** (`dna-eval regress check`): commit the intent file
+   first, then every changed line must be declared, and a truth-free change
+   needs a version bump; after the merge, `regress record` on `main`
+   ([[validation/regression-set]]).
+5. **`dna-eval diff`** on the development panels, base against candidate,
+   **the gate**. A subset run is a pre-filter only.
+6. **Equal failures.** Check that the samples that failed to score are the
    same on both sides; otherwise the two runs measure different samples.
-6. **Combined stacks.** Measure the set of changes that will land together,
+7. **Combined stacks.** Measure the set of changes that will land together,
    not only each pull request on its own. Rules interact: an end-norm change
    combined with a downstream-confirmation change produced a false deletion
    that neither made alone. Measuring the stack caught it, and the artefact
    bench now guards it.
-7. **Merge** only after CI has run on the pull request combined with the
+8. **Merge** only after CI has run on the pull request combined with the
    current `main`.
-8. **Bump** the version of every plugin whose output changes
+9. **Bump** the version of every plugin whose output changes
    ([[governance/versioning#Plugins]]).
 
 ## 8. What to report

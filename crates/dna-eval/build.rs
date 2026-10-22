@@ -13,6 +13,11 @@
 //! same way: the sources from a read evidence document to its placed-read
 //! document (`dna.placed_read/v1`), so the placement cache misses when the
 //! placement's code changes.
+//!
+//! `DNA_EVAL_CONTRACTS` records the result contracts DNA emits, for the
+//! version key of `dna-eval regress`: every `dna.<name>/v<n>` a published
+//! schema under `docs/reference/schemas` declares as a constant, but the
+//! harness's own `dna.eval_*` contracts, sorted and comma-joined.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -100,8 +105,14 @@ fn main() {
         stage_identity(&placement_stage)
     );
 
-    // Record again when the commit, the index, or a source of the workspace
-    // changes.
+    let schemas = crate_directory.join("../../docs/reference/schemas");
+    println!(
+        "cargo:rustc-env=DNA_EVAL_CONTRACTS={}",
+        contracts(&schemas).join(",")
+    );
+
+    // Record again when the commit, the index, a source of the workspace, or
+    // a published schema changes.
     let mut watched = Vec::new();
     let branch = git(&["rev-parse", "--symbolic-full-name", "HEAD"]);
     for name in ["HEAD", "index", "packed-refs"]
@@ -114,10 +125,57 @@ fn main() {
         }
     }
     let workspace = crate_directory.join("../..");
-    for name in ["src", "crates", "Cargo.toml", "Cargo.lock"] {
+    for name in [
+        "src",
+        "crates",
+        "Cargo.toml",
+        "Cargo.lock",
+        "docs/reference/schemas",
+    ] {
         watched.push(workspace.join(name));
     }
     for path in watched.iter().filter(|path| Path::exists(path)) {
         println!("cargo:rerun-if-changed={}", path.display());
     }
+}
+
+/// The DNA result contracts the schemas in `directory` declare: every string
+/// constant of the form `dna.<name>/v<n>`, but `dna.eval_*`, sorted and
+/// distinct.
+fn contracts(directory: &Path) -> Vec<String> {
+    let mut found = std::collections::BTreeSet::new();
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    for path in entries.filter_map(|entry| Some(entry.ok()?.path())) {
+        if !path.to_string_lossy().ends_with(".schema.json") {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        for piece in text.split("\"const\"").skip(1) {
+            let Some(value) = piece
+                .trim_start_matches([':', ' '])
+                .strip_prefix('"')
+                .and_then(|rest| rest.split('"').next())
+            else {
+                continue;
+            };
+            let contract = value.strip_prefix("dna.").and_then(|rest| {
+                let (name, version) = rest.split_once("/v")?;
+                let valid = !name.is_empty()
+                    && name
+                        .bytes()
+                        .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+                    && !version.is_empty()
+                    && version.bytes().all(|byte| byte.is_ascii_digit());
+                valid.then_some(name)
+            });
+            if contract.is_some_and(|name| !name.starts_with("eval_")) {
+                found.insert(value.to_owned());
+            }
+        }
+    }
+    found.into_iter().collect()
 }

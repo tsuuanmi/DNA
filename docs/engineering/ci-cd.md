@@ -104,7 +104,9 @@ The repository-policy job:
 - validates the explicit Rust source policy;
 - validates the workspace crate map of ADR-0070: the plugin crates depend only
   on `dna-kernel` in source paths and manifests, only the facade composes them,
-  and each crate's module graph is acyclic;
+  and each crate's module graph is acyclic; inside the facade, the
+  modality-neutral modules (contract records, neutral readers, reports, and
+  pipelines, and the review but its Sanger part) name no modality crate;
 - runs Ruff formatting and lint checks;
 - runs basedpyright;
 - runs Python tooling tests;
