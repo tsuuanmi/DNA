@@ -11,7 +11,8 @@ reviewer truth ([[PROP-0005]],
 the only place in the repository for truth formats and comparison
 (SRS-COMPAT-003). Its outputs are validation evidence about a DNA revision,
 not DNA result contracts; their shape is the harness's own versioned contract
-([outputs](#outputs)). Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
+([outputs](#outputs)). Source: [crates/dna-eval-lib](../../crates/dna-eval-lib/src/README.md),
+under the thin [crates/dna-eval](../../crates/dna-eval/src/README.md) binary.
 
 Measures, discrepancy classes, and causes are in [[validation/evaluation-measures]]; the review workload, its passes, estimates, and anchors are in [[validation/evaluation-workload]].
 
@@ -22,14 +23,18 @@ cargo run --release -p dna-eval -- run \
   --manifest <panel.tsv> --truth <statistics.sqlite> \
   --config config/dna.toml --reference references/rCRS.fasta \
   --output <new-run-directory> \
-  --threads <1-256> [--forms <earlier-run-directory>/forms.tsv] \
+  --threads <1-256> \
   [--review-window <bp>] [--forced-windows <file>] [--recheck <file.tsv>] \
   [--current-since <YYYY-MM>] \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] \
   [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
   [--evidence-cache <dir>] [--run-context <dir>]
 
-cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n>
+cargo run --release -p dna-eval -- run --inputs <inputs.toml> \
+  --output <new-run-directory> --threads <1-256> [other options]
+
+cargo run --release -p dna-eval -- cache list --dir <dir>
+cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n> [--dry-run]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -45,8 +50,10 @@ Every path is an argument. `run` needs a new or empty output directory, and
 body's checksum line (`<sha256>  <file> (body)`). The harness is built from
 the workspace but not shipped in a release.
 
-`run` and `bench` refuse a manifest whose header names no panel, or a panel
-other than `dev` or `readiness`. A hold-out panel stays reserved: the approval path
+`run` and `bench` read a manifest whose header names `panel=dev`,
+`panel=readiness`, or `panel=regress` (the regression set, development data:
+[[validation/regression-set]]), so `diff` compares runs of these panels too;
+they refuse a manifest that names no panel or another panel. A hold-out panel stays reserved: the approval path
 that will read it is designed later, with endpoints per zone kind among
 auto-passed zones on recent batches (evaluation validity review,
 recommendation 5; [[engineering/improvement-method#6. Panels and their uses]]).
@@ -69,8 +76,7 @@ their directories alone, and gates it.
   the configuration may differ, since a candidate changes it. The manifest
   the base run names must still hash to the body it recorded, since the
   periods and sources are read from it. Otherwise `diff` refuses, or with
-  `--force` it
-  compares and warns at the top of the report.
+  `--force` it compares and warns at the top of the report.
 - **Reading.** It reads each run's `run.json`, `scores.tsv`, and
   `unreviewed.tsv` strictly: a missing or unparsable header field, a table
   without a column `diff` reads or with a column twice, a row of another
@@ -90,14 +96,12 @@ their directories alone, and gates it.
 
 The report (`diff.md`) shows, before and after:
 
-- **Samples:** samples, clear samples, samples with a non-het unreviewed
-  block and those whose only unreviewed blocks are het, passed samples by
-  their most severe difference, and positions to review; reported, never
-  gated.
-- **Gate:** per zone kind, in the gated group, the zones the run newly
-  passes (`n_new`), the escapes of a gated class in a passed zone it adds
-  (`b`) and removes (`c`), and those both runs carry; then the same without
-  the re-check list, from each escape's `class_unlisted`.
+- **Samples:** samples, clear samples, samples with a non-het unreviewed block
+  and those whose only unreviewed blocks are het, passed samples by their most
+  severe difference, and positions to review; reported, never gated.
+- **Gate:** per zone kind in the gated group, the zones newly passed
+  (`n_new`) and the escapes added (`b`), removed (`c`), and carried; then the
+  same without the re-check list (`class_unlisted`).
 - **Zones:** for every zone that changed, the units needing a check and the
   passed units with a non-het block.
 - **Coverage:** the truth alleles DNA's callable intervals newly leave out
@@ -130,23 +134,35 @@ side left without an allele, or a transient read error): the group then
 holds different samples. Differences only outside it are a warning.
 Otherwise it is `GATE PASS`.
 
-- **Gated classes** (`--gate`, comma-separated `unreviewed.tsv` labels):
-  by default `non_het`, `omitted_other`, and `omitted_not_analysed`.
-  Heteroplasmy is optional (user decision): `het`, `truth_n`, `recheck`,
-  `note_misread`, `omitted_tract`, and `length_note` are reported and gate
-  only when named. Whether an omitted read start (`omitted_not_analysed`) or
-  an omitted tract length may count as clear awaits the user; the option
-  records the choice.
-- **Without the re-check list.** The verdict line gives `b` and `c`, and
-  whether the gate would fail, from each escape's class without the list.
-  It is reported, not gated: a candidate that passes only because of rows
-  added after its own failure has not passed (validity review,
-  recommendation 2).
-- **Warnings.** A move of the gated group's clear samples by more than
-  `--clear-tolerance` of its samples (default 0.01), or of its positions to
-  review by more than `--positions-tolerance` of the base's (default 0.05),
-  and newly uncovered truth alleles are warned of under **Verdict**; the
-  sample-level counts are reported, never gated.
+- **Gated classes** (`--gate`, comma-separated `unreviewed.tsv` labels): by
+  default `non_het`, `omitted_other`, and `omitted_not_analysed`; the others
+  (heteroplasmy is optional, user decision) gate only when named. Whether an
+  omitted read start or tract length may count as clear awaits the user.
+- **Without the re-check list.** The verdict gives `b`, `c`, and the gate
+  from each escape's class without the list, reported, not gated: a candidate
+  that passes only through rows added after its own failure has not passed
+  (validity review, recommendation 2).
+- **Warnings** under **Verdict**: the gated group's clear samples moving by
+  more than `--clear-tolerance` of its samples (0.01), its positions to
+  review by more than `--positions-tolerance` of the base's (0.05), and
+  newly uncovered truth alleles.
+
+### Same outputs
+
+```bash
+cargo run --release -p dna-eval -- same <run-directory> <run-directory>
+```
+
+`same` says whether two runs' outputs are byte-identical: every file but
+`run.json`, compared by SHA-256. It is the check of a refactor, a cache, or
+a build change that must not change what a run writes. It lists the files
+that differ, with the first line at which each does, and the files only one
+run holds. Each run's `run.json` records the digests of its other files
+(`outputs`); they are checked against the files first, so a file edited
+after its run is refused rather than compared. A run of an earlier revision
+records none, and its files are hashed as found. The exit status is 0 when
+every output is identical, 2 with `DIFFERENT` when one is not, and 1 when a
+run cannot be read.
 
 ### Quick subset (pre-filter)
 
@@ -163,13 +179,19 @@ the base and the candidate on the same subset and compare them with `diff`.
 it must still pass `diff` on the full development panel before a pull
 request.**
 
-`bench` checks adjudicated artefact cases before any panel run:
-[[validation/artefact-bench]]. It takes `run`'s options for running DNA
+`bench` checks adjudicated artefact cases before any panel run, with
+`run`'s options for running DNA: [[validation/artefact-bench]]. `sim-bench`
+measures the tract decoder on simulated length mixtures against the
+committed baseline: [[validation/simulated-bench]]. `regress check` compares
+a build's output on the frozen regression set with the head of its version
+ledger, and `regress record` appends a checked run of `main` to it:
+[[validation/regression-set]].
+
+`run`, `bench`, and `regress check` take one set of options for running DNA
 (`--config`, `--reference`, `--threads`, `--evidence-cache`,
-`--run-context`, `--run-signal`, `--run-signal-batch-reads`), so a case is
-judged as the run judges it. `sim-bench` measures the tract decoder on
-simulated length mixtures against the committed baseline:
-[[validation/simulated-bench]].
+`--run-context`), and `run` and `regress check` one set for the review
+workload (`--review-window`, `--zone-after`, `--zone-edge`,
+`--zone-overrun`), each with the same meaning and defaults.
 
 ## Inputs
 
@@ -202,6 +224,33 @@ reads the batch (`samples`), the reviewed alleles (`variants`: `pos`, `ref`,
 `seq`, with `-` for an inserted or deleted base; at most 10,000 per sample),
 the analysed intervals (`intervals`), and the sample's status in its batch
 (`sample_status`). Sample flags and counts are not used.
+
+**Inputs file.** `run --inputs <file>` takes the run's inputs from one TOML
+file instead of the options, so a probe names them once and a changed or
+replaced file is refused before anything runs. `manifest`, `truth`,
+`config`, `profile`, and `reference` are required and `recheck` and
+`forced_windows` optional, each `{ path = "…", sha256 = "…" }` with the
+SHA-256 as 64 lowercase hexadecimal digits: the run stops when a file's
+SHA-256 is not the pinned one, and `profile` must be the file the
+configuration's `profile` key names. Every pinned file is checked again
+before the run writes its outputs, and a file that changed during the run
+stops it there, so `run.json` never records a pin that did not hold. `current_since`, `evidence_cache`, and
+`run_context` are optional and not pinned: the caches key themselves, and
+the run records the run contexts' digest. A relative path is resolved
+against the file's directory; unknown keys are refused, and none of these
+options may be given beside it. `run.json` records the file and its
+SHA-256 (`inputs`). `sha256sum <file>` gives a pin.
+
+```toml
+current_since = "2026-01"
+evidence_cache = "/data/evidence-cache"
+manifest = { path = "test-panel/dev-v5.tsv", sha256 = "…" }
+truth = { path = "pins/statistics.sqlite", sha256 = "…" }
+config = { path = "dna.toml", sha256 = "…" }
+profile = { path = "profiles/human-mtdna-rcrs.toml", sha256 = "…" }
+reference = { path = "rCRS.fasta", sha256 = "…" }
+recheck = { path = "recheck.tsv", sha256 = "…" }
+```
 
 ## Panel versions
 
@@ -253,18 +302,18 @@ version is due. A manifest without a digest (versions 1 and 2) reports
 
 ## Running DNA
 
-For each sample the harness first checks that no two traces have one
-content: a trace given twice fails the sample typed (`duplicate_trace`,
-ADR-0090), rather than counting it twice or dropping a copy. It then runs `dna::sample_analysis::analyze_sanger` with
-one worker and `SampleAnalysis::call`: the `consensus` then `call` workflow in
-process, with the configuration and reference given. Its notation calls become alleles (`309.1C` →
-`309.1`, `-`, `C`; `249DEL` → `249`, `A`, `-`), and the consensus reads'
-callable reference segments become DNA's intervals. Samples run on a pool of
-scoped threads (`--threads`). A sample whose traces cannot be read, that DNA
-rejects, or on which DNA panics gets a failure row; the others continue. The
-truth of the whole panel and the reference load before DNA runs, so a
-database that cannot be opened, has another schema, or fails a query, or a
-reference that cannot be read, stops the run first. The haplotype measures
+A trace given twice (two inputs of one content) fails its sample typed
+(`duplicate_trace`, ADR-0090). Each other sample runs
+`dna::sample_analysis::analyze_sanger` with one worker and
+`SampleAnalysis::call`: the `consensus` then `call` workflow in process, with
+the configuration and reference given. Its notation calls become alleles
+(`309.1C` → `309.1`, `-`, `C`; `249DEL` → `249`, `A`, `-`), and the consensus
+reads' callable reference segments become DNA's intervals. Samples run on a
+pool of scoped threads (`--threads`). A sample whose traces cannot be read,
+that DNA rejects, or on which DNA panics gets a failure row; the others
+continue. The truth of the whole panel and the reference load before DNA runs,
+so a database that cannot be opened, has another schema, or fails a query, or
+a reference that cannot be read, stops the run first. The haplotype measures
 compare on that reference sequence; a sample that DNA analyses on another
 sequence gets a failure row (kind `reference`).
 
@@ -279,30 +328,81 @@ one.
 
 - **Key.** The read stage reads no profile and no reference ([[ADR-0069]]),
   and nothing of the core, so a document depends on the trace, the
-  configuration, and the read-stage code alone. An entry is the trace's
-  content SHA-256 in a generation named for the configuration file's SHA-256
-  (which the document's provenance records and the reader checks), the
-  `sanger` version, and the read-stage code identity.
+  configuration the Sanger plugin reads, and the read-stage code alone. An
+  entry is the trace's content SHA-256 in a generation named for that
+  configuration's digest (`dna::recorded::evidence_configuration_sha256`,
+  over the digests the document's provenance records and the reader
+  checks), the `sanger` version, and the read-stage code identity. Editing
+  another section (`[review]`, `[consensus]`), a comment, or the layout
+  keeps the generation; the placement cache, keyed by the configuration
+  file, still misses.
 - **Code identity.** The identity is the git object ids of every source from
-  a trace to its document: `Cargo.lock`, `dna-kernel`, `dna-sanger`,
-  `dna-trace`, and the facade's configuration, trace loading, evidence
-  models, and writer, recorded by `dna-eval`'s build script. A harness built
-  with any of those sources differing from its commit has no identity, and
-  the option fails. A plugin version does not move on a work-in-progress
-  commit, so it alone would serve stale documents.
+  a trace to its document, which `crates/dna-eval/stages.txt` lists
+  (`[read]`): the build's inputs (`Cargo.lock`, `Cargo.toml`,
+  `rust-toolchain.toml`), `dna-kernel`, `dna-sanger`, `dna-trace`, and the
+  facade's configuration, trace loading, evidence models, plugin
+  composition, and writer, with the module files above them, recorded by
+  the `dna-eval` binary's build script. A harness built with any of those
+  sources differing from its commit has no identity, and the option fails.
+  A plugin version does not move on a work-in-progress commit, so it alone
+  would serve stale documents. `validate_module_layers.py` checks the list
+  is closed: every module a listed source uses, every module file above
+  it, and every workspace crate a listed crate depends on, is listed, or
+  marked as used but off the stage's path (the configuration envelope
+  parses the core's sections, which the read stage never reads). A file on
+  the path for some items only is listed with them: what those items use,
+  with the file's own items they name, transitively, is checked like a
+  whole file's uses, and what its other items use is not followed. A
+  listed file may not glob-import its own crate (`use super::*`). Every list also names `stages.txt` itself, so editing a list is
+  a new identity.
 - **Storage.** Entries are gzip-compressed and renamed into place. An entry
   that does not decompress, is not JSON, or names another trace is a miss,
   remade and replaced.
 - **Record.** `run.json` records the directory, the key, the hits, misses,
-  and replaced entries, and the generation's size. `cache prune --keep <n>`
-  removes every generation but the `n` most recently used.
+  and replaced entries, and the generation's size.
+- **Hygiene.** Every generation labels itself when a run opens it:
+  `key.json` records its kind (`evidence`, `placement`, or `forms`) and key,
+  written once, and `last_used` the time of the latest run that opened it,
+  rewritten by each run, so recency is use, not the last write. A
+  generation written before the labels lists as `unlabelled`, by its newest
+  entry, until a run opens it: in a cache from before the labels, a
+  generation still in use can look old, so run once on what you keep, and
+  read `--dry-run`, before pruning it. `cache list` prints one line per
+  generation (TSV: generation, kind, last use in UTC, entries, bytes, key)
+  by kind and most recently used first, and counts the temporary files of
+  runs no longer alive. `cache prune --keep <n>` keeps the `n` most recently used
+  generations of each kind, unlabelled ones being a kind of their own, and
+  removes those temporary files; a temporary file is named for its writer's
+  process, and one whose process no longer runs on this host is orphaned.
+  The check sees this host's processes in its own PID namespace only, so a
+  run on another host or in another container writing to a shared cache
+  looks orphaned: prune where no such run is writing. `--keep` is at least
+  1.
+  `--dry-run` reports what it would remove and removes nothing.
+- **Forms cache.** The same directory caches the index of the truth's
+  written forms ([[validation/evaluation-measures#Discrepancy causes|forms]]),
+  which otherwise indexes the whole truth database on every run. A
+  generation is named for the truth database file's SHA-256, the reference
+  sequence's SHA-256, the target profile's repeat windows (each name and
+  bounds, in order), and the index's code identity (`[forms]`: the build's
+  inputs, the kernel, and the harness's truth reader, comparison alleles,
+  geometry, and index). A run on the same
+  inputs reads the index; a renamed or moved window, another reference or
+  database, or a change to that code is a new generation, so a stale index
+  is never read. An entry that does not decompress or parse is rebuilt and
+  replaced. A harness built with those sources differing from its commit
+  builds the index and stores nothing; the evidence cache still works.
+  `run.json` records the key and whether it was a hit (`forms_cache`). On
+  development panel v5 the tables are byte-identical with a cold forms
+  cache, a warm one, and none.
 - **Placement cache** ([[ADR-0087]], proposed). The same directory holds
   each evidence document's `dna.placed_read/v1` document, written by
   `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
   generation named for the configuration, the placement stage's code
-  identity, and the reference. The code identity is the git object ids of
-  `Cargo.lock`, the kernel, `dna-align`, and the facade's configuration,
-  evidence reading, and writer. Every read is then placed from its document,
+  identity, the reference, and the target profile file (the placement
+  aligns on the profile's topology). The code identity (`[placement]`) is the git
+  object ids of the build's inputs, the kernel, `dna-align`, and the
+  facade's configuration, evidence reading, and writer. Every read is then placed from its document,
   which `dna-align` re-checks against the read's evidence and the reference.
   A change to the placement stage is a new generation. `run.json` records it
   as `placement_cache`. On development panel v5 the tables are
@@ -382,8 +482,8 @@ or to which files a run writes, is a new contract version
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure |
-| `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; read back with `--forms` |
-| `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-workload.md#review-workload) of the review workload), and timings |
+| `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; cached with `--evidence-cache` |
+| `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-workload.md#review-workload) of the review workload), timings, and the SHA-256 of every other file (`outputs`, written last, which [`same`](#same-outputs) compares) |
 | `summary.md` | always | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence), the EMPOP queries, the callable yield per HV region (samples, analysed and callable positions, their share, and the samples short of full yield), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the review workload |
 | `truth_changes.tsv` | when the panel's truth changed | the samples whose truth digest differs from the manifest's record |
 | `signals.tsv` | with `--run-signal` | per run-signal group: reads, calls, and keys |

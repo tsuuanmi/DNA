@@ -23,6 +23,10 @@ pub(crate) enum Error {
         #[source]
         source: io::Error,
     },
+    /// The run's inputs file cannot be read or parsed, or pins a file whose
+    /// content changed.
+    #[error("inputs {path}: {message}")]
+    Inputs { path: PathBuf, message: String },
     /// An input file is larger than its bound.
     #[error("{kind} {path} has {bytes} bytes, more than the maximum of {maximum}")]
     TooLarge {
@@ -40,10 +44,6 @@ pub(crate) enum Error {
     /// The reference cannot be loaded.
     #[error("reference {path}: {message}")]
     Reference { path: PathBuf, message: String },
-    /// An earlier run's written forms are for another truth database or
-    /// malformed.
-    #[error("forms {path}: {message}")]
-    Forms { path: PathBuf, message: String },
     /// The simulated bench cannot run.
     #[error("simulated bench: {0}")]
     SimBench(String),
@@ -98,14 +98,21 @@ pub(crate) enum Error {
     /// A harness thread panicked outside the per-sample guard.
     #[error("a harness thread panicked outside a sample")]
     Worker,
+    /// `dna-eval regress` refused its inputs: another panel, a ledger or
+    /// intent file it cannot trust, a check not comparable with the head, or
+    /// a run `record` may not append.
+    #[error("regress: {0}")]
+    Regress(String),
     /// A command was given a hold-out panel, which stays reserved.
     #[error(
-        "panel {panel:?} is a hold-out panel: it stays reserved, and dna-eval reads development and readiness panels only"
+        "panel {panel:?} is a hold-out panel: it stays reserved, and dna-eval reads development, readiness, and regression panels only"
     )]
     HoldOut { panel: String },
     /// A manifest names no panel (`panel=` in its header), so the harness
     /// cannot tell it from a hold-out panel.
-    #[error("the manifest names no panel: its header needs panel=dev or panel=readiness")]
+    #[error(
+        "the manifest names no panel: its header needs panel=dev, panel=readiness, or panel=regress"
+    )]
     UnnamedPanel,
 }
 

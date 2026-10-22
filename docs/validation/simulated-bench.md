@@ -1,7 +1,7 @@
 ---
 implements: [SRS-CALL]
 decided-by: [ADR-0074, ADR-0075, ADR-0084]
-covers: [crates/dna-eval/src/simbench.rs, crates/dna-eval/baselines/, crates/dna-trace/src/simulate/, crates/dna-trace/tables/]
+covers: [crates/dna-eval-lib/src/simbench.rs, crates/dna-eval-lib/baselines/sim-bench*, crates/dna-trace/src/simulate/, crates/dna-trace/tables/]
 ---
 
 # Simulated tract-decode bench
@@ -70,7 +70,7 @@ Measures, per tract and noise level (percentages):
 | `pure_decoded` | pure reads (no neighbour) given a decode |
 
 `bench.md` reports the measures with their change from the committed
-baseline of the set's size (`crates/dna-eval/baselines/sim-bench.tsv` for the
+baseline of the set's size (`crates/dna-eval-lib/baselines/sim-bench.tsv` for the
 gating set, `sim-bench-smoke.tsv` for the smoke set) or from `--baseline`.
 The baseline reads strictly: a cell is a finite number or `-`, and a tract
 and noise level appear once. Against it the bench gives a verdict: `SIM-BENCH
@@ -87,7 +87,7 @@ gated.
 ## Baseline (increment 1)
 
 The current decoder on the gating set, at the commit that introduced the
-bench (`crates/dna-eval/baselines/sim-bench.tsv`). These are the numbers
+bench (`crates/dna-eval-lib/baselines/sim-bench.tsv`). These are the numbers
 later increments must beat.
 
 | Tract | Noise | Structure right | Dominant right | Right given structure | Clear but wrong | `rho_ratio` | Tie → shorter |

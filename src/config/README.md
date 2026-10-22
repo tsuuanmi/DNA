@@ -19,6 +19,10 @@ receive that path explicitly and never inspect process environment themselves.
 
 The path itself is not scientific identity; reproducibility continues to use the
 validated configuration content checksum recorded in result provenance.
+`load.rs` also digests every section's values in canonical form, and
+`Config::plugin_sha256` names what one plugin reads of the configuration (its
+`config_sections`): read evidence records and checks that digest, so editing
+another plugin's section, a comment, or the layout keeps it.
 
 The configuration holds method parameters only. Its root `profile` key names the
 target profile, resolved against the configuration file's directory; loading

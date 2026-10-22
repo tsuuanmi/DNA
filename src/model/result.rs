@@ -5,7 +5,6 @@ use serde::Serialize;
 use dna_align::model::alignment::Orientation;
 use dna_call::model::variant::{VariantCallRole, VariantKind};
 use dna_kernel::model::reference::ReferenceTopology;
-use dna_sanger::model::callability::PhaseState;
 
 /// Successful compact analysis document.
 #[derive(Debug, Serialize)]
@@ -76,11 +75,29 @@ pub(crate) struct CallabilityResult {
     pub(crate) masked_calls: usize,
 }
 
+/// How a read's signal behaves over a stretch of calls, as the contracts
+/// publish it: the modality's phase state, projected where its products are
+/// (`model::sanger_read`), so no contract serializes a modality type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum PhaseStateResult {
+    /// One dominant ladder; the calls are callable.
+    InPhase,
+    /// Superimposed ladders offset by slippage.
+    Dephased,
+    /// Double peaks the shadow model does not explain.
+    Mixed,
+    /// Absent or low primary signal.
+    Weak,
+    /// Irregular call spacing.
+    Irregular,
+}
+
 /// One maximal run of calls sharing a phase state.
 #[derive(Debug, Clone, Serialize)]
 pub(crate) struct CallabilitySegmentResult {
     pub(crate) calls: IntervalResult,
-    pub(crate) state: PhaseState,
+    pub(crate) state: PhaseStateResult,
     pub(crate) after_repeat: bool,
     /// Reported shadow offsets of a dephased segment, ascending.
     #[serde(skip_serializing_if = "Option::is_none")]

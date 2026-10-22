@@ -404,8 +404,26 @@
             }
           }
         },
+        "inputs": {
+          "description": "With `--inputs`: the inputs file the run's inputs came from, absolute, and its SHA-256. Every file it pins had its pinned SHA-256 when the run read it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
         "evidence_cache": {
-          "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under this configuration by this `sanger` version and read-stage code.",
+          "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under a configuration with these evidence plugins' sections by this `sanger` version and read-stage code.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -427,7 +445,7 @@
               "additionalProperties": false,
               "required": [
                 "sanger",
-                "configuration_sha256",
+                "evidence_configuration_sha256",
                 "code_sha256"
               ],
               "properties": {
@@ -436,8 +454,8 @@
                   "type": "integer",
                   "minimum": 1
                 },
-                "configuration_sha256": {
-                  "description": "The configuration file's SHA-256.",
+                "evidence_configuration_sha256": {
+                  "description": "The digest of the configuration the evidence plugins read (`dna::recorded::evidence_configuration_sha256`): the SHA-256 of one `<plugin>\\t<digest>` line per evidence plugin, each the digest the documents record in `provenance.plugin_configuration_sha256`. Another section, a comment, or the layout leaves it unchanged.",
                   "$ref": "#/$defs/sha256"
                 },
                 "code_sha256": {
@@ -529,6 +547,55 @@
               "description": "Bytes of the generation's entries after the run.",
               "type": "integer",
               "minimum": 0
+            }
+          }
+        },
+        "forms_cache": {
+          "description": "With `--evidence-cache` and a harness built from committed index sources: the cached index of the truth's written forms (`forms.tsv`) the run read, or built and stored, in the same directory. The key names the generation.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "directory",
+            "key",
+            "hit"
+          ],
+          "properties": {
+            "directory": {
+              "description": "The cache directory, absolute.",
+              "type": "string",
+              "minLength": 1
+            },
+            "key": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "truth",
+                "reference",
+                "windows",
+                "code"
+              ],
+              "properties": {
+                "truth": {
+                  "description": "The truth database file's SHA-256.",
+                  "$ref": "#/$defs/sha256"
+                },
+                "reference": {
+                  "description": "The reference sequence's SHA-256.",
+                  "$ref": "#/$defs/sha256"
+                },
+                "windows": {
+                  "description": "The SHA-256 of the target profile's repeat windows: one `<name>\\t<first>\\t<last>` line per window, in the profile's order.",
+                  "$ref": "#/$defs/sha256"
+                },
+                "code": {
+                  "description": "The SHA-256 of the index's code identity: the git object ids of its sources at the harness's commit.",
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            },
+            "hit": {
+              "description": "Whether the index was read from the cache rather than built from the whole database.",
+              "type": "boolean"
             }
           }
         },
@@ -878,6 +945,16 @@
               "type": "number",
               "minimum": 0
             }
+          }
+        },
+        "outputs": {
+          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`). Every run of this revision records it; a run of an earlier harness revision has none, and `same` hashes its files.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z_]+\\.(tsv|md)$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
           }
         }
       },
@@ -2476,7 +2553,7 @@
       }
     },
     "forms": {
-      "description": "How the reviewers write each sequence over the whole truth database, without sample identifiers. The first line is a comment recording the truth database file's SHA-256; `run --forms` reads the file back only for that database.",
+      "description": "How the reviewers write each sequence over the whole truth database, without sample identifiers. The first line is a comment recording the truth database file's SHA-256. With `--evidence-cache` the same table is cached per truth database, reference, and repeat windows (`run.json` `forms_cache`).",
       "type": "object",
       "additionalProperties": false,
       "required": [

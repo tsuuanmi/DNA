@@ -133,7 +133,8 @@
       "required": [
         "input",
         "configuration_sha256",
-        "plugins"
+        "plugins",
+        "plugin_configuration_sha256"
       ],
       "properties": {
         "input": {
@@ -160,6 +161,14 @@
         },
         "plugins": {
           "$ref": "urn:signal:schema:basecalls:v3#/$defs/plugins"
+        },
+        "plugin_configuration_sha256": {
+          "description": "Each plugin's configuration digest, by plugin id: the SHA-256 of one '<section>\\t<section digest>' line per configuration section the plugin owns, each section digest the SHA-256 of the section's values in canonical form. The reader compares these, not the configuration file's SHA-256.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "$ref": "urn:signal:schema:basecalls:v3#/$defs/sha256"
+          }
         }
       }
     },

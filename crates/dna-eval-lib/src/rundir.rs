@@ -93,6 +93,9 @@ pub(crate) struct RunHeader {
     /// The re-check list the pass measures read.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) recheck: Option<RecheckHeader>,
+    /// The inputs file the run's inputs came from (`--inputs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) inputs: Option<InputsHeader>,
     /// The read evidence cache the run read and filled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) evidence_cache: Option<cache::Usage>,
@@ -100,6 +103,11 @@ pub(crate) struct RunHeader {
     /// cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) placement_cache: Option<cache::Usage>,
+    /// The cached index of the truth's written forms the run read or
+    /// stored, with `--evidence-cache` and a build with the index's code
+    /// identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) forms_cache: Option<cache::FormsUsage>,
     /// The run contexts the consensus was calibrated by.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) run_context: Option<RunContextHeader>,
@@ -112,6 +120,11 @@ pub(crate) struct RunHeader {
     /// What passes without review.
     pub(crate) workload: WorkloadHeader,
     pub(crate) seconds: Seconds,
+    /// The SHA-256 of every other file of the run, by file name, so two
+    /// runs' outputs compare without reading them (`dna-eval same`). A run
+    /// of an earlier revision records none.
+    #[serde(default)]
+    pub(crate) outputs: BTreeMap<String, String>,
 }
 
 /// How the samples are grouped for their run signal (`--run-signal`,
@@ -153,6 +166,14 @@ impl Constants {
 pub(crate) struct RunContextHeader {
     pub(crate) directory: PathBuf,
     pub(crate) batches: usize,
+    pub(crate) sha256: String,
+}
+
+/// The inputs file of `run --inputs`: its path and SHA-256. Every file it
+/// pins had its pinned SHA-256 when the run read it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct InputsHeader {
+    pub(crate) path: PathBuf,
     pub(crate) sha256: String,
 }
 
@@ -416,6 +437,37 @@ pub(crate) fn prepare_output(directory: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The SHA-256 of every file of the run in `directory` but `run.json`, by
+/// file name.
+///
+/// # Errors
+///
+/// Fails when the directory cannot be read, holds anything but files, a
+/// name that is not UTF-8, or a file that cannot be read.
+pub(crate) fn digests(
+    directory: &Path,
+) -> std::result::Result<BTreeMap<String, String>, DiffError> {
+    let mut digests = BTreeMap::new();
+    for entry in fs::read_dir(directory).map_err(|error| failure(directory, error))? {
+        let entry = entry.map_err(|error| failure(directory, error))?;
+        let path = entry.path();
+        let kind = entry.file_type().map_err(|error| failure(&path, error))?;
+        if !kind.is_file() {
+            return Err(failure(&path, "not a file of a run"));
+        }
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| failure(&path, "the file name is not UTF-8"))?;
+        if name != RUN_JSON {
+            let sha256 =
+                crate::runner::sha256_file(&path).map_err(|error| failure(&path, error))?;
+            digests.insert(name, sha256);
+        }
+    }
+    Ok(digests)
+}
+
 /// Writes `contents` as the file `name` of `directory`.
 pub(crate) fn write(directory: &Path, name: &str, contents: &str) -> Result<()> {
     let path = directory.join(name);
@@ -536,7 +588,7 @@ pub(crate) mod tests {
         );
         let passes = || workload::passes(std::iter::empty(), Some(&zones));
         RunHeader {
-            harness: env!("CARGO_PKG_NAME").to_owned(),
+            harness: "dna-eval".to_owned(),
             harness_version: env!("CARGO_PKG_VERSION").to_owned(),
             source: Source {
                 revision: Some("0".repeat(40)),
@@ -579,11 +631,17 @@ pub(crate) mod tests {
                 sha256: "b".repeat(64),
                 rows: 2,
             }),
+            inputs: Some(InputsHeader {
+                path: PathBuf::from("/inputs.toml"),
+                sha256: "d".repeat(64),
+            }),
             evidence_cache: Some(cache::Usage {
                 directory: "/cache/evidence".into(),
                 key: cache::Key {
                     sanger: 17,
-                    configuration_sha256: "a".repeat(64),
+                    configuration: cache::Configuration::EvidenceConfigurationSha256(
+                        "a".repeat(64),
+                    ),
                     code_sha256: "b".repeat(64),
                 },
                 hits: 5,
@@ -595,13 +653,23 @@ pub(crate) mod tests {
                 directory: "/cache/evidence".into(),
                 key: cache::Key {
                     sanger: 17,
-                    configuration_sha256: "a".repeat(64),
+                    configuration: cache::Configuration::ConfigurationSha256("a".repeat(64)),
                     code_sha256: "c".repeat(64),
                 },
                 hits: 4,
                 misses: 2,
                 replaced: 0,
                 bytes: 90_000,
+            }),
+            forms_cache: Some(cache::FormsUsage {
+                directory: "/cache/evidence".into(),
+                key: cache::FormsKey {
+                    truth: "a".repeat(64),
+                    reference: "a".repeat(64),
+                    windows: "d".repeat(64),
+                    code: "e".repeat(64),
+                },
+                hit: true,
             }),
             run_context: None,
             zones: ZoneHeader {
@@ -627,6 +695,7 @@ pub(crate) mod tests {
                 sample_max: 1.0,
                 sample_sum: 1.5,
             },
+            outputs: BTreeMap::from([(SCORES.to_owned(), "c".repeat(64))]),
         }
     }
 
@@ -650,6 +719,9 @@ pub(crate) mod tests {
             run_signal_failed: None,
             forced_windows: None,
             recheck: None,
+            inputs: None,
+            outputs: BTreeMap::new(),
+            forms_cache: None,
             workload: WorkloadHeader {
                 all: header.workload.all,
                 current: None,
@@ -658,10 +730,45 @@ pub(crate) mod tests {
         };
         crate::contract::check_document("run.json", &serde_json::to_value(&bare)?)?;
         assert_eq!(serde_json::from_str::<RunHeader>(&bare.text()?)?, bare);
+        // A run of an earlier revision, without output digests, reads back.
+        let mut earlier = serde_json::to_value(&bare)?;
+        earlier
+            .as_object_mut()
+            .map(|header| header.remove("outputs"));
+        assert_eq!(serde_json::from_value::<RunHeader>(earlier)?, bare);
         crate::contract::check_table("checks.tsv", CHECKS_HEADER)?;
         crate::contract::check_table("notes.tsv", NOTES_HEADER)?;
         crate::contract::check_table("run_context.tsv", RUN_CONTEXT_HEADER)?;
         crate::contract::check_table("signals.tsv", SIGNALS_HEADER)
+    }
+
+    /// Every file but `run.json` is hashed; a directory is refused.
+    #[test]
+    fn hashes_every_file_of_a_run_but_its_header()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        write(directory.path(), RUN_JSON, "{}\n")?;
+        write(directory.path(), SCORES, "abc")?;
+        write(directory.path(), CHECKS, "")?;
+        assert_eq!(
+            digests(directory.path())?,
+            BTreeMap::from([
+                (
+                    CHECKS.to_owned(),
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_owned()
+                ),
+                (
+                    SCORES.to_owned(),
+                    "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_owned()
+                ),
+            ])
+        );
+        fs::create_dir(directory.path().join("nested"))?;
+        assert!(matches!(
+            digests(directory.path()),
+            Err(DiffError::Run { message, .. }) if message == "not a file of a run"
+        ));
+        Ok(())
     }
 
     #[test]

@@ -213,6 +213,16 @@ impl Row<'_> {
         )
     }
 
+    /// The windows of the class's discordant positions, comma-joined, as
+    /// `scores.tsv` writes them.
+    pub(crate) fn class_regions(&self) -> String {
+        self.discrepancy_regions(self.discrepancy())
+            .iter()
+            .map(RepeatWindow::label)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
     /// The windows of the class's discordant positions.
     fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<RepeatWindow> {
         discrepancy
@@ -309,11 +319,32 @@ impl Metric {
     }
 }
 
-/// Every derived output of one run.
 /// The header of `unreviewed.tsv`.
 pub(crate) const UNREVIEWED_HEADER: &str =
     "sample_id\tfirst\tlast\tblock\tclass\tclass_unlisted\tzone\tzone_checked\n";
 
+/// One unreviewed difference of a row (a block or an omitted truth allele)
+/// in one zone, as `unreviewed.tsv` writes it.
+pub(crate) struct UnreviewedBlock<'r> {
+    /// The row's index in [`Report::rows`].
+    pub(crate) row: usize,
+    /// The block's first and last anchors, or the omitted allele's anchor,
+    /// 1-based.
+    pub(crate) first: i64,
+    pub(crate) last: i64,
+    /// The block's text, or the omitted allele's.
+    pub(crate) text: &'r str,
+    pub(crate) class: BlockClass,
+    /// Its class without the re-check list.
+    pub(crate) unlisted: BlockClass,
+    /// The zone that holds its unreviewed positions, `.` without zones.
+    pub(crate) zone: String,
+    /// `yes` when a check item touches that zone, `no` when none does, `.`
+    /// without zones.
+    pub(crate) checked: &'static str,
+}
+
+/// Every derived output of one run.
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
     geometry: &'a Geometry,
@@ -509,14 +540,37 @@ impl<'a> Report<'a> {
         files
     }
 
-    /// `unreviewed.tsv`: one row per sample and unreviewed difference block,
-    /// in sample order then block order: its anchors, its text, its class as
-    /// the pass measures split it, the zone that holds its first anchor, and
-    /// whether a check item touches that zone, so that a later comparison of
-    /// two runs (`dna-eval diff`) counts the same passes from the files.
+    /// `unreviewed.tsv`: one row per sample, unreviewed difference (a block
+    /// or an omitted truth allele), and zone, in sample order then block
+    /// order: its anchors, its text, its class as the pass measures split it
+    /// and without the re-check list, the zone that holds its unreviewed
+    /// positions, and whether a check item touches that zone, so that a later
+    /// comparison of two runs (`dna-eval diff`) counts the same passes from
+    /// the files.
     fn unreviewed(&self) -> String {
         let mut text = String::from(UNREVIEWED_HEADER);
-        for (row, workload) in self.rows.iter().zip(&self.review.workloads) {
+        for block in self.unreviewed_blocks() {
+            let _ = writeln!(
+                text,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                self.rows[block.row].sample.id,
+                block.first,
+                block.last,
+                block.text,
+                block.class.label(),
+                block.unlisted.label(),
+                block.zone,
+                block.checked,
+            );
+        }
+        text
+    }
+
+    /// Every unreviewed difference per zone, in row order then block order,
+    /// as `unreviewed.tsv` writes them.
+    pub(crate) fn unreviewed_blocks(&self) -> Vec<UnreviewedBlock<'_>> {
+        let mut blocks = Vec::new();
+        for (index, workload) in self.review.workloads.iter().enumerate() {
             let Some(workload) = workload else {
                 continue;
             };
@@ -532,19 +586,38 @@ impl<'a> Report<'a> {
                     ),
                     _ => (".".to_owned(), "."),
                 };
-                let _ = writeln!(
-                    text,
-                    "{}\t{}\t{}\t{}\t{}\t{}\t{zone}\t{checked}",
-                    row.sample.id,
-                    escape.first,
-                    escape.last,
-                    escape.text,
-                    escape.class.label(),
-                    escape.unlisted.label(),
-                );
+                blocks.push(UnreviewedBlock {
+                    row: index,
+                    first: escape.first,
+                    last: escape.last,
+                    text: &escape.text,
+                    class: escape.class,
+                    unlisted: escape.unlisted,
+                    zone,
+                    checked,
+                });
             }
         }
-        text
+        blocks
+    }
+
+    /// Row `index`'s cause, scope, and findings as `scores.tsv` writes them;
+    /// empty for a row without a discrepancy.
+    pub(crate) fn cause_cells(&self, index: usize) -> [String; 3] {
+        self.causes[index].as_ref().map_or_else(
+            || [String::new(), String::new(), String::new()],
+            |(cause, scope, findings)| {
+                [
+                    cause.label().to_owned(),
+                    scope.label().to_owned(),
+                    findings
+                        .iter()
+                        .map(Finding::text)
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                ]
+            },
+        )
     }
 
     /// `scores.tsv`: one row per sample.
@@ -564,12 +637,7 @@ impl<'a> Report<'a> {
              review_checks\treview_positions\treview_clear\tunreviewed\tunreviewed_forced\t\
              review_zones\treview_zone_count\n",
         );
-        for ((row, cause), workload) in self
-            .rows
-            .iter()
-            .zip(&self.causes)
-            .zip(&self.review.workloads)
-        {
+        for (index, (row, workload)) in self.rows.iter().zip(&self.review.workloads).enumerate() {
             let sample = row.sample;
             let review = workload.as_ref().map_or_else(
                 || "\t\t\t\t\t\t".to_owned(),
@@ -602,20 +670,7 @@ impl<'a> Report<'a> {
                     )
                 },
             );
-            let (cause, cause_scope, cause_evidence) = cause.as_ref().map_or_else(
-                || (String::new(), String::new(), String::new()),
-                |(cause, scope, findings)| {
-                    (
-                        cause.label().to_owned(),
-                        scope.label().to_owned(),
-                        findings
-                            .iter()
-                            .map(Finding::text)
-                            .collect::<Vec<_>>()
-                            .join(" "),
-                    )
-                },
-            );
+            let [cause, cause_scope, cause_evidence] = self.cause_cells(index);
             let primary = row.status(Measure::Primary);
             let strict = row.status(Measure::Strict);
             let compatible = row.status(Measure::IupacCompatible);
@@ -702,12 +757,7 @@ impl<'a> Report<'a> {
                 String::new()
             };
             let discrepancy = row.discrepancy();
-            let class_regions = row
-                .discrepancy_regions(discrepancy)
-                .iter()
-                .map(RepeatWindow::label)
-                .collect::<Vec<_>>()
-                .join(",");
+            let class_regions = row.class_regions();
             let failure = row
                 .comparisons
                 .as_ref()

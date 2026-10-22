@@ -1,0 +1,33 @@
+[package]
+name = "dna-eval-lib"
+description = "DNA evaluation harness library: runs DNA over a test panel and scores it against reviewer truth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap.workspace = true
+dna.workspace = true
+dna-align.workspace = true
+dna-consensus.workspace = true
+dna-sample.workspace = true
+dna-kernel.workspace = true
+dna-sanger.workspace = true
+dna-trace = { workspace = true, features = ["simulate"] }
+flate2.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+dna-normalize.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

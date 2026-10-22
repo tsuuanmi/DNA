@@ -37,14 +37,18 @@ resolution differs from the configuration's
 (PROP-0006): the sample, the reference identity, the segments, and the sites
 with their runs, back into the core's consensus model, under the same
 configuration, profile, and reference rules; the segments are named as the
-consensus FASTA names them.
+consensus FASTA names them. It reads its unreliable-only reasons back
+through `modality_reason` in `mod.rs`, which asks the registered modalities'
+adapters (the Sanger adapter's `sanger::reason`), never through a modality
+crate itself.
 
 [`evidence.rs`](evidence.rs) reads `dna.read_evidence/v1` documents for
 `analyze --evidence` (one read, SRS-API-018) and for `sample`, `consensus`,
 and `review` with `--evidence` (a sample's reads, SRS-API-019), under the
 same configuration, profile, and reference rules: closed shape, at most
-16 MiB, written under the loaded configuration by this build's evidence
-plugins, calls in call order. A document records a read or a read the Sanger
+16 MiB, written by this build's evidence plugins under a configuration
+whose sections of those plugins equal the loaded configuration's (each
+plugin's configuration digest, not the file's SHA-256), calls in call order. A document records a read or a read the Sanger
 plugin set aside (`Recorded`). For a read it maps every reason label onto the
 Sanger plugin's own reasons (`dna_sanger::read_processing::reason`; an
 unknown label fails typed) and rebuilds the kernel's `ReadEvidence` through

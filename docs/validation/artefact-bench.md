@@ -1,6 +1,6 @@
 ---
 decided-by: [ADR-0075]
-covers: [crates/dna-eval/src/bench.rs]
+covers: [crates/dna-eval-lib/src/bench.rs]
 ---
 
 # Artefact bench
@@ -16,11 +16,13 @@ cargo run --release -p dna-eval -- bench \
   [--run-signal batch|month [--run-signal-batch-reads <n>]] [--output <new-directory>]
 ```
 
-`bench` takes `run`'s options for running DNA, so a case is judged as a run
-with the same options judges its sample: with `--run-context`, its batch's
-context calibrates the consensus; with `--run-signal`, the signal is built
-from the cases' samples alone. A sample with two traces of one content fails
-(`duplicate_trace`), as in `run`.
+`--evidence-cache`, `--run-context`, and `--run-signal` are `run`'s: the
+bench runs DNA with the same options, so a case is judged as a run with the
+same options judges its sample. With `--run-context`, its batch's context
+calibrates the consensus, and `bench.md` names the directory, the batches
+with a context, and their digest beside the harness revision; with
+`--run-signal`, the signal is built from the cases' samples alone. A sample
+with two traces of one content fails (`duplicate_trace`), as in `run`.
 
 ## What it checks
 

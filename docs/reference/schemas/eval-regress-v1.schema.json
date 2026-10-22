@@ -1,0 +1,933 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:signal:schema:eval_regress:v1",
+  "title": "DNA regression check v1",
+  "description": "The output directory of `dna-eval regress check` (`dna.eval_regress/v1`): a build's golden output on the frozen regression set, its changes against the ledger head, and the verdict; validation evidence about a DNA revision, not a DNA result contract. No file carries the identifier: `run.json` records the harness revision (`source.revision`), and the schema at that revision describes the check. An instance is the directory read as one object keyed by file name, as for `dna.eval_run/v1`: a `.json` file is its JSON value, a `.md` file its text, and a `.tsv` file its `comments`, `columns`, and `rows`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run.json",
+    "golden.tsv",
+    "changes.tsv",
+    "regress.md"
+  ],
+  "properties": {
+    "run.json": {
+      "$ref": "#/$defs/run"
+    },
+    "golden.tsv": {
+      "$ref": "#/$defs/golden"
+    },
+    "changes.tsv": {
+      "$ref": "#/$defs/changes"
+    },
+    "regress.md": {
+      "$ref": "#/$defs/markdown"
+    }
+  },
+  "$defs": {
+    "run": {
+      "description": "The check's header: what was checked, against what head, and the verdict. The only file that records paths and timings.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "harness",
+        "harness_version",
+        "source",
+        "threads",
+        "series",
+        "manifest",
+        "truth",
+        "recheck",
+        "configuration_path",
+        "reference_path",
+        "profile_sha256",
+        "reference_sha256",
+        "review_window",
+        "zones",
+        "run_context",
+        "version_key",
+        "evidence_cache",
+        "placement_cache",
+        "head",
+        "intent",
+        "rebase",
+        "verdict",
+        "rules",
+        "warnings",
+        "golden_sha256",
+        "kinds",
+        "strata",
+        "counts",
+        "changes",
+        "seconds"
+      ],
+      "properties": {
+        "harness": {
+          "const": "dna-eval"
+        },
+        "harness_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+        },
+        "source": {
+          "description": "The checkout the harness was built from; `record` takes clean builds of `main` only.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "revision",
+            "dirty"
+          ],
+          "properties": {
+            "revision": {
+              "description": "The git revision; null when unavailable.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "dirty": {
+              "description": "Whether tracked files differed from the revision; null when unknown.",
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "threads": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "series": {
+          "description": "`regress-<manifest version>`.",
+          "type": "string",
+          "pattern": "^regress-[^ ]+$"
+        },
+        "manifest": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "fields",
+            "body_sha256",
+            "rows"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "fields": {
+              "description": "The manifest's header fields; `panel` is `regress`.",
+              "type": "object",
+              "required": [
+                "panel",
+                "version"
+              ],
+              "properties": {
+                "panel": {
+                  "const": "regress"
+                }
+              },
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "body_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "rows": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "truth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "digest",
+            "recorded_digest",
+            "state",
+            "changed_samples"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "description": "The database file's SHA-256, for provenance.",
+              "$ref": "#/$defs/sha256"
+            },
+            "digest": {
+              "description": "The panel truth digest of the database.",
+              "$ref": "#/$defs/sha256"
+            },
+            "recorded_digest": {
+              "description": "The panel truth digest the manifest records; null when none.",
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "state": {
+              "enum": [
+                "unchanged",
+                "changed",
+                "not_recorded"
+              ]
+            },
+            "changed_samples": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "recheck": {
+          "description": "The re-check list: its path, SHA-256, and rows.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "sha256",
+                "rows"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "configuration_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reference_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "profile_sha256": {
+          "description": "The target profile's SHA-256.",
+          "$ref": "#/$defs/sha256"
+        },
+        "reference_sha256": {
+          "description": "The reference sequence's SHA-256.",
+          "$ref": "#/$defs/sha256"
+        },
+        "review_window": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "zones": {
+          "description": "The widths that place the review zones, in positions.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "after",
+            "edge",
+            "overrun"
+          ],
+          "properties": {
+            "after": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "edge": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "overrun": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "run_context": {
+          "description": "With `--run-context`: the directory, the batches with a context, and the contexts' digest.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "directory",
+                "batches",
+                "sha256"
+              ],
+              "properties": {
+                "directory": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "batches": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                }
+              }
+            }
+          ]
+        },
+        "version_key": {
+          "description": "What must move when a truth-free line changes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dna_version",
+            "plugins",
+            "contracts",
+            "configuration_sha256"
+          ],
+          "properties": {
+            "dna_version": {
+              "description": "The workspace version.",
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+            },
+            "plugins": {
+              "description": "Every plugin of the static registry, `id=version`, sorted by id, comma-joined.",
+              "type": "string",
+              "pattern": "^[a-z0-9_]+=[0-9]+(,[a-z0-9_]+=[0-9]+)*$"
+            },
+            "contracts": {
+              "description": "The result contracts DNA emits, sorted, comma-joined.",
+              "type": "string",
+              "pattern": "^(dna\\.[a-z_]+/v[0-9]+(,dna\\.[a-z_]+/v[0-9]+)*)?$"
+            },
+            "configuration_sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "evidence_cache": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "A cache the check read and filled, as `run --evidence-cache` records it; null without a cache.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "directory",
+                "key",
+                "hits",
+                "misses",
+                "replaced",
+                "bytes"
+              ],
+              "properties": {
+                "directory": {
+                  "description": "The cache directory, absolute.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sanger",
+                    "evidence_configuration_sha256",
+                    "code_sha256"
+                  ],
+                  "properties": {
+                    "sanger": {
+                      "description": "The `sanger` plugin version.",
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "evidence_configuration_sha256": {
+                      "description": "The digest of the configuration the evidence plugins read (`dna::recorded::evidence_configuration_sha256`).",
+                      "$ref": "#/$defs/sha256"
+                    },
+                    "code_sha256": {
+                      "description": "The SHA-256 of the stage's code identity.",
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "hits": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "misses": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "replaced": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "placement_cache": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "description": "A cache the check read and filled, as `run --evidence-cache` records it; null without a cache.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "directory",
+                "key",
+                "hits",
+                "misses",
+                "replaced",
+                "bytes"
+              ],
+              "properties": {
+                "directory": {
+                  "description": "The cache directory, absolute.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "sanger",
+                    "configuration_sha256",
+                    "code_sha256"
+                  ],
+                  "properties": {
+                    "sanger": {
+                      "description": "The `sanger` plugin version.",
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "configuration_sha256": {
+                      "$ref": "#/$defs/sha256"
+                    },
+                    "code_sha256": {
+                      "description": "The SHA-256 of the stage's code identity.",
+                      "$ref": "#/$defs/sha256"
+                    }
+                  }
+                },
+                "hits": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "misses": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "replaced": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "head": {
+          "description": "The head entry compared with; null for the series' first check.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^r[0-9]{4,}$"
+        },
+        "intent": {
+          "description": "The intent file: its path, git blob id, pull request, rows, and rows declared after a check.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "blob",
+                "pr",
+                "rows",
+                "posthoc_rows"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "blob": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+                },
+                "pr": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "posthoc_rows": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          ]
+        },
+        "rebase": {
+          "type": "boolean"
+        },
+        "verdict": {
+          "$ref": "#/$defs/verdict"
+        },
+        "rules": {
+          "description": "The rules that fired, in rule order.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "forbidden:escape",
+              "forbidden:flag_lost",
+              "forbidden:failures",
+              "forbidden:no_bump",
+              "intent_exceeded",
+              "unexplained",
+              "rebase_dna_change"
+            ]
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "golden_sha256": {
+          "description": "The SHA-256 of `golden.tsv`.",
+          "$ref": "#/$defs/sha256"
+        },
+        "kinds": {
+          "description": "Per kind, in kind order: its lines and the SHA-256 of its lines in file order.",
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "lines",
+              "sha256"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "failure",
+                  "allele",
+                  "callable",
+                  "check",
+                  "note",
+                  "review",
+                  "empop",
+                  "rejected",
+                  "block",
+                  "status"
+                ]
+              },
+              "lines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "strata": {
+          "description": "Per manifest stratum, in name order: its samples, the SHA-256 of their lines in file order, and its changed samples.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "stratum",
+              "samples",
+              "golden_sha256",
+              "changed_samples"
+            ],
+            "properties": {
+              "stratum": {
+                "type": "string",
+                "minLength": 1
+              },
+              "samples": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "golden_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "changed_samples": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "counts": {
+          "description": "What the golden output holds, as the ledger counts it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "samples",
+            "failed",
+            "clear",
+            "with_check",
+            "checks",
+            "notes",
+            "alleles",
+            "blocks_non_het",
+            "escapes",
+            "blocks_het",
+            "blocks_length_note",
+            "blocks_truth_n",
+            "blocks_recheck"
+          ],
+          "properties": {
+            "samples": {
+              "description": "Manifest rows.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "description": "Samples with a `failure` line.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "clear": {
+              "description": "Samples with `review clear Y`.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "with_check": {
+              "description": "Samples with a `check` line.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "checks": {
+              "description": "`check` lines.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "notes": {
+              "description": "`note` lines.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "alleles": {
+              "description": "`allele` lines.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocks_non_het": {
+              "description": "`block` lines of class `non_het`.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "escapes": {
+              "description": "`non_het` block lines whose zone no check item touches.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocks_het": {
+              "description": "`block` lines of class `het`.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocks_length_note": {
+              "description": "`block` lines of class `length_note`.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocks_truth_n": {
+              "description": "`block` lines of class `truth_n`.",
+              "type": "integer",
+              "minimum": 0
+            },
+            "blocks_recheck": {
+              "description": "`block` lines of class `recheck`.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "changes": {
+          "description": "The changes against the head; zeros for the series' first check.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "changed_samples",
+            "changed_lines",
+            "explained_lines",
+            "posthoc_rows"
+          ],
+          "properties": {
+            "changed_samples": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "changed_lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "explained_lines": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "posthoc_rows": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "seconds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "truth",
+            "dna"
+          ],
+          "properties": {
+            "total": {
+              "type": "number",
+              "minimum": 0
+            },
+            "truth": {
+              "type": "number",
+              "minimum": 0
+            },
+            "dna": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "golden": {
+      "description": "The golden output: one line per sample, kind, and key, samples in manifest order, kinds in this order, keys ascending by their leading number then text, then values.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "sample_id",
+            "kind",
+            "key",
+            "value"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "kind",
+              "key",
+              "value"
+            ],
+            "properties": {
+              "sample_id": {
+                "description": "The manifest sample identifier.",
+                "$ref": "#/$defs/cell"
+              },
+              "kind": {
+                "enum": [
+                  "failure",
+                  "allele",
+                  "callable",
+                  "check",
+                  "note",
+                  "review",
+                  "empop",
+                  "rejected",
+                  "block",
+                  "status"
+                ]
+              },
+              "key": {
+                "$ref": "#/$defs/cell"
+              },
+              "value": {
+                "$ref": "#/$defs/cell"
+              }
+            }
+          }
+        }
+      }
+    },
+    "changes": {
+      "description": "One row per changed golden line, in golden order; header only when nothing changed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comments",
+        "columns",
+        "rows"
+      ],
+      "properties": {
+        "comments": {
+          "$ref": "#/$defs/no_comments"
+        },
+        "columns": {
+          "const": [
+            "sample_id",
+            "stratum",
+            "kind",
+            "key",
+            "change",
+            "before",
+            "after",
+            "intent"
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sample_id",
+              "stratum",
+              "kind",
+              "key",
+              "change",
+              "before",
+              "after",
+              "intent"
+            ],
+            "properties": {
+              "sample_id": {
+                "$ref": "#/$defs/cell"
+              },
+              "stratum": {
+                "description": "The sample's manifest stratum.",
+                "$ref": "#/$defs/cell"
+              },
+              "kind": {
+                "enum": [
+                  "failure",
+                  "allele",
+                  "callable",
+                  "check",
+                  "note",
+                  "review",
+                  "empop",
+                  "rejected",
+                  "block",
+                  "status"
+                ]
+              },
+              "key": {
+                "$ref": "#/$defs/cell"
+              },
+              "change": {
+                "enum": [
+                  "added",
+                  "removed",
+                  "changed"
+                ]
+              },
+              "before": {
+                "description": "The head's value; `-` when absent.",
+                "$ref": "#/$defs/cell"
+              },
+              "after": {
+                "description": "The candidate's value; `-` when absent.",
+                "$ref": "#/$defs/cell"
+              },
+              "intent": {
+                "description": "The id of the intent row that explains the line, `rebase`, `forbidden:<rule>`, or `unexplained`.",
+                "type": "string",
+                "pattern": "^([a-z0-9_-]+|forbidden:(escape|flag_lost|failures|no_bump|rebase_dna_change))$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "markdown": {
+      "description": "A Markdown report: aggregates, then the first unexplained lines; it names samples and stays local; its text is not a contract.",
+      "type": "string"
+    },
+    "no_comments": {
+      "description": "The table has no comment line.",
+      "type": "array",
+      "maxItems": 0
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "cell": {
+      "description": "A non-empty cell without a trailing space; `-` for none.",
+      "type": "string",
+      "pattern": "^[^\\t\\n]*[^ \\t\\n]$"
+    },
+    "verdict": {
+      "enum": [
+        "REGRESS INITIAL",
+        "REGRESS SAME",
+        "REGRESS EXPLAINED",
+        "REGRESS REBASE",
+        "REGRESS FAIL"
+      ]
+    }
+  }
+}

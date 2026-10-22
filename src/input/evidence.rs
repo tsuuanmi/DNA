@@ -4,6 +4,7 @@
 //! beside the core's products; or a read the Sanger plugin set aside, with
 //! its cause.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -16,7 +17,7 @@ use crate::error::{
 use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::result::{
     CallabilityResult, CallabilitySegmentResult, IntervalResult, NoisyRegionResult,
-    SignalQualityResult, TraceIntegrityResult,
+    PhaseStateResult, SignalQualityResult, TraceIntegrityResult,
 };
 use crate::model::sample_result::ReadRejectionResult;
 use crate::model::sanger_read::{RejectedSanger, Rejection, SangerCallSignal, SangerRead};
@@ -31,7 +32,6 @@ use dna_kernel::read_evidence::{
 use dna_kernel::read_evidence::{
     CleanedLengths, LeakageShare, LengthMarginal, Margin, StructureFit, TractLengths,
 };
-use dna_sanger::model::callability::PhaseState;
 use dna_sanger::model::second_cause::{SecondCause, SecondPeak};
 use dna_sanger::read_processing;
 
@@ -86,7 +86,9 @@ pub(crate) struct RecordedRead {
 /// What a document must have been written under: the loaded
 /// configuration, its rejection minimums, and this build's evidence plugins.
 struct Expected<'a> {
-    configuration_sha256: &'a str,
+    /// Each evidence plugin's configuration digest under the loaded
+    /// configuration, by plugin id.
+    plugin_configuration_sha256: BTreeMap<&'static str, String>,
     minimum_calls: usize,
     minimum_callable_calls: usize,
     plugins: &'a [&'a PluginDescriptor],
@@ -95,7 +97,10 @@ struct Expected<'a> {
 impl<'a> Expected<'a> {
     fn of(config: &'a Config, plugins: &'a [&'a PluginDescriptor]) -> Self {
         Self {
-            configuration_sha256: &config.source_sha256,
+            plugin_configuration_sha256: plugins
+                .iter()
+                .map(|plugin| (plugin.id, config.plugin_sha256(plugin)))
+                .collect(),
             minimum_calls: config.sanger.signal_processing.window_size_bases,
             minimum_callable_calls: config.sanger.minimum_callable_calls(),
             plugins,
@@ -121,8 +126,12 @@ struct RawDocument {
 #[serde(deny_unknown_fields)]
 struct RawProvenance {
     input: RawInput,
+    /// The configuration file the document was written under: checked for
+    /// shape, not compared, since the evidence depends only on its plugins'
+    /// sections.
     configuration_sha256: String,
     plugins: Vec<RawPlugin>,
+    plugin_configuration_sha256: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -643,18 +652,43 @@ fn check_provenance(provenance: &RawProvenance, expected: &Expected<'_>) -> Resu
     if name.is_empty() || Path::new(name).file_name() != Some(name.as_ref()) {
         return Err(inconsistent("provenance.input.name is not a file name"));
     }
-    let sha256 = &provenance.input.sha256;
-    if sha256.len() != 64
-        || !sha256
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-    {
+    let is_sha256 = |text: &str| {
+        text.len() == 64
+            && text
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    };
+    if !is_sha256(&provenance.input.sha256) {
         return Err(inconsistent("provenance.input.sha256 is not a SHA-256"));
     }
-    if provenance.configuration_sha256 != expected.configuration_sha256 {
+    if !is_sha256(&provenance.configuration_sha256) {
+        return Err(inconsistent(
+            "provenance.configuration_sha256 is not a SHA-256",
+        ));
+    }
+    let same_configuration = provenance.plugin_configuration_sha256.len()
+        == expected.plugin_configuration_sha256.len()
+        && expected
+            .plugin_configuration_sha256
+            .iter()
+            .all(|(id, digest)| provenance.plugin_configuration_sha256.get(*id) == Some(digest));
+    if !same_configuration {
+        let list = |digests: Vec<String>| digests.join(",");
         return Err(ReadEvidenceError::Configuration {
-            found: provenance.configuration_sha256.clone(),
-            expected: expected.configuration_sha256.to_owned(),
+            found: list(
+                provenance
+                    .plugin_configuration_sha256
+                    .iter()
+                    .map(|(id, digest)| format!("{id}={digest}"))
+                    .collect(),
+            ),
+            expected: list(
+                expected
+                    .plugin_configuration_sha256
+                    .iter()
+                    .map(|(id, digest)| format!("{id}={digest}"))
+                    .collect(),
+            ),
         }
         .into());
     }
@@ -920,11 +954,11 @@ fn callability_result(raw: &RawCallability, count: usize) -> Result<CallabilityR
             .map(|segment| CallabilitySegmentResult {
                 calls: interval(segment.calls),
                 state: match segment.state {
-                    RawPhaseState::InPhase => PhaseState::InPhase,
-                    RawPhaseState::Dephased => PhaseState::Dephased,
-                    RawPhaseState::Mixed => PhaseState::Mixed,
-                    RawPhaseState::Weak => PhaseState::Weak,
-                    RawPhaseState::Irregular => PhaseState::Irregular,
+                    RawPhaseState::InPhase => PhaseStateResult::InPhase,
+                    RawPhaseState::Dephased => PhaseStateResult::Dephased,
+                    RawPhaseState::Mixed => PhaseStateResult::Mixed,
+                    RawPhaseState::Weak => PhaseStateResult::Weak,
+                    RawPhaseState::Irregular => PhaseStateResult::Irregular,
                 },
                 after_repeat: segment.after_repeat,
                 shadow_offsets: segment.shadow_offsets.clone(),
@@ -1174,20 +1208,27 @@ mod tests {
 
     const EXAMPLE: &str =
         include_str!("../../docs/reference/examples/read-evidence-v1.example.json");
-    const CONFIGURATION: &str = "07e5ef7cf9306eb6c41f21454f49a3d91e404e0b355d34a9a14defa5d4c2a675";
+    /// The Sanger plugin's configuration digest the examples record.
+    const SANGER_CONFIGURATION: &str =
+        "9d2a6f0c4e1b8a7d3f5c2e9b0a6d4f8c1e3b7a5d9c2f6e0b4a8d1c7f3e5b9a2d";
 
-    const EXPECTED: Expected<'static> = Expected {
-        configuration_sha256: CONFIGURATION,
-        minimum_calls: 10,
-        minimum_callable_calls: 20,
-        plugins: &[&SANGER],
-    };
+    fn expected() -> Expected<'static> {
+        Expected {
+            plugin_configuration_sha256: BTreeMap::from([(
+                "sanger",
+                SANGER_CONFIGURATION.to_owned(),
+            )]),
+            minimum_calls: 10,
+            minimum_callable_calls: 20,
+            plugins: &[&SANGER],
+        }
+    }
 
     fn recorded(document: &str) -> Result<Recorded> {
         parse(
             document.as_bytes(),
             Path::new("trace.evidence.json"),
-            &EXPECTED,
+            &expected(),
         )
     }
 
@@ -1401,12 +1442,32 @@ mod tests {
             failure(&other),
             Some(ReadEvidenceError::UnsupportedSchema { .. })
         ));
-        let configuration =
+        // Another configuration file whose Sanger sections are the same.
+        let file =
             edited(|value| value["provenance"]["configuration_sha256"] = "0".repeat(64).into());
+        assert!(recorded(&file).is_ok());
+        let shape = edited(|value| value["provenance"]["configuration_sha256"] = "file".into());
         assert!(matches!(
-            failure(&configuration),
-            Some(ReadEvidenceError::Configuration { .. })
+            failure(&shape),
+            Some(ReadEvidenceError::Inconsistent(_))
         ));
+        let sections = |edit: fn(&mut serde_json::Value)| {
+            edited(|value| edit(&mut value["provenance"]["plugin_configuration_sha256"]))
+        };
+        for document in [
+            sections(|digests| digests["sanger"] = "0".repeat(64).into()),
+            sections(|digests| {
+                digests
+                    .as_object_mut()
+                    .map(|digests| digests.remove("sanger"));
+            }),
+            sections(|digests| digests["core"] = "0".repeat(64).into()),
+        ] {
+            assert!(matches!(
+                failure(&document),
+                Some(ReadEvidenceError::Configuration { .. })
+            ));
+        }
         let plugin = edited(|value| value["provenance"]["plugins"][0]["version"] = 1.into());
         assert!(matches!(
             failure(&plugin),

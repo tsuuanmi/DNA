@@ -42,6 +42,7 @@ This directory is the canonical reference for public, machine-visible, configura
 - [Run signal JSON Schema](schemas/signal-v1.schema.json)
 - [Run context JSON Schema](schemas/run-context-v1.schema.json): `dna.run_context/v1`, a batch's own statistics ([run context](run-context.md))
 - [Evaluation run JSON Schema](schemas/eval-run-v1.schema.json): `dna.eval_run/v1`, the evaluation harness output, described in [validation](../validation/evaluation-harness.md#outputs)
+- [Regression check JSON Schema](schemas/eval-regress-v1.schema.json): `dna.eval_regress/v1`, the output of `dna-eval regress check`, described in [validation](../validation/regression-set.md#outputs)
 - [Synthetic examples](examples/README.md)
 
 A schema is authoritative for the exact serialized shape of its named version. Human contract documentation defines semantics and interpretation boundaries that JSON Schema cannot express alone.

@@ -1,0 +1,441 @@
+{
+  "run.json": {
+    "harness": "dna-eval",
+    "harness_version": "0.1.0",
+    "source": {
+      "revision": "0123456789abcdef0123456789abcdef01234567",
+      "dirty": false
+    },
+    "threads": 8,
+    "series": "regress-v1",
+    "manifest": {
+      "path": "/data/panels/regress-v1.tsv",
+      "fields": {
+        "panel": "regress",
+        "version": "v1",
+        "salt": "dna-regress-v1",
+        "rows": "3"
+      },
+      "body_sha256": "230d8358dc8e8890b4c58deeb62912ee2f20357ae92a5cc861b98e68fe31acb5",
+      "rows": 3
+    },
+    "truth": {
+      "path": "/data/statistics.sqlite",
+      "sha256": "3549b0028b75d981cdda2e573e9cb49dedc200185876df299f912b79f69dabd8",
+      "digest": "83ea5cb00a792680f56eeb73f7f624070055d8c5b8d1f4773e316fd2bb50da49",
+      "recorded_digest": "83ea5cb00a792680f56eeb73f7f624070055d8c5b8d1f4773e316fd2bb50da49",
+      "state": "unchanged",
+      "changed_samples": 0
+    },
+    "recheck": {
+      "path": "/data/recheck.tsv",
+      "sha256": "a604b80498eb61634e21ba22635d678ea77e57ce839c091ca62edd4bde9a842d",
+      "rows": 12
+    },
+    "configuration_path": "/repo/config/dna.toml",
+    "reference_path": "/repo/references/rCRS.fasta",
+    "profile_sha256": "1900eab6c028483d7126599ee6f50de0d27907b5c65fa90524580b4b0f9852b0",
+    "reference_sha256": "52367a6622b19f08825e915fad80c542ad4f4c34dbcebad9f5007994b3e39208",
+    "review_window": 10,
+    "zones": {
+      "after": 20,
+      "edge": 40,
+      "overrun": 2
+    },
+    "run_context": null,
+    "version_key": {
+      "dna_version": "0.1.0",
+      "plugins": "conformance=1,consensus=25,core=13,decided=4,empop=3,nomenclature=3,normalization=3,review=34,sanger=23,sequence=1",
+      "contracts": "dna.analysis/v10,dna.review/v1,dna.variants/v1",
+      "configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1"
+    },
+    "evidence_cache": {
+      "directory": "/data/evidence-cache",
+      "key": {
+        "sanger": 23,
+        "evidence_configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1",
+        "code_sha256": "a5ac19b4006b91867ae7cb6bf438f22d99fb5062f18d2ff22a0268968034f073"
+      },
+      "hits": 11,
+      "misses": 1,
+      "replaced": 0,
+      "bytes": 1048576
+    },
+    "placement_cache": {
+      "directory": "/data/evidence-cache",
+      "key": {
+        "sanger": 23,
+        "configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1",
+        "code_sha256": "af8976e0105e57effc3f7bad2de27aa59e3b637c01977521f51b87114064aa5b"
+      },
+      "hits": 11,
+      "misses": 1,
+      "replaced": 0,
+      "bytes": 65536
+    },
+    "head": "r0004",
+    "intent": {
+      "path": "/repo/crates/dna-eval-lib/baselines/regress-intents/r0005.tsv",
+      "blob": "89abcdef0123456789abcdef0123456789abcdef",
+      "pr": "#300",
+      "rows": 1,
+      "posthoc_rows": 0
+    },
+    "rebase": false,
+    "verdict": "REGRESS EXPLAINED",
+    "rules": [],
+    "warnings": [
+      "version key moved: plugins"
+    ],
+    "golden_sha256": "4b147d15e3daba12cc8f0f0a2f9080c61439a867b3d6a6eecf9fd660e60b40e8",
+    "kinds": [
+      {
+        "kind": "failure",
+        "lines": 1,
+        "sha256": "594e203debe9a6cdd4be1ac6e2fdc66bbd75bea924aaf27c97e8e2c6208a33fc"
+      },
+      {
+        "kind": "allele",
+        "lines": 5,
+        "sha256": "98020794b7a4b2d5e2de4a5b8f704e4791c2ff72fa51d4132c0c1abf7b7cd739"
+      },
+      {
+        "kind": "callable",
+        "lines": 3,
+        "sha256": "b95a75964b2e7818a561be94cca3c3491e28e6c37b4efed38d9e1a2c598e6684"
+      },
+      {
+        "kind": "check",
+        "lines": 1,
+        "sha256": "aecc608d636db1afeed9467aadac48272e403a1fe2ebccdd48645daad7f2fb58"
+      },
+      {
+        "kind": "note",
+        "lines": 1,
+        "sha256": "8e22f0ed4aee442486fb5f7199a0866f71acf5d391ac0b3b8c53c9b10cdec8ef"
+      },
+      {
+        "kind": "review",
+        "lines": 6,
+        "sha256": "b51d6428ed3fd292ee66da9555cbb2293e7a5923f1260baed706f53ba8c57653"
+      },
+      {
+        "kind": "empop",
+        "lines": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "kind": "rejected",
+        "lines": 2,
+        "sha256": "b4d90b040c20f366a5dd50145bd6595a9f4f0c564126bc1f83716f6a58650eb5"
+      },
+      {
+        "kind": "block",
+        "lines": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "kind": "status",
+        "lines": 16,
+        "sha256": "c0c12216fc2ffc32b65824bf6e4c823605f4b2b496abd99228b1e1026bbc904a"
+      }
+    ],
+    "strata": [
+      {
+        "stratum": "flagged_discordant",
+        "samples": 1,
+        "golden_sha256": "dbb2e9a2e498c1ba1c46bbdf5123792a7cf88d9fda800ff3fa61fbf16bbdd729",
+        "changed_samples": 1
+      },
+      {
+        "stratum": "random_recent",
+        "samples": 2,
+        "golden_sha256": "c72cbc7da9690ecab032c3533f8de628aa18a29f59fee5c33013c42413707996",
+        "changed_samples": 0
+      }
+    ],
+    "counts": {
+      "samples": 3,
+      "failed": 1,
+      "clear": 1,
+      "with_check": 1,
+      "checks": 1,
+      "notes": 1,
+      "alleles": 5,
+      "blocks_non_het": 0,
+      "escapes": 0,
+      "blocks_het": 0,
+      "blocks_length_note": 0,
+      "blocks_truth_n": 0,
+      "blocks_recheck": 0
+    },
+    "changes": {
+      "changed_samples": 1,
+      "changed_lines": 2,
+      "explained_lines": 2,
+      "posthoc_rows": 0
+    },
+    "seconds": {
+      "total": 12.5,
+      "truth": 0.4,
+      "dna": 9.8
+    }
+  },
+  "golden.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "kind",
+      "key",
+      "value"
+    ],
+    "rows": [
+      {
+        "sample_id": "S1",
+        "kind": "allele",
+        "key": "73G",
+        "value": "recorded"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "allele",
+        "key": "263G",
+        "value": "recorded"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "allele",
+        "key": "315.1C",
+        "value": "not_recorded"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "callable",
+        "key": "73-340",
+        "value": "-"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "callable",
+        "key": "16024-16365",
+        "value": "-"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "review",
+        "key": "clear",
+        "value": "Y"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "review",
+        "key": "positions",
+        "value": "0"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "review",
+        "key": "zones",
+        "value": "-"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "rejected",
+        "key": "-",
+        "value": "0"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "cause",
+        "value": "-"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "class",
+        "value": "none"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "haplotype",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "haplotype_iupac_compatible",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "haplotype_lod",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "iupac_compatible",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "primary",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S1",
+        "kind": "status",
+        "key": "strict",
+        "value": "concordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "allele",
+        "key": "73G",
+        "value": "recorded"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "allele",
+        "key": "309.1C",
+        "value": "recorded"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "callable",
+        "key": "73-340",
+        "value": "-"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "check",
+        "key": "303-315",
+        "value": "tract_length"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "note",
+        "key": "hvs2_c_tract:run1",
+        "value": "303-309 unconfirmed . 8 ."
+      },
+      {
+        "sample_id": "S2",
+        "kind": "review",
+        "key": "clear",
+        "value": "N"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "review",
+        "key": "positions",
+        "value": "20"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "review",
+        "key": "zones",
+        "value": "window@HV2"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "rejected",
+        "key": "-",
+        "value": "1"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "cause",
+        "value": "dna representation"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "class",
+        "value": "representation HV2"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "haplotype",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "haplotype_iupac_compatible",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "haplotype_lod",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "iupac_compatible",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "primary",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S2",
+        "kind": "status",
+        "key": "strict",
+        "value": "discordant"
+      },
+      {
+        "sample_id": "S3",
+        "kind": "failure",
+        "key": "-",
+        "value": "rejected"
+      }
+    ]
+  },
+  "changes.tsv": {
+    "comments": [],
+    "columns": [
+      "sample_id",
+      "stratum",
+      "kind",
+      "key",
+      "change",
+      "before",
+      "after",
+      "intent"
+    ],
+    "rows": [
+      {
+        "sample_id": "S2",
+        "stratum": "flagged_discordant",
+        "kind": "check",
+        "key": "303-315",
+        "change": "changed",
+        "before": "one_read tract_length",
+        "after": "tract_length",
+        "intent": "length-only"
+      },
+      {
+        "sample_id": "S2",
+        "stratum": "flagged_discordant",
+        "kind": "review",
+        "key": "positions",
+        "change": "changed",
+        "before": "30",
+        "after": "20",
+        "intent": "length-only"
+      }
+    ]
+  },
+  "regress.md": "# Regress check: regress-v1\n\n**Verdict: REGRESS EXPLAINED**\n\n- Warning: version key moved: plugins\n"
+}

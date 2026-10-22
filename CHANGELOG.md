@@ -17,6 +17,83 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval run --inputs <file>`: the run's inputs (manifest, truth,
+  configuration, its target profile, reference, and optionally the re-check
+  list, forced windows, current period, evidence cache, and run contexts)
+  from one TOML file, every input file pinned by its SHA-256. A changed or
+  replaced file is refused before the run starts, and checked again before
+  the outputs are written, and `run.json` records the inputs file
+  and its SHA-256 (`inputs`, new optional field of `dna.eval_run/v1`). The
+  options stay; a run uses the file or the options, never both.
+- `dna-eval cache list --dir <dir>` and a kind-aware `cache prune`. Each
+  cache generation records its kind and key (`key.json`) and the time a run
+  last opened it (`last_used`). `list` shows every generation by kind and
+  last use (TSV) and the temporary files of writers no longer alive.
+  `prune --keep <n>` now keeps the `n` most recently used generations of
+  each kind (evidence, placement, forms, unlabelled) instead of `n` over
+  all kinds by last write, removes those orphaned temporary files, and takes
+  `--dry-run`; `--keep` is at least 1. The orphan sweep sees this host's
+  processes only. No DNA output changes; run outputs are byte-identical.
+- `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
+  byte-identical, and which files differ, with the first line at which each
+  does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
+  SHA-256 of every other file of the run (`outputs`), written last; `same`
+  checks them against the files, so a file edited after its run is refused.
+  `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
+- `dna-eval run --evidence-cache` (and `regress check --evidence-cache`)
+  also caches the index of the truth's
+  written forms (`forms.tsv`), keyed by the truth database file, the
+  reference sequence, the target profile's repeat windows, and the index's
+  code identity, so a renamed or moved window, or a change to the index's
+  code, is a new generation rather than a stale file. It replaces
+  `run --forms` and `regress check --forms`, which read an earlier run's
+  `forms.tsv` checked against the database alone (Breaking for the
+  harness's command line). `run.json` records `forms_cache` (key, hit).
+  Outputs are byte-identical. No DNA output changes.
+- Regression ledger entry `r0001` of regress-v1: the `INITIAL` on the `main`
+  revision that introduces `dna-eval regress` (74c9cbaf), one row in
+  `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)
+  in `regress-v1-strata.tsv`. 589 samples, none failed, 291 clear, 6 non-het
+  blocks in unchecked zones.
+- Regression ledger entry `r0002` of regress-v1: the change of #299 (review
+  rules 35, anchored runs beside the anchor) on `main` c2fcd771, `REGRESS
+  EXPLAINED` against `r0001` by its intent file
+  `crates/dna-eval/baselines/regress-intents/r0002.tsv` (no posthoc row). 9
+  samples changed (31 lines: 9 check items removed, 22 review lines changed),
+  clear 291 → 295, samples with a check 298 → 294, non-het blocks in
+  unchecked zones 6 → 6; version key: plugin `review` 34 → 35.
+- `dna-eval regress` (`dna.eval_regress/v1`): the versioned regression set
+  (`docs/validation/regression-set.md`).
+  - `regress check` runs DNA on every row of a `panel=regress` manifest as
+    `run` does and writes its golden output (`golden.tsv`): DNA's alleles,
+    callable intervals, check items, notes, review, EMPOP query, and set-aside
+    traces (truth-free), then the unreviewed blocks and statuses (evaluation).
+  - It compares the golden output with the head of the version ledger. Every
+    changed line must match a row of the pull request's committed intent
+    file. A truth-free change needs a new version key (the workspace version,
+    every plugin version, the contract versions, the configuration). New
+    non-het escapes, lost flags on discordant samples, and new or lost
+    failures fail whatever the intents. `--rebase` accepts a new truth or
+    re-check list when DNA's own output is unchanged.
+  - `regress record` appends a checked run of a clean build of
+    `origin/main`'s current commit to the local ledger and one row each to
+    `crates/dna-eval/baselines/regress-v1-ledger.tsv` and
+    `regress-v1-strata.tsv`, which name no sample. It re-judges the run's
+    golden output against the head and the intent file instead of trusting
+    `run.json`, and stages every file before renaming it into place.
+  - A series' first check refuses a truth database other than the one its
+    manifest pins.
+  - `run` and `bench` read `panel=regress` manifests, as development data.
+  - `bench` takes `--run-context`, and `run`, `bench`, and `regress check`
+    share one set of options for running DNA; with `--run-context`,
+    `bench.md` records the contexts' digest. `diff` keeps its own pass
+    classifier until the gate rework, and `--current-since` stays `run`'s.
+  - `dna::plugins()` lists the static plugin registry.
+  - No DNA output changes. The read-evidence cache starts a new generation:
+    the registry's visibility changed in a read-stage source.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,
@@ -715,8 +792,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     ADR-0090) instead of being dropped.
   - **Run signal**: the first pass counts the samples it cannot use
     (`run.json` `run_signal_failed`).
-  - **`bench`** takes `run`'s options for running DNA (`RunOptions`),
-    `--run-context` and `--run-signal` included.
+  - **`bench`** takes `run`'s run signal options (`--run-signal`,
+    `--run-signal-batch-reads`), beside the options for running DNA it
+    already shares.
+  - **`regress check`**: the golden `block` lines carry the omitted truth
+    alleles and one line per zone, as `unreviewed.tsv` does; the omission
+    classes add to no ledger count, and `forbidden:escape` stays about
+    `non_het` blocks in unchecked zones.
   - **`sim-bench`** reads its baseline strictly and gives a verdict,
     `SIM-BENCH FAIL` with exit status 2 when a gated measure worsens beyond
     `--tolerance` (default 0).
@@ -725,6 +807,88 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   of its unreviewed positions; `run.json` `workload` gains the omission
   counts and `run_signal_failed`; a run that predates them reads with them
   0 or absent.
+- A read evidence document now depends on the configuration the evidence
+  plugins read, not the configuration file: `dna.read_evidence/v1` records
+  each plugin's configuration digest in
+  `provenance.plugin_configuration_sha256` (the SHA-256 of the plugin's
+  sections' canonical values, `config_sections`), and its reader
+  (`--evidence`, SRS-API-018) compares those digests instead of the
+  configuration file's SHA-256, which it still records. A document stays
+  valid when another plugin's section, a comment, or the layout changes,
+  and the analyses from it stay byte-identical to the analyses from the
+  traces under the configuration loaded. `dna-eval`'s evidence cache keys
+  its generations on that digest
+  (`dna::recorded::evidence_configuration_sha256`), so editing `[review]`
+  or `[consensus]` no longer makes a new 7 GB generation; `run.json` records
+  it as `evidence_cache.key.evidence_configuration_sha256` (renamed from
+  `configuration_sha256`, `dna.eval_run/v1` and `dna.eval_regress/v1` in
+  place). The placement cache
+  is still keyed by the configuration file, its key's
+  `configuration_sha256`. No plugin's output
+  changes and no plugin version moves: the documents gain the provenance
+  field only, and every other output is byte-identical. **Breaking:**
+  `dna.read_evidence/v1` revised in place (pre-release): the provenance
+  field is required, so documents written before it are refused and must be
+  written again.
+- The evaluation harness is the library `dna-eval-lib` under a thin
+  `dna-eval` binary, which keeps the build stamps (revision, dirty state,
+  and each cached stage's code identity): a new commit or `git add` relinks
+  the binary and no longer recompiles the harness. `cargo build -p dna-eval`
+  and `cargo run -p dna-eval` work as before; the harness's sources moved to
+  `crates/dna-eval-lib`. Each cached stage's sources are listed in
+  `crates/dna-eval/stages.txt` instead of the build script, and
+  `validate_module_layers.py` checks each list is closed under the module
+  graph. The read stage's list now also covers the build's own inputs
+  (`Cargo.toml`, `rust-toolchain.toml`), the facade's crate root, error,
+  operation log, plugin composition, pipeline module, artefact writer, and
+  the result models the evidence names, all of which it missed; the forms
+  index's covers the kernel, the geometry, the manifests it reads, and the
+  harness library's manifest. A file listed for some items only has what
+  those items use checked too, with the same file's helpers they call,
+  transitively; a listed file may not glob-import its own crate; and every
+  list names `stages.txt`. The
+  placement cache's generation also names the target profile file's
+  SHA-256, whose topology the placement aligns on. Every existing evidence,
+  placement, and forms cache generation therefore misses once. No DNA output changes; run outputs are byte-identical.
+- The review measures the two runs of an anchored repeat window beside the
+  anchor, not through it, where the consensus shows the anchor (SRS-API-020,
+  rules version 35): run 1 from the position before the window to the one
+  before the anchor, run 2 from the one after the anchor to the position
+  after the window. The anchor is then DNA's decided base the runs lie
+  around. An insertion excluded at run 1's estimated 3' end (`309.1C`)
+  takes both positions beside its junction, the anchor among them, out of
+  the callable segments (SRS-VAR-019), so rules version 30 still left run 2
+  `undecided_call`, a check, wherever run 1 was only estimated. An anchor
+  no consensus segment holds, or only reference confirmations observe
+  (ADR-0080), must still be callable. Plugin `review` 35. Run 2 is then
+  confirmed as before: by both strands, or by one read in phase at DNA's
+  length; in 510 of the 540 newly clear samples below one read in phase
+  confirms it, and DNA's run 2 equals the truth in all 540. Measured
+  against `main` ea8627d1 (diff gate PASS on both panels, no status or
+  coverage change; development panel v5 re-measured against `main`
+  74c9cbaf after the review split, identical):
+  - development panel v5, current period: clear 8,827 → 8,948, window@HV2
+    checks 475 → 317, unreviewed non-het 4 → 4, unreviewed het-only
+    370 → 370; earlier period clear 4,065 → 4,123, unreviewed non-het
+    12 → 12;
+  - readiness panel v2, current period: clear 15,165 → 15,498, window@HV2
+    checks 849 → 474, unreviewed non-het 1 → 1; earlier period clear
+    2,024 → 2,052, unreviewed non-het 11 → 12 (one sample whose one
+    reverse read shows run 2 in phase at six, `315.1C`, where the truth
+    records the reference; its raw trace shows six peaks, a truth omission
+    put on the re-check list).
+
+- A reference confirmation (ADR-0080) is no longer withdrawn because a read
+  of the other strand shows the confirming call's own second base standing
+  out when that read's modality explains its second too: the confirming
+  call's second is explained by construction, so neither strand shows an
+  unexplained second there (SRS-CONS-010). A second the other strand leaves
+  unexplained still withdraws it. Plugin: `consensus` 25. Measured against
+  `main` af0823d3 (diff gate PASS on both panels): clear development panel
+  v5 current 8,813 → 8,827, earlier 4,049 → 4,065; readiness-v2 current
+  15,158 → 15,165, earlier 2,011 → 2,024; no unreviewed block, status, or
+  coverage changes.
+
 - `dna-eval` reads its geometry from the target profile (`geometry.rs`):
   the reportable regions (named `HV1`, `HV2`, `HV3` in the profile's
   order), the zones' repeat windows, and the windows a discordant position

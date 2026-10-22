@@ -5,8 +5,9 @@
 //! A representation discrepancy is the reviewers' convention or a minority
 //! form in the truth depending on which side writes the majority form of
 //! the same window sequence. A run writes the index as `forms.tsv`, keyed by
-//! the truth database's SHA-256, and a later run on the same database can
-//! read it instead of the whole database.
+//! the truth database's SHA-256; with `--evidence-cache` it is cached per
+//! truth database, reference, and repeat windows ([`crate::cache`]), so a
+//! later run reads it instead of the whole database.
 
 use std::fmt::Write as _;
 

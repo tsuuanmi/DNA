@@ -14,7 +14,7 @@ use dna_normalize::variant_normalization::PLUGIN as NORMALIZATION;
 use dna_sanger::read_processing::PLUGIN as SANGER;
 
 /// Every plugin this build contains.
-const REGISTRY: &[&PluginDescriptor] = &[
+pub(crate) const REGISTRY: &[&PluginDescriptor] = &[
     &SANGER,
     &SEQUENCE,
     &CORE,

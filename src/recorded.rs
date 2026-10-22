@@ -6,6 +6,7 @@
 //! placed-read contract (`dna.placed_read/v1`), which `dna-align` alone
 //! writes and reads back.
 
+use std::fmt::Write as _;
 use std::num::NonZeroUsize;
 use std::path::Path;
 
@@ -29,6 +30,26 @@ use crate::sample_analysis::{CallerScope, Loaded, Outcome, SampleAnalysis, analy
 /// document records.
 pub fn read_evidence_document(trace: &Path, config: &Path) -> Result<Vec<u8>> {
     crate::pipeline::evidence_document(trace, config)
+}
+
+/// The configuration digest a read evidence document depends on under the
+/// configuration at `config`: the SHA-256 of one `<plugin>\t<digest>` line
+/// per evidence plugin, in the workflow's order, each digest the one the
+/// document records in `provenance.plugin_configuration_sha256`. Two
+/// configurations with the same digest give every trace the same document,
+/// apart from the configuration file SHA-256 it records, and each reads the
+/// other's documents.
+///
+/// # Errors
+///
+/// An unreadable or invalid configuration.
+pub fn evidence_configuration_sha256(config: &Path) -> Result<String> {
+    let config = crate::config::load_path(config)?;
+    let mut lines = String::new();
+    for plugin in plugins::EVIDENCE {
+        let _ = writeln!(lines, "{}\t{}", plugin.id, config.plugin_sha256(plugin));
+    }
+    Ok(hex_sha256(lines.as_bytes()))
 }
 
 /// What one sample analysis from recorded evidence yields: the analysis, or,
