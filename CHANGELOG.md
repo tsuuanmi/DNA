@@ -682,6 +682,22 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval` reads its geometry from the target profile (`geometry.rs`):
+  the reportable regions (named `HV1`, `HV2`, `HV3` in the profile's
+  order), the zones' repeat windows, and the windows a discordant position
+  is classified by, which are now the profile's nomenclature windows and
+  the length tracts outside them, labelled by their profile names: for
+  rCRS `hvs_ii` 303–315, `hvs_iii` 512–524, `hvs_i` 16180–16193, and
+  `hvs3_c_tract` 568–573, in place of the harness's own `hv2_polyc`
+  302–316, `ac_repeat` 513–526, `hv1_polyc` 16180–16195, and `hv3_polyc`
+  560–576. The lab's comparison conventions (the special positions, the
+  region names) and the measurement definitions (limit of detection, faint
+  second base) move to one module with their sources (`conventions.rs`).
+  Outputs: `scores.tsv` `regions` and `class_regions`, the summary's window
+  tables, `forms.tsv` (an earlier `forms.tsv` is refused, since it names
+  other windows), and the causes that read the written forms change; the
+  measures, statuses, classes, workload, and passes do not.
+  `dna.eval_run/v1` changes in place (the window and region patterns).
 - `dna-eval` reads batch months once, as a validated `Month`: a manifest's
   `batch_date` must be `YYYY-MM-DD` or empty (unknown), and
   `--current-since` must be `YYYY-MM`, checked when the command line is

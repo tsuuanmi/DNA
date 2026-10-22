@@ -15,11 +15,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::cache;
-use crate::cause;
 use crate::components;
+use crate::conventions;
 use crate::error::{DiffError, Error, Result};
 use crate::estimate;
-use crate::lod;
 use crate::manifest::{Month, Sample};
 use crate::runner::{Contexts, Identity, Outcome};
 use crate::tracts;
@@ -136,8 +135,8 @@ pub(crate) struct Constants {
 impl Constants {
     pub(crate) const fn current() -> Self {
         Self {
-            lod_share: lod::LOD,
-            faint_share: cause::loci::FAINT,
+            lod_share: conventions::LOD,
+            faint_share: conventions::FAINT,
             interval_z: estimate::Z_95,
         }
     }
@@ -497,7 +496,7 @@ fn parse_table(
 pub(crate) mod tests {
     use super::*;
     use crate::compare::Measure;
-    use crate::{report, truth, workload, zones};
+    use crate::{truth, workload, zones};
 
     /// A run header with every optional field.
     pub(crate) fn fixture() -> RunHeader {
@@ -510,7 +509,7 @@ pub(crate) mod tests {
             failed: 1,
         };
         let zones = zones::Zones::new(
-            &[(16024, 16365), (73, 340)],
+            &crate::geometry::tests::spans(&[(16024, 16365), (73, 340)]),
             &[(16184, 16193)],
             zones::Widths {
                 after: 20,
@@ -552,7 +551,7 @@ pub(crate) mod tests {
                 profile_id: "human-mtdna-rcrs".into(),
                 profile_sha256: digest,
             }],
-            review_window: report::REVIEW_WINDOW,
+            review_window: conventions::REVIEW_WINDOW,
             current_since: "2026-01".parse().ok(),
             run_signal: Some(SignalGrouping::Batch),
             run_signal_batch_reads: Some(40),

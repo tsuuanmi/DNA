@@ -11,9 +11,7 @@ use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::read_evidence::EvidenceReason;
 use dna_sample::model::sample_evidence::LocusState;
 
-/// A second channel at or above this share of a read's profile, in
-/// thousandths, is a faint second base; below it, none (3 %).
-pub(crate) const FAINT: u16 = 30;
+use crate::conventions::FAINT;
 
 /// Some admitted read covers the position.
 pub(crate) const COVERED: u16 = 1;

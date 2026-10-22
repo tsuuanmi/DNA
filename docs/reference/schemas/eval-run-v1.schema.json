@@ -2471,14 +2471,9 @@
                 ]
               },
               "window": {
-                "description": "The repeat window; `-` for `outside`.",
-                "enum": [
-                  "hv2_polyc",
-                  "hv1_polyc",
-                  "hv3_polyc",
-                  "ac_repeat",
-                  "-"
-                ]
+                "description": "The repeat window, by its label as in `class_regions` (never `other`); `-` for `outside`.",
+                "type": "string",
+                "pattern": "^([a-z0-9_]+|-)$"
               },
               "sequence": {
                 "description": "The window's sequence; `-` for `outside`.",
@@ -2594,7 +2589,8 @@
     },
     "window_list": {
       "type": "string",
-      "pattern": "^((ac_repeat|hv1_polyc|hv2_polyc|hv3_polyc|other)(,(ac_repeat|hv1_polyc|hv2_polyc|hv3_polyc|other))*)?$"
+      "pattern": "^([a-z0-9_]+(,[a-z0-9_]+)*)?$",
+      "description": "Comma-separated window labels, in label order: the target profile's nomenclature windows and its length tracts outside them, each by its profile name in lower case with any other character than a letter or digit written `_` (`hvs_ii`, `hvs3_c_tract` for rCRS), and `other`."
     },
     "class": {
       "description": "The discrepancy class: the part of DNA that owns the difference.",
@@ -2636,9 +2632,9 @@
       "pattern": "^([0-9]+-[0-9]+\\+?:[^ /:]+/[^ /:]+( [0-9]+-[0-9]+\\+?:[^ /:]+/[^ /:]+)*)?$"
     },
     "callable_yield": {
-      "description": "`HV1=<callable>/<analysed> HV2=… HV3=…`.",
+      "description": "Per reportable region of the target profile, in its order (`HV1`, `HV2`, `HV3` for rCRS), `<region>=<callable>/<analysed>`.",
       "type": "string",
-      "pattern": "^(HV1=[0-9]+/[0-9]+ HV2=[0-9]+/[0-9]+ HV3=[0-9]+/[0-9]+)?$"
+      "pattern": "^([A-Z0-9]+=[0-9]+/[0-9]+( [A-Z0-9]+=[0-9]+/[0-9]+)*)?$"
     },
     "failure": {
       "type": "string",

@@ -64,6 +64,17 @@ describes them.
   --run-context` it reads each batch's `dna.run_context/v1` from the
   directory (`contexts`) and rebuilds each sample's consensus under its
   batch's context; `main.rs` writes the coverage (`run_context.tsv`).
+- `geometry.rs` — the target geometry, read once from the configuration's
+  target profile: the reportable regions (named `HV1`, `HV2`, … in the
+  profile's order) that bound the comparison, the callable yield, the
+  review windows, and the zones; the nomenclature windows the zones are
+  placed around; and the windows a discordant position is classified by
+  (the nomenclature windows, then the length tracts outside them). Nothing
+  else in the harness holds a reference coordinate, but the simulated
+  bench's frozen cases.
+- `conventions.rs` — the conventions the harness reproduces, with their
+  sources (the lab's special positions and region names, the limit of
+  detection, the faint second base), and the defaults of a run's options.
 - `compare.rs` — concordance of DNA's alleles with the truth under the primary
   (the lab's rules), strict, IUPAC-compatible, haplotype, and haplotype LoD
   measures, and the comparable intervals and edits of the haplotype measures.

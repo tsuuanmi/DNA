@@ -1195,7 +1195,7 @@ mod tests {
             &outcomes,
             &truth,
             crate::compare::tests::rcrs(),
-            &[],
+            (crate::geometry::tests::rcrs(), &[]),
         );
         let database = TruthDatabase {
             info: BTreeMap::new(),
@@ -1203,7 +1203,7 @@ mod tests {
         };
         let check = TruthCheck::new(&manifest, &database);
         let zones = crate::zones::Zones::new(
-            &[(73, 340)],
+            &crate::geometry::tests::spans(&[(73, 340)]),
             &[(303, 315)],
             crate::zones::Widths {
                 after: 20,
@@ -1211,9 +1211,13 @@ mod tests {
                 overrun: 2,
             },
         );
-        let report = Report::new(&rows, &check, (&Forms::default(), ""))
-            .with_review(10, None, Some(zones), None, Vec::new())
-            .with_current_since("2026-01".parse().ok());
+        let report = Report::new(
+            &rows,
+            (crate::geometry::tests::rcrs(), &check),
+            (&Forms::default(), ""),
+        )
+        .with_review(10, None, Some(zones), None, Vec::new())
+        .with_current_since("2026-01".parse().ok());
         let directory = root.path().join("run");
         std::fs::create_dir_all(&directory)?;
         for (name, contents) in report.files(&[]) {

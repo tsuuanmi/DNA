@@ -53,13 +53,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::conventions::SPECIAL_POSITIONS;
+use crate::geometry::Geometry;
 use crate::haplotype::{Block, Edit, Haplotypes};
-
-/// Positions whose insertions and deletions are left out of the comparison.
-const SPECIAL_POSITIONS: [&str; 4] = ["455", "463", "573", "309"];
-/// Hypervariable regions, closed at both ends.
-pub(crate) const HV_REGIONS: [(&str, i64, i64); 3] =
-    [("HV1", 16024, 16365), ("HV2", 73, 340), ("HV3", 438, 576)];
 /// Single-base codes for bases A, C, G, T; any other base is an IUPAC code.
 const DEFINITE: [&str; 4] = ["A", "C", "G", "T"];
 
@@ -155,14 +151,6 @@ pub(crate) fn normalize_position(text: &str) -> String {
 /// The anchor base of a position: `309` for `309.1`.
 pub(crate) fn anchor(position: &str) -> Option<i64> {
     position.split('.').next()?.parse::<i64>().ok()
-}
-
-fn hv_region(position: &str) -> Option<&'static str> {
-    let base = anchor(position)?;
-    HV_REGIONS
-        .iter()
-        .find(|(_, start, end)| (*start..=*end).contains(&base))
-        .map(|(name, _, _)| *name)
 }
 
 /// A set of comparison rules, declared in [`Measure::ALL`] order.
@@ -397,8 +385,12 @@ pub(crate) struct Comparison {
 /// regions when DNA reports none; and within the truth's analysed intervals
 /// when it records any, since a stretch the reviewers did not analyse holds
 /// no truth to compare.
-fn comparable(intervals: &[(i64, i64)], analysed: &[(i64, i64)]) -> Vec<(i64, i64)> {
-    let regions = HV_REGIONS.map(|(_, start, end)| (start, end)).to_vec();
+fn comparable(
+    geometry: &Geometry,
+    intervals: &[(i64, i64)],
+    analysed: &[(i64, i64)],
+) -> Vec<(i64, i64)> {
+    let regions = geometry.bounds();
     let mut comparable = if intervals.is_empty() {
         regions
     } else {
@@ -413,9 +405,9 @@ fn comparable(intervals: &[(i64, i64)], analysed: &[(i64, i64)]) -> Vec<(i64, i6
 
 /// DNA's callable yield in one HV region: the truth's analysed positions
 /// there, and how many of them DNA's callable intervals cover.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Yield {
-    pub(crate) region: &'static str,
+    pub(crate) region: String,
     pub(crate) callable: u64,
     pub(crate) analysed: u64,
 }
@@ -429,21 +421,29 @@ impl Yield {
 
 /// Per HV region, the truth's analysed positions and those DNA's callable
 /// intervals cover.
-pub(crate) fn callable_yield(callable: &[(i64, i64)], analysed: &[(i64, i64)]) -> [Yield; 3] {
+pub(crate) fn callable_yield(
+    geometry: &Geometry,
+    callable: &[(i64, i64)],
+    analysed: &[(i64, i64)],
+) -> Vec<Yield> {
     let length = |intervals: &[(i64, i64)]| {
         intervals
             .iter()
             .map(|(start, end)| u64::try_from(end - start + 1).unwrap_or(0))
             .sum::<u64>()
     };
-    HV_REGIONS.map(|(region, start, end)| {
-        let analysed = intersect(&[(start, end)], &merged(analysed));
-        Yield {
-            region,
-            callable: length(&intersect(&analysed, &merged(callable))),
-            analysed: length(&analysed),
-        }
-    })
+    geometry
+        .regions()
+        .iter()
+        .map(|region| {
+            let analysed = intersect(&[(region.first, region.last)], &merged(analysed));
+            Yield {
+                region: region.name.clone(),
+                callable: length(&intersect(&analysed, &merged(callable))),
+                analysed: length(&analysed),
+            }
+        })
+        .collect()
 }
 
 /// Closed intervals sorted and merged where they touch.
@@ -516,6 +516,7 @@ fn bases_of(allele: &Allele) -> Option<(i64, i64)> {
 /// the truth IUPAC alleles at those positions write symbols that match
 /// compatibly (`haplotype_lod`); without it, every truth allele does.
 pub(crate) fn haplotypes(
+    geometry: &Geometry,
     dna: Side<'_>,
     truth: Side<'_>,
     reference: &str,
@@ -540,7 +541,7 @@ pub(crate) fn haplotypes(
     };
     Haplotypes::new(
         reference,
-        &comparable(dna.intervals, truth.intervals),
+        &comparable(geometry, dna.intervals, truth.intervals),
         &merged(truth.intervals)
             .iter()
             .map(|&(_, end)| end)
@@ -555,6 +556,7 @@ pub(crate) fn haplotypes(
 /// sides' sequences from `haplotypes`, and `haplotype_lod` compares the truth
 /// IUPAC alleles at `below` compatibly.
 pub(crate) fn compare(
+    geometry: &Geometry,
     dna: Side<'_>,
     truth: Side<'_>,
     measure: Measure,
@@ -635,17 +637,18 @@ pub(crate) fn compare(
     };
     for allele in dna_unique
         .iter()
-        .filter(|allele| hv_region(&allele.position).is_some())
+        .filter(|allele| {
+            anchor(&allele.position).is_some_and(|base| geometry.region_at(base).is_some())
+        })
         .filter(analysed)
     {
         reasons.insert(Reason::DnaOnly);
         positions.insert(allele.position.clone());
     }
     let mut uncovered = Vec::new();
-    for allele in truth_unique
-        .iter()
-        .filter(|allele| hv_region(&allele.position).is_some())
-    {
+    for allele in truth_unique.iter().filter(|allele| {
+        anchor(&allele.position).is_some_and(|base| geometry.region_at(base).is_some())
+    }) {
         if dna.intervals.is_empty() || inside(&allele.position, dna.intervals) {
             reasons.insert(Reason::TruthOnly);
             positions.insert(allele.position.clone());
@@ -733,63 +736,6 @@ pub(crate) fn texts(alleles: &[Allele]) -> String {
         .map(|allele| allele.text())
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// The window a discordant position falls in, for the breakdown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Region {
-    /// HVS-III AC repeat, 513–526.
-    AcRepeat,
-    /// HVS-I poly-C tract, 16180–16195.
-    Hv1PolyC,
-    /// HVS-II poly-C tract, 302–316.
-    Hv2PolyC,
-    /// HVS-III poly-C tract, 560–576.
-    Hv3PolyC,
-    /// Anywhere else.
-    Other,
-}
-
-impl Region {
-    /// Every region, in label order.
-    pub(crate) const ALL: [Self; 5] = [
-        Self::AcRepeat,
-        Self::Hv1PolyC,
-        Self::Hv2PolyC,
-        Self::Hv3PolyC,
-        Self::Other,
-    ];
-
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::AcRepeat => "ac_repeat",
-            Self::Hv1PolyC => "hv1_polyc",
-            Self::Hv2PolyC => "hv2_polyc",
-            Self::Hv3PolyC => "hv3_polyc",
-            Self::Other => "other",
-        }
-    }
-
-    /// The repeat windows with their inclusive 1-based bounds.
-    pub(crate) const WINDOWS: [(Self, i64, i64); 4] = [
-        (Self::Hv2PolyC, 302, 316),
-        (Self::Hv1PolyC, 16180, 16195),
-        (Self::Hv3PolyC, 560, 576),
-        (Self::AcRepeat, 513, 526),
-    ];
-
-    /// The window of a position's anchor base.
-    pub(crate) fn of(position: &str) -> Self {
-        anchor(position).map_or(Self::Other, Self::at)
-    }
-
-    /// The window of a 1-based reference position.
-    pub(crate) fn at(position: i64) -> Self {
-        Self::WINDOWS
-            .iter()
-            .find(|(_, first, last)| (*first..=*last).contains(&position))
-            .map_or(Self::Other, |(window, _, _)| *window)
-    }
 }
 
 /// Why a sample has no comparison.
@@ -922,11 +868,13 @@ pub(crate) mod tests {
     fn compared(dna: Side<'_>, truth: Side<'_>, measure: Measure) -> Comparison {
         let below = BTreeSet::new();
         let lod = (measure == Measure::HaplotypeLod).then_some(&below);
+        let geometry = crate::geometry::tests::rcrs();
         compare(
+            geometry,
             dna,
             truth,
             measure,
-            &haplotypes(dna, truth, rcrs(), lod),
+            &haplotypes(geometry, dna, truth, rcrs(), lod),
             &below,
         )
     }
@@ -1103,8 +1051,6 @@ pub(crate) mod tests {
         assert_eq!(normalize_position("x1"), "x1");
         let calls = alleles(&["16189C", "249DEL", "309.2C", "309.1C", "73G"]);
         assert_eq!(texts(&calls), "73G 249DEL 309.1C 309.2C 16189C");
-        assert_eq!(Region::of("309.1"), Region::Hv2PolyC);
-        assert_eq!(Region::of("x"), Region::Other);
     }
 
     #[test]
@@ -1400,11 +1346,12 @@ pub(crate) mod tests {
     #[test]
     fn callable_yield_counts_analysed_positions_dna_calls() {
         let yields = callable_yield(
+            crate::geometry::tests::rcrs(),
             &[(16024, 16100), (16090, 16200), (73, 340)],
             &[(16024, 16365), (73, 300), (438, 576)],
         );
         assert_eq!(
-            yields.map(|value| value.text()),
+            yields.iter().map(Yield::text).collect::<Vec<_>>(),
             ["HV1=177/342", "HV2=228/228", "HV3=0/139"]
         );
     }
@@ -1413,18 +1360,23 @@ pub(crate) mod tests {
     fn comparable_intervals_are_hv_regions_within_callable_intervals() {
         // The tests' reference loaded.
         assert_eq!(rcrs().len(), 16_569);
+        let geometry = crate::geometry::tests::rcrs();
         assert_eq!(
-            comparable(&[], &[]),
+            comparable(geometry, &[], &[]),
             [(73, 340), (438, 576), (16024, 16365)]
         );
         assert_eq!(
-            comparable(&[(16300, 16400), (1, 100), (101, 200), (500, 600)], &[]),
+            comparable(
+                geometry,
+                &[(16300, 16400), (1, 100), (101, 200), (500, 600)],
+                &[]
+            ),
             [(73, 200), (500, 576), (16300, 16365)]
         );
         // Within the truth's analysed intervals: HVS-II to 302, HVS-III
         // around a gap at 523-525.
         assert_eq!(
-            comparable(&[(1, 600)], &[(73, 302), (438, 522), (526, 576)]),
+            comparable(geometry, &[(1, 600)], &[(73, 302), (438, 522), (526, 576)]),
             [(73, 302), (438, 522), (526, 576)]
         );
     }
@@ -1517,7 +1469,14 @@ pub(crate) mod tests {
                 alleles,
                 intervals: &intervals,
             };
-            haplotypes(side(left), side(right), sequence, None).equivalence(None)
+            haplotypes(
+                crate::geometry::tests::rcrs(),
+                side(left),
+                side(right),
+                sequence,
+                None,
+            )
+            .equivalence(None)
         };
         let mut rebuilt = Vec::new();
         let mut moved = 0;

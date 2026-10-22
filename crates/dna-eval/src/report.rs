@@ -12,10 +12,10 @@ use std::fmt::Write as _;
 use crate::cause::forms::Forms;
 use crate::cause::{self, Cause, Finding, Scope};
 use crate::classes::{Discrepancy, StatusClass};
-use crate::compare::{
-    self, Comparison, Concordance, Failure, Measure, Reason, Region, Side, Yield,
-};
+use crate::compare::{self, Comparison, Concordance, Failure, Measure, Reason, Side, Yield};
+use crate::conventions;
 use crate::estimate::{self, Estimate, Observation};
+use crate::geometry::{Geometry, Window as RepeatWindow};
 use crate::haplotype;
 use crate::lod;
 use crate::manifest::{Month, Sample};
@@ -31,6 +31,8 @@ use dna_kernel::profile::Convention;
 /// One compared panel sample.
 pub(crate) struct Row<'a> {
     pub(crate) sample: &'a Sample,
+    /// The target geometry the sample is compared in.
+    pub(crate) geometry: &'a Geometry,
     pub(crate) outcome: &'a Outcome,
     /// The sample's truth record, when the truth has one.
     pub(crate) truth: Option<&'a TruthSample>,
@@ -41,7 +43,7 @@ pub(crate) struct Row<'a> {
     pub(crate) below_lod: usize,
     /// Per HV region, the truth's analysed positions DNA's callable
     /// intervals cover.
-    pub(crate) callable_yield: Option<[Yield; 3]>,
+    pub(crate) callable_yield: Option<Vec<Yield>>,
 }
 
 /// Compares every sample's outcome, given in sample order, with its truth
@@ -52,7 +54,7 @@ pub(crate) fn rows<'a>(
     outcomes: &'a [Outcome],
     truth: &'a BTreeMap<String, TruthSample>,
     reference: &str,
-    conventions: &[Convention],
+    (geometry, conventions): (&'a Geometry, &[Convention]),
 ) -> Vec<Row<'a>> {
     let mut rows = samples
         .iter()
@@ -79,25 +81,28 @@ pub(crate) fn rows<'a>(
                         intervals: &record.intervals,
                     };
                     callable_yield = Some(compare::callable_yield(
+                        geometry,
                         &called.intervals,
                         &record.intervals,
                     ));
                     let below = lod::below(&record.alleles, &called.signals);
                     below_lod = below.len();
-                    let haplotypes = compare::haplotypes(dna, truth, reference, None);
-                    let lod_haplotypes = compare::haplotypes(dna, truth, reference, Some(&below));
+                    let haplotypes = compare::haplotypes(geometry, dna, truth, reference, None);
+                    let lod_haplotypes =
+                        compare::haplotypes(geometry, dna, truth, reference, Some(&below));
                     Ok(Measure::ALL.map(|measure| {
                         let haplotypes = if measure == Measure::HaplotypeLod {
                             &lod_haplotypes
                         } else {
                             &haplotypes
                         };
-                        compare::compare(dna, truth, measure, haplotypes, &below)
+                        compare::compare(geometry, dna, truth, measure, haplotypes, &below)
                     }))
                 }
             };
             Row {
                 sample,
+                geometry,
                 outcome,
                 truth: record,
                 comparisons,
@@ -207,11 +212,11 @@ impl Row<'_> {
     }
 
     /// The windows of the class's discordant positions.
-    fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<Region> {
+    fn discrepancy_regions(&self, discrepancy: Discrepancy) -> BTreeSet<RepeatWindow> {
         discrepancy
             .measure()
             .and_then(|measure| self.comparison(measure).ok())
-            .map(regions)
+            .map(|comparison| regions(self.geometry, comparison))
             .unwrap_or_default()
     }
 
@@ -309,6 +314,7 @@ pub(crate) const UNREVIEWED_HEADER: &str =
 
 pub(crate) struct Report<'a> {
     rows: &'a [Row<'a>],
+    geometry: &'a Geometry,
     check: &'a TruthCheck,
     estimates: Vec<(Weighting, Metric, Estimate)>,
     /// Per row, its cause and findings.
@@ -319,9 +325,6 @@ pub(crate) struct Report<'a> {
     /// the summary reports first.
     current_since: Option<Month>,
 }
-
-/// Default window of the review workload, in positions.
-pub(crate) const REVIEW_WINDOW: i64 = 10;
 
 /// The review workload of a run: its windows, its forced windows, its
 /// re-check list, and each row's workload when the row was compared.
@@ -339,13 +342,12 @@ struct Review {
 impl Review {
     fn of(
         rows: &[Row<'_>],
-        window: i64,
-        forced: Option<Vec<(i64, i64)>>,
-        zones: Option<Zones>,
+        (window, geometry): (i64, &Geometry),
+        (forced, zones): (Option<Vec<(i64, i64)>>, Option<Zones>),
         recheck: Option<Recheck>,
         tracts: Vec<Tract>,
     ) -> Self {
-        let windows = workload::windows(window);
+        let windows = workload::windows(window, geometry.regions());
         let workloads = rows
             .iter()
             .map(|row| {
@@ -398,7 +400,7 @@ impl<'a> Report<'a> {
     /// identifier, the causes on the truth's written `forms` and `reference`.
     pub(crate) fn new(
         rows: &'a [Row<'a>],
-        check: &'a TruthCheck,
+        (geometry, check): (&'a Geometry, &'a TruthCheck),
         (forms, reference): (&Forms, &str),
     ) -> Self {
         let estimates = Weighting::ALL
@@ -423,10 +425,17 @@ impl<'a> Report<'a> {
         let causes = rows.iter().map(|row| row.cause(forms, reference)).collect();
         Self {
             rows,
+            geometry,
             check,
             estimates,
             causes,
-            review: Review::of(rows, REVIEW_WINDOW, None, None, None, Vec::new()),
+            review: Review::of(
+                rows,
+                (conventions::REVIEW_WINDOW, geometry),
+                (None, None),
+                None,
+                Vec::new(),
+            ),
             current_since: None,
         }
     }
@@ -466,7 +475,13 @@ impl<'a> Report<'a> {
         recheck: Option<Recheck>,
         tracts: Vec<Tract>,
     ) -> Self {
-        self.review = Review::of(self.rows, window, forced, zones, recheck, tracts);
+        self.review = Review::of(
+            self.rows,
+            (window, self.geometry),
+            (forced, zones),
+            recheck,
+            tracts,
+        );
         self
     }
 
@@ -629,9 +644,9 @@ impl<'a> Report<'a> {
                         labels(&comparison.reasons),
                         compare::sorted_positions(&comparison.positions).join(" "),
                         u8::from(comparison.iupac_only),
-                        regions(comparison)
+                        regions(row.geometry, comparison)
                             .iter()
-                            .map(|region| region.label())
+                            .map(RepeatWindow::label)
                             .collect::<Vec<_>>()
                             .join(","),
                     )
@@ -667,9 +682,12 @@ impl<'a> Report<'a> {
                         )
                     },
                 );
-            let callable_yield = row.callable_yield.map_or_else(String::new, |yields| {
-                yields.map(|value| value.text()).join(" ")
-            });
+            let callable_yield = row
+                .callable_yield
+                .as_ref()
+                .map_or_else(String::new, |yields| {
+                    yields.iter().map(Yield::text).collect::<Vec<_>>().join(" ")
+                });
             let below_lod = if row.comparisons.is_ok() {
                 row.below_lod.to_string()
             } else {
@@ -679,7 +697,7 @@ impl<'a> Report<'a> {
             let class_regions = row
                 .discrepancy_regions(discrepancy)
                 .iter()
-                .map(|region| region.label())
+                .map(RepeatWindow::label)
                 .collect::<Vec<_>>()
                 .join(",");
             let failure = row
@@ -1544,10 +1562,10 @@ impl<'a> Report<'a> {
         text.push_str(
             "\nBy the window of a discordant position:\n\n| Region | Samples |\n|---|---:|\n",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let count = discordant
                 .iter()
-                .filter(|comparison| regions(comparison).contains(&region))
+                .filter(|comparison| regions(self.geometry, comparison).contains(&region))
                 .count();
             let _ = writeln!(text, "| {} | {count} |", region.label());
         }
@@ -1556,7 +1574,7 @@ impl<'a> Report<'a> {
     /// Samples per discrepancy class and window, retired ones left out.
     fn class_section(&self, text: &mut String) {
         let current = self.rows.iter().filter(|row| !row.sample.retired);
-        let mut classes = BTreeMap::<Discrepancy, (usize, BTreeMap<Region, usize>)>::new();
+        let mut classes = BTreeMap::<Discrepancy, (usize, BTreeMap<RepeatWindow, usize>)>::new();
         for row in current.clone() {
             let discrepancy = row.discrepancy();
             let (samples, windows) = classes.entry(discrepancy).or_default();
@@ -1573,11 +1591,11 @@ impl<'a> Report<'a> {
              the samples with a discordant position of their class in it.\n\n\
              | Class | Owner | Samples |",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let _ = write!(text, " {} |", region.label());
         }
         text.push_str("\n|---|---|---:|");
-        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push_str(&"---:|".repeat(self.geometry.all_windows().len()));
         text.push('\n');
         for discrepancy in Discrepancy::ALL {
             let (samples, windows) = classes.get(&discrepancy).cloned().unwrap_or_default();
@@ -1587,7 +1605,7 @@ impl<'a> Report<'a> {
                 discrepancy.label(),
                 discrepancy.owner()
             );
-            for region in Region::ALL {
+            for region in self.geometry.all_windows() {
                 let _ = write!(
                     text,
                     " {} |",
@@ -1608,7 +1626,7 @@ impl<'a> Report<'a> {
             .rows
             .iter()
             .filter(|row| !row.sample.retired)
-            .filter_map(|row| row.callable_yield)
+            .filter_map(|row| row.callable_yield.as_ref())
             .collect::<Vec<_>>();
         if yields.is_empty() {
             return;
@@ -1619,10 +1637,10 @@ impl<'a> Report<'a> {
              | Region | Samples | Analysed | Callable | Share | Samples short |\n\
              |---|---:|---:|---:|---:|---:|\n",
         );
-        for index in 0..3 {
+        for (index, name) in self.geometry.regions().iter().enumerate() {
             let region = yields
                 .iter()
-                .map(|values| values[index])
+                .filter_map(|values| values.get(index))
                 .filter(|value| value.analysed > 0)
                 .collect::<Vec<_>>();
             let analysed = region.iter().map(|value| value.analysed).sum::<u64>();
@@ -1636,7 +1654,7 @@ impl<'a> Report<'a> {
             let _ = writeln!(
                 text,
                 "| {} | {} | {analysed} | {callable} | {share:.4} | {} |",
-                yields[0][index].region,
+                name.name,
                 region.len(),
                 region
                     .iter()
@@ -1804,11 +1822,11 @@ impl<'a> Report<'a> {
              | Base measure | Haplotype measure | Discordant | Same sequence | Still discordant | \
              Blocks | Open blocks |",
         );
-        for region in Region::ALL {
+        for region in self.geometry.all_windows() {
             let _ = write!(text, " Same: {} |", region.label());
         }
         text.push_str("\n|---|---|---:|---:|---:|---:|---:|");
-        text.push_str(&"---:|".repeat(Region::ALL.len()));
+        text.push_str(&"---:|".repeat(self.geometry.all_windows().len()));
         text.push('\n');
         for (base, measure) in pairs {
             let discordant = self
@@ -1840,10 +1858,10 @@ impl<'a> Report<'a> {
                 blocks.len(),
                 blocks.iter().filter(|block| block.open).count(),
             );
-            for region in Region::ALL {
+            for region in self.geometry.all_windows() {
                 let count = same
                     .iter()
-                    .filter(|comparison| regions(comparison).contains(&region))
+                    .filter(|comparison| regions(self.geometry, comparison).contains(&region))
                     .count();
                 let _ = write!(text, " {count} |");
             }
@@ -1897,11 +1915,13 @@ fn labels(reasons: &BTreeSet<Reason>) -> String {
 }
 
 /// The windows of a comparison's discordant positions.
-fn regions(comparison: &Comparison) -> BTreeSet<Region> {
+fn regions(geometry: &Geometry, comparison: &Comparison) -> BTreeSet<RepeatWindow> {
     comparison
         .positions
         .iter()
-        .map(|position| Region::of(position))
+        .map(|position| {
+            compare::anchor(position).map_or(RepeatWindow::Other, |base| geometry.window_at(base))
+        })
         .collect()
 }
 
@@ -2041,10 +2061,14 @@ mod tests {
                 &outcomes,
                 &truth.samples,
                 compare::tests::rcrs(),
-                &[],
+                (crate::geometry::tests::rcrs(), &[]),
             );
-            Ok(Report::new(&rows, &check, (&Forms::default(), ""))
-                .files(&[("panel", "synthetic".to_owned())]))
+            Ok(Report::new(
+                &rows,
+                (crate::geometry::tests::rcrs(), &check),
+                (&Forms::default(), ""),
+            )
+            .files(&[("panel", "synthetic".to_owned())]))
         };
         let one = outputs(1)?;
         assert_eq!(one, outputs(8)?);
@@ -2066,11 +2090,11 @@ mod tests {
             // The IUPAC site lies outside DNA's callable intervals but inside
             // the truth's: concordant, but missed on the strict measure.
             "S00\tb1\tb1\thard\t4.5\t4.5\t1\t0\tconcordant\tY\t2\t3\t\t16189Y\t\t\t0\t\t\
-             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thv1_polyc\tlab\tdefect\tlab:no_read@16189\t\t\t\t\tHV1=0/342 HV2=268/268 HV3=0/0\t2\t0\t",
+             discordant\tN\t16189Y\tconcordant\tY\tconcordant\tY\t\tconcordant\tY\t\tconcordant\tY\t\t1\tcoverage\thvs_i\tlab\tdefect\tlab:no_read@16189\t\t\t\t\tHV1=0/342 HV2=268/268 HV3=0/0\t2\t0\t",
             // The major allele at the IUPAC site: compatible with Y.
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
-             shared_position,dna_only,truth_only\t16189\t1\thv1_polyc\tdiscordant\tN\t\t\
-             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thv1_polyc\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
+             shared_position,dna_only,truth_only\t16189\t1\thvs_i\tdiscordant\tN\t\t\
+             concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thvs_i\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
             // Duplicate trace content is removed before DNA runs.
             "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\t\t\t\t\t\
              2\t\tdna: 2 traces",
@@ -2078,7 +2102,7 @@ mod tests {
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\t\t1\tnot_comparable\t\tundetermined\tdefect\tundetermined:not_comparable\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
             "S04\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t150T\t16189Y\t\
-             dna_only,truth_only\t150 16189\t0\thv1_polyc,other\tdiscordant\tN\t\tdiscordant\tN\t\
+             dna_only,truth_only\t150 16189\t0\thvs_i,other\tdiscordant\tN\t\tdiscordant\tN\t\
              discordant\tN\t150-150:T/C 16189-16189:T/Y\tdiscordant\tN\t150-150:T/C\tdiscordant\tN\t150-150:T/C\t1\tsequence\tother\tundetermined\tdefect\tundetermined:adjudicate\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t0\t",
             "S08\tb1\tb2\tclean\t10\t10\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
              not_applicable\tN/A\t\tnot_applicable\tN/A\tnot_applicable\tN/A\t\t\
@@ -2138,7 +2162,12 @@ mod tests {
                 current: digest("d"),
             }],
         };
-        let files = Report::new(&[], &check, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &check),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         let names = files.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         assert_eq!(
             names,
@@ -2166,7 +2195,12 @@ mod tests {
             changed: Vec::new(),
             ..check
         };
-        let files = Report::new(&[], &unchanged, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &unchanged),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         assert!(files.iter().all(|(name, _)| *name != "truth_changes.tsv"));
         assert!(files[5].1.contains("Panel truth: unchanged"));
         // The header digest differs while no row does: the file is still
@@ -2176,7 +2210,12 @@ mod tests {
             changed: Vec::new(),
             ..unchanged
         };
-        let files = Report::new(&[], &header_only, (&Forms::default(), "")).files(&[]);
+        let files = Report::new(
+            &[],
+            (crate::geometry::tests::rcrs(), &header_only),
+            (&Forms::default(), ""),
+        )
+        .files(&[]);
         let tsv = files
             .iter()
             .find(|(name, _)| *name == "truth_changes.tsv")
