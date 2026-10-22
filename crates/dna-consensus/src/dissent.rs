@@ -69,6 +69,13 @@ pub(crate) fn set_aside_dissent(
             .iter()
             .filter_map(index)
             .collect::<Vec<_>>();
+        // Every opposing read is one of the sample's reads; should one not
+        // be, nothing is set aside.
+        debug_assert_eq!(
+            opposing.len(),
+            decision.opposing.len(),
+            "an opposing read is not among the observed reads"
+        );
         if opposing.len() != decision.opposing.len() {
             continue;
         }

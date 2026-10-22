@@ -50,6 +50,41 @@ pub struct RuleParams {
     pub reverse: [f64; 2],
 }
 
+/// One of an anchored window's two runs of its repeat base.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Run {
+    /// The run before the anchor, run 1.
+    Before,
+    /// The run after the anchor, run 2.
+    After,
+}
+
+impl Run {
+    /// Both runs, run 1 first.
+    pub const BOTH: [Self; 2] = [Self::Before, Self::After];
+
+    /// The run's index in a pair of per-run values, 0 or 1.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Before => 0,
+            Self::After => 1,
+        }
+    }
+
+    /// The run's published number, 1 or 2.
+    #[must_use]
+    pub const fn number(self) -> usize {
+        self.index() + 1
+    }
+
+    /// The run a read on the given strand reads after the other one.
+    #[must_use]
+    pub const fn read_second(forward: bool) -> Self {
+        if forward { Self::After } else { Self::Before }
+    }
+}
+
 /// Where a view of a run comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
@@ -270,10 +305,10 @@ pub enum Outcome {
     OneStrand,
 }
 
-/// The rule's outcome for run `run` (1 or 2) from its `views`, and the
-/// strands' spread `d` when the views share a top.
+/// The rule's outcome for run `run` from its `views`, and the strands'
+/// spread `d` when the views share a top.
 #[must_use]
-pub fn decide(views: &[View], run: usize, params: &RuleParams) -> (Outcome, Option<f64>) {
+pub fn decide(views: &[View], run: Run, params: &RuleParams) -> (Outcome, Option<f64>) {
     let forward = views.iter().filter(|view| view.forward).collect::<Vec<_>>();
     let reverse = views
         .iter()
@@ -313,7 +348,7 @@ pub fn decide(views: &[View], run: usize, params: &RuleParams) -> (Outcome, Opti
         .iter()
         .flat_map(|left| reverse.iter().map(move |right| (left.p - right.p).abs()))
         .fold(0.0, f64::max);
-    let index = run.clamp(1, 2) - 1;
+    let index = run.index();
     let passes = views.iter().all(|view| {
         let noise = if view.forward {
             params.forward[index]
@@ -381,9 +416,9 @@ pub fn start_reference(columns: &[AlignmentColumn], call: usize) -> Option<usize
         .map(|position| position + 1)
 }
 
-/// The run of `window` a tract enters first: 1 before the anchor, 2 after
-/// it, 1 when DNA calls one run (`single`); `None` when the tract is of
-/// another base, or starts outside the window or at its anchor.
+/// The run of `window` a tract enters first: the one before the anchor or
+/// after it, the first when DNA calls one run (`single`); `None` when the
+/// tract is of another base, or starts outside the window or at its anchor.
 #[must_use]
 pub fn entered(
     window: &Window,
@@ -391,7 +426,7 @@ pub fn entered(
     reference: Option<usize>,
     tract: &TractLengths,
     single: bool,
-) -> Option<usize> {
+) -> Option<Run> {
     if tract.run != on_strand(window.repeat, forward) {
         return None;
     }
@@ -405,10 +440,10 @@ pub fn entered(
 }
 
 /// The run of a window over the 1-based `first..=last` that a tract starting
-/// at `position` enters first: 2 after the window's `anchor`, unless DNA
-/// calls one run (`single`), and 1 otherwise, also in a window without an
-/// anchor; `None` when it starts outside the window or at its anchor. The
-/// two-strand rule and the review credit a decode by it alike.
+/// at `position` enters first: the one after the window's `anchor`, unless
+/// DNA calls one run (`single`), and the first otherwise, also in a window
+/// without an anchor; `None` when it starts outside the window or at its
+/// anchor. The two-strand rule and the review credit a decode by it alike.
 #[must_use]
 pub fn entered_run(
     first: usize,
@@ -416,13 +451,13 @@ pub fn entered_run(
     anchor: Option<usize>,
     position: usize,
     single: bool,
-) -> Option<usize> {
+) -> Option<Run> {
     if position < first || position > last || anchor == Some(position) {
         return None;
     }
     Some(match anchor {
-        Some(anchor) if !single && position > anchor => 2,
-        _ => 1,
+        Some(anchor) if !single && position > anchor => Run::After,
+        _ => Run::Before,
     })
 }
 
@@ -457,13 +492,13 @@ pub fn views(
             let Some(view) = direct(forward, &tract.first) else {
                 continue;
             };
-            runs[run - 1].push(view);
-            let next = if forward { 2 } else { 1 };
+            runs[run.index()].push(view);
+            let next = Run::read_second(forward);
             if run != next
                 && tract.mark == Some(anchor)
                 && let Some(view) = derived(forward, &tract.first, &tract.total)
             {
-                runs[next - 1].push(view);
+                runs[next.index()].push(view);
             }
         }
     }
@@ -475,13 +510,17 @@ pub fn views(
         let Some(index) = anchored_pair(shown, window.repeat, window.anchor_base) else {
             continue;
         };
-        for (run, view) in [(0, &shown[index]), (1, &shown[index + 2])] {
+        for (run, view) in [
+            (Run::Before, &shown[index]),
+            (Run::After, &shown[index + 2]),
+        ] {
+            let runs = &mut runs[run.index()];
             if view.in_phase
-                && !runs[run]
+                && !runs
                     .iter()
                     .any(|seen| seen.forward == forward && seen.source != Source::InPhase)
             {
-                runs[run].push(in_phase(forward, view.length));
+                runs.push(in_phase(forward, view.length));
             }
         }
     }
@@ -551,11 +590,11 @@ pub(crate) fn two_strand(
             };
             let shown = shown(window.first - 1, window.last - 1);
             let views = views(&window, reads, &shown);
-            for (run, slot) in [(1, index), (2, index + 2)] {
+            for (run, slot) in [(Run::Before, index), (Run::After, index + 2)] {
                 if !decision.runs[slot].evidence.yields_to_two_strand() {
                     continue;
                 }
-                let (Outcome::Decided(length), _) = decide(&views[run - 1], run, params) else {
+                let (Outcome::Decided(length), _) = decide(&views[run.index()], run, params) else {
                     continue;
                 };
                 decision.runs[slot].length = length;
