@@ -1,7 +1,7 @@
 ---
 implements: [SRS-API, SRS-CONS]
 decided-by: [ADR-0074]
-covers: [src/report/length.rs, crates/dna-normalize/src/length_convention.rs]
+covers: [src/report/review/lengths.rs, crates/dna-normalize/src/length_convention.rs]
 ---
 
 # Review length labels
