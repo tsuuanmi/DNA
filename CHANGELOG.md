@@ -682,6 +682,26 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The review measures the two runs of an anchored repeat window beside the
+  anchor, not through it (SRS-API-020, rules version 35): run 1 from the
+  position before the window to the one before the anchor, run 2 from the
+  one after the anchor to the position after the window. The anchor is
+  DNA's decided base the runs lie around. An insertion excluded at run 1's
+  estimated 3' end (`309.1C`) takes both positions beside its junction, the
+  anchor among them, out of the callable segments (SRS-VAR-019), so rules
+  version 30 still left run 2 `undecided_call`, a check, wherever run 1 was
+  only estimated. Plugin `review` 35. Measured against `main` ea8627d1
+  (diff gate PASS on both panels, no status or coverage change):
+  - development panel v5, current period: clear 8,827 → 8,948, window@HV2
+    checks 475 → 317, unreviewed non-het 4 → 4, unreviewed het-only
+    370 → 370; earlier period clear 4,065 → 4,123, unreviewed non-het
+    12 → 12;
+  - readiness panel v2, current period: clear 15,165 → 15,498, window@HV2
+    checks 849 → 474, unreviewed non-het 1 → 1; earlier period clear
+    2,024 → 2,052, unreviewed non-het 11 → 12 (one sample whose one
+    reverse read shows run 2 in phase at six, `315.1C`, where the truth
+    records the reference; put on the re-check list).
+
 - A reference confirmation (ADR-0080) is no longer withdrawn because a read
   of the other strand shows the confirming call's own second base standing
   out when that read's modality explains its second too: the confirming

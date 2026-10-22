@@ -221,12 +221,15 @@ impl Contribution<'_> {
 /// runs `anchored` at the profile's anchor (its calls in the window change
 /// only the runs' lengths, by insertions or deletions of the repeat base),
 /// each run is measured between its bounds: run 1 spans the position before
-/// the window to the anchor, run 2 the anchor to the position after the
-/// window. So a run 1 whose 3' end is only estimated leaves run 2 reported
-/// while the anchor stays callable, and a run whose own positions are
-/// callable but whose anchor is not stays an estimate. Otherwise (one run, or
-/// a structure another call moves) every run spans the whole window. Empty
-/// when DNA calls no run there.
+/// the window to the one before the anchor, run 2 the one after the anchor
+/// to the position after the window. The anchor's base is DNA's decided one,
+/// since the runs lie around it, so neither span holds it: a change DNA
+/// excludes at the other run's end beside the anchor (an insertion at run
+/// 1's estimated 3' end, whose junction leaves the anchor out of the
+/// callable segments, SRS-VAR-019) leaves this run reported (rules version
+/// 35). So a run 1 whose 3' end is only estimated leaves run 2 reported.
+/// Otherwise (one run, or a structure another call moves) every run spans
+/// the whole window. Empty when DNA calls no run there.
 pub(super) fn run_spans(
     window: &LengthWindow,
     called: Option<&[usize]>,
@@ -235,8 +238,8 @@ pub(super) fn run_spans(
     let count = called.map_or(0, <[usize]>::len);
     match window.anchor {
         Some((anchor, _)) if anchored && count == 2 => vec![
-            [window.first.saturating_sub(1).max(1), anchor],
-            [anchor, window.last + 1],
+            [window.first.saturating_sub(1).max(1), anchor - 1],
+            [anchor + 1, window.last + 1],
         ],
         _ => vec![[window.first, window.last]; count],
     }
@@ -1020,11 +1023,12 @@ mod tests {
 
     // SRS-API-020
     #[test]
-    fn bounds_each_run_by_its_flank_and_the_anchor() {
-        // Anchored: run 1 from 302 to the anchor 310, run 2 from 310 to 316.
+    fn bounds_each_run_by_its_flank_beside_the_anchor() {
+        // Anchored: run 1 from 302 to 309, run 2 from 311 to 316, beside
+        // the anchor 310 that DNA's runs lie around.
         assert_eq!(
             run_spans(&HVS2, Some(&[8, 5]), true),
-            vec![[302, 310], [310, 316]]
+            vec![[302, 309], [311, 316]]
         );
         // A structure another call moves: each run spans the window.
         assert_eq!(

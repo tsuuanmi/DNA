@@ -1,5 +1,5 @@
 ---
-implements: [SRS-API, SRS-CONS]
+implements: [SRS-API, SRS-CONS, SRS-VAR]
 decided-by: [ADR-0074]
 covers: [src/report/length.rs, crates/dna-normalize/src/length_convention.rs]
 ---
@@ -41,11 +41,15 @@ run). `called` is DNA's length, null when DNA reports none: its call holds an
 not callable, so its decided length is an estimate, kept only in
 `estimated_length`. When DNA's calls in the window only insert or delete
 the repeat base, none at the anchor, run 1 is measured from the position
-before the window to the anchor and run 2 from the anchor to the position
-after the window; otherwise (one run, or a call that changes another base
-of the window, such as `T310C`) every run needs every window position
-callable, as rules version 27 required of all runs. Each read gives a
-length with its `source`:
+before the window to the one before the anchor and run 2 from the one after
+the anchor to the position after the window. The anchor is DNA's decided
+base the runs lie around, so neither span holds it (rules version 35): an
+insertion excluded at run 1's estimated 3' end leaves both positions beside
+its junction, the anchor among them, out of the callable segments
+(SRS-VAR-019), and before rules version 35 that left run 2 unreported too.
+Otherwise (one run, or a call that changes another base of the window, such
+as `T310C`) every run needs every window position callable, as rules version
+27 required of all runs. Each read gives a length with its `source`:
 
 - `decode`, the first-run marginal of the run the read enters first (a
   forward read enters run 1, a reverse read run 2);

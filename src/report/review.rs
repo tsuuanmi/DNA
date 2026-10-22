@@ -55,7 +55,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 34,
+    version: 35,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -839,9 +839,10 @@ impl<'a> Sample<'a> {
                 .map(|site| length::two_strand_runs(&site.runs, window))
                 .unwrap_or_default();
             // DNA reports a run's length only where the run and the
-            // positions that bound it are callable; elsewhere its decided
-            // length is an estimate. Without DNA's calls in the profile's
-            // notation, its runs are not known to lie around the anchor.
+            // positions that bound it are callable (an anchor it decided
+            // its runs around bounds both); elsewhere its decided length is
+            // an estimate. Without DNA's calls in the profile's notation,
+            // its runs are not known to lie around the anchor.
             let anchored = self.notation && length::anchored(window, self.calls);
             let reported = length::run_spans(window, called.as_deref(), anchored)
                 .into_iter()
