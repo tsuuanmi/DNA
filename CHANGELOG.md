@@ -24,7 +24,8 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `prune --keep <n>` now keeps the `n` most recently used generations of
   each kind (evidence, placement, forms, unlabelled) instead of `n` over
   all kinds by last write, removes those orphaned temporary files, and takes
-  `--dry-run`. No DNA output changes; run outputs are byte-identical.
+  `--dry-run`; `--keep` is at least 1. The orphan sweep sees this host's
+  processes only. No DNA output changes; run outputs are byte-identical.
 - `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
   byte-identical, and which files differ, with the first line at which each
   does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
