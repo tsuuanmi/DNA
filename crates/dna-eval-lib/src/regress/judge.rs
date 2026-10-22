@@ -26,6 +26,9 @@ pub(crate) enum Rule {
     Failures,
     /// A truth-free line changed while the version key did not.
     NoBump,
+    /// The workload counting version moved and no `workload` intent row
+    /// declares the new one.
+    WorkloadUndeclared,
     /// An intent row explains more samples than it allows.
     IntentExceeded,
     /// A changed line matches no intent row.
@@ -35,12 +38,26 @@ pub(crate) enum Rule {
 }
 
 impl Rule {
+    /// Every rule, in evaluation order.
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Escape,
+        Self::FlagLost,
+        Self::Failures,
+        Self::NoBump,
+        Self::WorkloadUndeclared,
+        Self::IntentExceeded,
+        Self::Unexplained,
+        Self::RebaseDnaChange,
+    ];
+
     pub(crate) const fn label(self) -> &'static str {
         match self {
             Self::Escape => "forbidden:escape",
             Self::FlagLost => "forbidden:flag_lost",
             Self::Failures => "forbidden:failures",
             Self::NoBump => "forbidden:no_bump",
+            Self::WorkloadUndeclared => "workload_undeclared",
             Self::IntentExceeded => "intent_exceeded",
             Self::Unexplained => "unexplained",
             Self::RebaseDnaChange => "rebase_dna_change",
@@ -187,6 +204,8 @@ pub(crate) struct Context<'a> {
     pub(crate) rebase: bool,
     /// Whether the candidate's version key differs from the head's.
     pub(crate) version_moved: bool,
+    /// The workload counting versions of the head and the candidate.
+    pub(crate) workload: (u32, u32),
 }
 
 /// A check's judgement.
@@ -205,6 +224,8 @@ pub(crate) struct Judgement {
     /// zone that gains an escape line while its escape count does not rise
     /// (reported: an escape reshaped, never `forbidden:escape`).
     pub(crate) reshaped_escapes: Vec<usize>,
+    /// The `workload` intent row that declares a moved counting version.
+    pub(crate) workload_intent: Option<usize>,
 }
 
 impl Judgement {
@@ -294,7 +315,8 @@ fn matches(
     touched: Option<&Touched>,
     context: &Context<'_>,
 ) -> bool {
-    if intent.kind.is_some_and(|kind| kind != change.kind)
+    if intent.workload
+        || intent.kind.is_some_and(|kind| kind != change.kind)
         || intent.change.is_some_and(|kind| kind != change.change)
     {
         return false;
@@ -457,6 +479,18 @@ pub(crate) fn judge(
             rules.insert(Rule::Unexplained);
         }
     }
+    // A moved counting version reclassifies evaluation lines without any
+    // version-key change: a `workload` row must declare the new version.
+    let (head_counting, counting) = context.workload;
+    let workload_intent = (head_counting != counting)
+        .then(|| {
+            rows.iter()
+                .position(|intent| intent.workload && glob(&intent.pattern, &counting.to_string()))
+        })
+        .flatten();
+    if head_counting != counting && workload_intent.is_none() {
+        rules.insert(Rule::WorkloadUndeclared);
+    }
     for (intent, (_, samples)) in rows.iter().zip(&explained) {
         if intent
             .max_samples
@@ -484,6 +518,7 @@ pub(crate) fn judge(
             .collect(),
         rebase_escapes,
         reshaped_escapes,
+        workload_intent,
     }
 }
 
@@ -551,7 +586,18 @@ mod tests {
         head: &Golden,
         candidate: &Golden,
         intents: Option<&str>,
+        flags: (bool, bool),
+    ) -> Judgement {
+        counted(head, candidate, intents, flags, (2, 2))
+    }
+
+    /// Judges with the head's and the candidate's counting versions.
+    fn counted(
+        head: &Golden,
+        candidate: &Golden,
+        intents: Option<&str>,
         (rebase, version_moved): (bool, bool),
+        workload: (u32, u32),
     ) -> Judgement {
         let zones = zones();
         let labels = zones
@@ -584,8 +630,42 @@ mod tests {
                 regions: rcrs().regions(),
                 rebase,
                 version_moved,
+                workload,
             },
         )
+    }
+
+    #[test]
+    fn a_moved_counting_version_needs_a_workload_row() {
+        let block = |value: &str| golden(vec![line(0, Kind::Block, "16-16:A/G", value)]);
+        let (head, candidate) = (
+            block("het interior@HV1 no"),
+            block("recheck interior@HV1 no"),
+        );
+        let lines = "blocks\tblock\tchanged\t*\t*\t-\t0\t#1 the new classes\n";
+        let declared = format!("{lines}counting\tworkload\tany\t*\t2\t-\t0\t#1 version 2\n");
+        // Moved and undeclared: the lines are explained, the version is not.
+        let undeclared = counted(&head, &candidate, Some(lines), (false, false), (1, 2));
+        assert_eq!(undeclared.rules, vec![Rule::WorkloadUndeclared]);
+        assert_eq!(undeclared.verdict, Verdict::Fail);
+        // A row of another version does not declare it.
+        let other = lines.to_owned() + "counting\tworkload\tany\t*\t3\t-\t0\t#1 version 3\n";
+        assert_eq!(
+            counted(&head, &candidate, Some(&other), (false, false), (1, 2)).rules,
+            vec![Rule::WorkloadUndeclared]
+        );
+        let explained = counted(&head, &candidate, Some(&declared), (false, false), (1, 2));
+        assert_eq!(explained.verdict, Verdict::Explained);
+        assert_eq!(explained.workload_intent, Some(1));
+        // The workload row explains no line, and a moved version without a
+        // changed line is SAME once declared.
+        assert_eq!(explained.intents[1], (0, 0));
+        let same = counted(&head, &head, Some(&declared), (false, false), (1, 2));
+        assert_eq!(same.verdict, Verdict::Same);
+        // An unmoved version needs no row; a row then declares nothing.
+        let unmoved = counted(&head, &candidate, Some(&declared), (false, false), (2, 2));
+        assert_eq!(unmoved.verdict, Verdict::Explained);
+        assert_eq!(unmoved.workload_intent, None);
     }
 
     #[test]

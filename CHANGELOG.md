@@ -17,6 +17,16 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval regress` records the workload counting version
+  (`workload_version` in its `run.json`, optional in
+  `dna.eval_regress/v1`). A check whose counting version differs from the
+  head's is warned (`workload counting version moved: <head> ->
+  <candidate>`) and fails with `workload_undeclared` unless an intent row
+  of the new kind `workload` declares the new version, so a harness change
+  that only reclassifies evaluation lines is a declared ledger entry rather
+  than a plain `EXPLAINED`. The checks recorded before it (regress-v1
+  `r0001` to `r0003`: version 1; `r0004`: version 2) are read by revision;
+  the committed ledger keeps its columns.
 - `dna-eval run --inputs <file>`: the run's inputs (manifest, truth,
   configuration, its target profile, reference, and optionally the re-check
   list, forced windows, current period, evidence cache, and run contexts)

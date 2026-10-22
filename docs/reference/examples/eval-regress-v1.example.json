@@ -49,6 +49,7 @@
       "contracts": "dna.analysis/v10,dna.review/v1,dna.variants/v1",
       "configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1"
     },
+    "workload_version": 2,
     "evidence_cache": {
       "directory": "/data/evidence-cache",
       "key": {

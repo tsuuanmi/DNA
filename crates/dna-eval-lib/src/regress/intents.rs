@@ -1,10 +1,14 @@
 //! A regress intent file: the output changes a pull request declares, each
 //! row naming what lines it explains (`kind`, `change`, `where`, `match`)
-//! and how many samples it may touch (`max_samples`). It names no sample.
+//! and how many samples it may touch (`max_samples`), or, with the kind
+//! `workload`, a new workload counting version. It names no sample.
 
 use std::collections::BTreeSet;
 
 use super::golden::Kind;
+
+/// The `kind` of a row that declares a new workload counting version.
+pub(crate) const WORKLOAD: &str = "workload";
 
 /// The column header of an intent file.
 pub(crate) const COLUMNS: &str = "id\tkind\tchange\twhere\tmatch\tmax_samples\tposthoc\treason";
@@ -49,8 +53,11 @@ pub(crate) enum Place {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Intent {
     pub(crate) id: String,
-    /// The kind, or any kind (`*`).
+    /// The kind, or any kind (`*`); none for a `workload` row.
     pub(crate) kind: Option<Kind>,
+    /// Whether the row declares a new workload counting version (kind
+    /// `workload`, `match` a glob on the new version) rather than lines.
+    pub(crate) workload: bool,
     /// The change, or any change (`any`).
     pub(crate) change: Option<Change>,
     pub(crate) place: Place,
@@ -161,8 +168,9 @@ fn row(line: &str, zones: &BTreeSet<String>, regions: &BTreeSet<String>) -> Resu
     {
         return Err(format!("id {id:?} is not [a-z0-9_-]+"));
     }
+    let workload = kind == WORKLOAD;
     let kind = match kind {
-        "*" => None,
+        "*" | WORKLOAD => None,
         label => Some(Kind::parse(label).ok_or_else(|| format!("unknown kind {label:?}"))?),
     };
     let change = match change {
@@ -212,9 +220,20 @@ fn row(line: &str, zones: &BTreeSet<String>, regions: &BTreeSet<String>) -> Resu
     if reason.trim().is_empty() {
         return Err("reason is empty".to_owned());
     }
+    if workload
+        && (matches!(change, Some(Change::Added | Change::Removed))
+            || place != Place::Anywhere
+            || max_samples.is_some())
+    {
+        return Err(
+            "a workload row declares a version: change changed or any, where *, max_samples -"
+                .to_owned(),
+        );
+    }
     Ok(Intent {
         id: id.to_owned(),
         kind,
+        workload,
         change,
         place,
         pattern: pattern.to_owned(),
@@ -308,7 +327,17 @@ mod tests {
         assert_eq!(intents.rows[2].place, Place::Region("HV1".to_owned()));
         assert_eq!((intents.rows[2].kind, intents.rows[2].change), (None, None));
         assert_eq!(intents.posthoc_rows(), 1);
+        assert!(!intents.rows[0].workload);
+        let counting = parse(
+            &format!("{head}counting\tworkload\tchanged\t*\t2\t-\t0\t#282 version 2\n"),
+            &zones,
+            &regions,
+        )?;
+        assert!(counting.rows[0].workload && counting.rows[0].kind.is_none());
         for bad in [
+            "x\tworkload\tadded\t*\t2\t-\t0\treason\n",
+            "x\tworkload\tchanged\tHV1\t2\t-\t0\treason\n",
+            "x\tworkload\tany\t*\t2\t3\t0\treason\n",
             "x\tcheck\tremoved\t*\t*\t-\t0\n",
             "X\tcheck\tremoved\t*\t*\t-\t0\treason\n",
             "x\tchecks\tremoved\t*\t*\t-\t0\treason\n",

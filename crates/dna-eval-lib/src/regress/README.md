@@ -10,7 +10,8 @@ plugin registry (`dna::plugins()`) and the contracts `build.rs` records for
 the version key. Nothing else in the harness depends on it.
 
 - `mod.rs` — the command line, the run header `run.json` (`Header`, with the
-  `VersionKey`), the comparability of a check with the head, the intent
+  `VersionKey` and the workload counting version, read by revision for the
+  checks recorded before it was kept), the comparability of a check with the head, the intent
   file's git checks (`Git`: committed and unmodified at the harness's
   revision; a recorded revision that is `origin/main`'s current commit), the
   judgement and the `run.json` fields it derives (`Judged`, shared by `check`
@@ -20,10 +21,12 @@ the version key. Nothing else in the harness depends on it.
   the run's report, their canonical order, the strict reader, the file,
   kind, and stratum digests, and the ledger's counts.
 - `intents.rs` — the intent file: its header, rows, `where` forms (positions,
-  zone, region), and the glob of `match`.
+  zone, region), the glob of `match`, and the `workload` rows that declare a
+  new counting version.
 - `judge.rs` — the changed lines of a candidate against the head, the rules
   in order (the forbidden rules, an escape by a rise of a sample's escape
-  count in a zone, the version bump, the intents' bounds, unexplained lines,
+  count in a zone, the version bump, an undeclared counting version, the
+  intents' bounds, unexplained lines,
   a rebase's truth-free changes), the escape lines changed without a rise,
   the verdict, and `changes.tsv`.
 - `ledger.rs` — the local `index.tsv`, the committed baseline files' rows and
