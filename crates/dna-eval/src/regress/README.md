@@ -12,8 +12,10 @@ the version key. Nothing else in the harness depends on it.
 - `mod.rs` — the command line, the run header `run.json` (`Header`, with the
   `VersionKey`), the comparability of a check with the head, the intent
   file's git checks (`Git`: committed and unmodified at the harness's
-  revision; a recorded revision on `origin/main`), `regress.md`, and
-  `record`'s refusals and writes.
+  revision; a recorded revision that is `origin/main`'s current commit), the
+  judgement and the `run.json` fields it derives (`Judged`, shared by `check`
+  and `record`'s re-judgement), `regress.md`, and `record`'s refusals and
+  staged writes.
 - `golden.rs` — `golden.tsv`: the golden kinds, built from DNA's outcomes and
   the run's report, their canonical order, the strict reader, the file,
   kind, and stratum digests, and the ledger's counts.
@@ -25,8 +27,10 @@ the version key. Nothing else in the harness depends on it.
   `changes.tsv`.
 - `ledger.rs` — the local `index.tsv`, the committed baseline files' rows and
   their strict reader, entry ids, and the UTC date of a record.
-- `tests.rs` — the run header, comparability, and `record` on synthetic
-  headers and ledgers.
+- `tests.rs` — the run header, comparability, and `record`'s refusals on
+  synthetic headers and ledgers, and `check` and `record` end to end on a
+  synthetic set: a fixture truth database, a derived `panel=regress`
+  manifest, and traces DNA cannot read.
 
 Tests use synthetic outcomes, golden lines, and ledgers only; the manifest,
 golden outputs, and the local ledger name samples and stay under `results/`.

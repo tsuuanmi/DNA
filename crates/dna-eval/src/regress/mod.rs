@@ -27,13 +27,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::cache::Usage;
 use crate::error::{Error, Result};
-use crate::manifest::Manifest;
+use crate::geometry::{Geometry, Span};
+use crate::manifest::{self, Manifest};
 use crate::report::{self, Report};
 use crate::rundir::{
     ManifestHeader, RecheckHeader, RunContextHeader, Source, ZoneHeader, prepare_output, write,
 };
-use crate::truth::TruthCheck;
-use crate::{DnaOptions, Loaded, Ran, ReviewOptions, absolute, read, workload};
+use crate::truth::{TruthCheck, TruthState};
+use crate::zones::{Widths, Zones};
+use crate::{DnaOptions, Loaded, MAX_MANIFEST_BYTES, Ran, ReviewOptions, absolute, read, workload};
 use golden::{Counts, Golden, Kind, Sources};
 use intents::{Change, Intents};
 use judge::{Context, Judgement, Label, Verdict};
@@ -42,7 +44,7 @@ use judge::{Context, Judgement, Label, Verdict};
 const MAX_INTENT_BYTES: u64 = 1024 * 1024;
 /// Largest accepted golden output, run header, or baseline file.
 const MAX_LEDGER_BYTES: u64 = 512 * 1024 * 1024;
-/// The branch a recorded revision must be on.
+/// The branch whose current commit a recorded run must have been built from.
 const MAIN: &str = "origin/main";
 /// The changed lines `regress.md` lists one by one.
 const LISTED_LINES: usize = 40;
@@ -324,9 +326,8 @@ trait Git {
     fn blob(&self, path: &Path) -> std::result::Result<String, String>;
     /// The blob id of the tracked file at `path` at `revision`.
     fn committed(&self, path: &Path, revision: &str) -> std::result::Result<String, String>;
-    /// Whether `revision` is on [`MAIN`] in the repository holding
-    /// `directory`.
-    fn on_main(&self, directory: &Path, revision: &str) -> std::result::Result<bool, String>;
+    /// The commit [`MAIN`] names in the repository holding `directory`.
+    fn main_revision(&self, directory: &Path) -> std::result::Result<String, String>;
 }
 
 /// The `git` command.
@@ -381,26 +382,21 @@ impl Git for System {
             .map_err(|_| format!("{} is not committed at {revision}", path.display()))
     }
 
-    fn on_main(&self, directory: &Path, revision: &str) -> std::result::Result<bool, String> {
+    fn main_revision(&self, directory: &Path) -> std::result::Result<String, String> {
         let directory = if directory.as_os_str().is_empty() {
             Path::new(".")
         } else {
             directory
         };
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(directory)
-            .args(["merge-base", "--is-ancestor", revision, MAIN])
-            .output()
-            .map_err(|error| format!("cannot run git: {error}"))?;
-        match output.status.code() {
-            Some(0) => Ok(true),
-            Some(1) => Ok(false),
-            _ => Err(format!(
-                "git merge-base: {}",
-                String::from_utf8_lossy(&output.stderr).trim()
-            )),
-        }
+        Self::git(
+            directory,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                &format!("{MAIN}^{{commit}}"),
+            ],
+        )
     }
 }
 
@@ -431,37 +427,45 @@ fn regress_panel(manifest: &Manifest) -> Result<()> {
     }
 }
 
-/// The ledger head: its index row, run header, and golden output.
+/// The ledger head: its index row and run header.
 struct Head {
     row: ledger::IndexRow,
     header: Header,
-    golden: Golden,
 }
 
-/// The ledger's head entry, if any, read over `samples`.
-fn head(ledger_directory: &Path, samples: &[String]) -> Result<Option<Head>> {
+/// The ledger's head entry, if any.
+fn head(ledger_directory: &Path) -> Result<Option<Head>> {
     let index = ledger::index_text(ledger_directory).map_err(refused)?;
     let rows = ledger::read_index(index.as_deref()).map_err(refused)?;
     let Some(row) = rows.last().cloned() else {
         return Ok(None);
     };
-    let directory = ledger_directory.join(&row.entry);
-    let header = read_header(&directory)?;
-    let text = text(&directory.join(GOLDEN), "head golden output")?;
-    let golden = Golden::parse(&text, samples)
-        .map_err(|message| refused(format!("head {}: {message}", row.entry)))?;
-    let sha256 = golden.sha256();
-    if sha256 != row.golden_sha256 || sha256 != header.golden_sha256 {
+    let header = read_header(&ledger_directory.join(&row.entry))?;
+    if header.golden_sha256 != row.golden_sha256 {
         return Err(refused(format!(
-            "head {}: golden.tsv hashes to {sha256}, not what index.tsv and run.json record",
+            "head {}: run.json and index.tsv record different golden outputs",
             row.entry
         )));
     }
-    Ok(Some(Head {
-        row,
-        header,
-        golden,
-    }))
+    Ok(Some(Head { row, header }))
+}
+
+impl Head {
+    /// The head's golden output over `samples`, read once a check is known
+    /// to be comparable with the head.
+    fn golden(&self, ledger_directory: &Path, samples: &[String]) -> Result<Golden> {
+        let path = ledger_directory.join(&self.row.entry).join(GOLDEN);
+        let golden = Golden::parse(&text(&path, "head golden output")?, samples)
+            .map_err(|message| refused(format!("head {}: {message}", self.row.entry)))?;
+        let sha256 = golden.sha256();
+        if sha256 != self.row.golden_sha256 {
+            return Err(refused(format!(
+                "head {}: golden.tsv hashes to {sha256}, not what index.tsv and run.json record",
+                self.row.entry
+            )));
+        }
+        Ok(golden)
+    }
 }
 
 /// Reads a UTF-8 ledger file.
@@ -478,10 +482,18 @@ fn read_header(directory: &Path) -> Result<Header> {
 }
 
 /// Refuses a check that measures something else than the head: another
-/// manifest, profile, reference, review window, zones, or run contexts;
-/// another truth or re-check list unless `rebase`; and, with `rebase`,
-/// another configuration, or no change of truth or re-check list at all.
+/// series, manifest, profile, reference, review window, zones, or run
+/// contexts; another truth or re-check list unless `rebase`; and, with
+/// `rebase`, another configuration, or no change of truth or re-check list
+/// at all.
 fn comparable((entry, head): (&str, &Header), candidate: &Header, rebase: bool) -> Result<()> {
+    if head.series != candidate.series {
+        return Err(refused(format!(
+            "the ledger's head {entry} is series {}, the manifest series {}: another series \
+             takes its own ledger directory, which its first check seeds",
+            head.series, candidate.series
+        )));
+    }
     let recheck = |header: &Header| {
         header
             .recheck
@@ -501,7 +513,6 @@ fn comparable((entry, head): (&str, &Header), candidate: &Header, rebase: bool) 
             "manifest body",
             head.manifest.body_sha256 != candidate.manifest.body_sha256,
         ),
-        ("series", head.series != candidate.series),
         ("profile", head.profile_sha256 != candidate.profile_sha256),
         (
             "reference",
@@ -555,6 +566,130 @@ fn names_no_sample(text: &str, samples: &BTreeSet<&str>) -> Result<()> {
     Ok(())
 }
 
+/// Reads the intent file at `path` against the zones and regions its
+/// `where` may name, and refuses one that names a sample of `samples`.
+fn read_intents(
+    path: &Path,
+    zones: &Zones,
+    regions: &[Span],
+    samples: &[String],
+) -> Result<Intents> {
+    let content = String::from_utf8(read(path, "intent file", MAX_INTENT_BYTES)?)
+        .map_err(|_| refused(format!("{} is not UTF-8", path.display())))?;
+    let labels = zones
+        .instances()
+        .into_iter()
+        .map(|instance| zones.label(instance))
+        .collect();
+    let regions = regions.iter().map(|region| region.name.clone()).collect();
+    let parsed = intents::parse(&content, &labels, &regions)
+        .map_err(|message| refused(format!("intent file {}: {message}", path.display())))?;
+    names_no_sample(&content, &samples.iter().map(String::as_str).collect())?;
+    Ok(parsed)
+}
+
+/// What a check derives from its golden output, the head's, and the
+/// intents: the judgement and the fields of `run.json` that record it.
+struct Judged {
+    judgement: Option<Judgement>,
+    verdict: Verdict,
+    rules: Vec<String>,
+    golden_sha256: String,
+    kinds: Vec<KindDigest>,
+    strata: Vec<StratumDigest>,
+    counts: Counts,
+    changes: ChangeCounts,
+}
+
+impl Judged {
+    /// Judges `golden` against `head` (none for a series' first check),
+    /// with each sample in its manifest stratum.
+    fn new(
+        golden: &Golden,
+        head: Option<&Golden>,
+        intents: Option<&Intents>,
+        context: &Context<'_>,
+        strata: &[&str],
+    ) -> Self {
+        let judgement = head.map(|head| judge::judge(head, golden, intents, context));
+        let changed = judgement
+            .as_ref()
+            .map(Judgement::changed_samples)
+            .unwrap_or_default();
+        Self {
+            verdict: judgement
+                .as_ref()
+                .map_or(Verdict::Initial, |judgement| judgement.verdict),
+            rules: judgement
+                .iter()
+                .flat_map(|judgement| &judgement.rules)
+                .map(|rule| rule.label().to_owned())
+                .collect(),
+            golden_sha256: golden.sha256(),
+            kinds: golden
+                .kind_digests()
+                .into_iter()
+                .map(|(kind, sha256, lines)| KindDigest {
+                    kind: kind.label().to_owned(),
+                    lines,
+                    sha256,
+                })
+                .collect(),
+            strata: golden
+                .stratum_digests(strata)
+                .into_iter()
+                .map(|(stratum, members, golden_sha256)| StratumDigest {
+                    changed_samples: changed
+                        .iter()
+                        .filter(|sample| strata[**sample] == stratum)
+                        .count(),
+                    stratum,
+                    samples: members,
+                    golden_sha256,
+                })
+                .collect(),
+            counts: golden.counts(),
+            changes: judgement
+                .as_ref()
+                .map(|judgement| ChangeCounts {
+                    changed_samples: changed.len(),
+                    changed_lines: judgement.changes.len(),
+                    explained_lines: judgement.explained_lines(),
+                    posthoc_rows: intents.map_or(0, Intents::posthoc_rows),
+                })
+                .unwrap_or_default(),
+            judgement,
+        }
+    }
+
+    /// Writes the derived fields into `header`.
+    fn record_in(&self, header: &mut Header) {
+        self.verdict.label().clone_into(&mut header.verdict);
+        header.rules.clone_from(&self.rules);
+        header.golden_sha256.clone_from(&self.golden_sha256);
+        header.kinds.clone_from(&self.kinds);
+        header.strata.clone_from(&self.strata);
+        header.counts = self.counts;
+        header.changes = self.changes;
+    }
+
+    /// The fields of `header` that differ from the derived ones.
+    fn disagreements(&self, header: &Header) -> Vec<&'static str> {
+        [
+            ("verdict", header.verdict != self.verdict.label()),
+            ("rules", header.rules != self.rules),
+            ("golden_sha256", header.golden_sha256 != self.golden_sha256),
+            ("kinds", header.kinds != self.kinds),
+            ("strata", header.strata != self.strata),
+            ("counts", header.counts != self.counts),
+            ("changes", header.changes != self.changes),
+        ]
+        .into_iter()
+        .filter_map(|(name, differs)| differs.then_some(name))
+        .collect()
+    }
+}
+
 /// Runs `regress check`: returns `regress.md` and the verdict.
 fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
     let started = Instant::now();
@@ -582,7 +717,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         .iter()
         .map(|sample| sample.stratum.as_str())
         .collect::<Vec<_>>();
-    let head = head(&args.ledger, &samples)?;
+    let head = head(&args.ledger)?;
     if head.is_none() && (args.rebase || args.intent.is_some()) {
         return Err(refused(
             "the ledger has no head: the first check takes no --rebase and no --intent",
@@ -594,22 +729,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         .intent
         .as_deref()
         .map(|path| -> Result<(Intents, IntentHeader)> {
-            let content = String::from_utf8(read(path, "intent file", MAX_INTENT_BYTES)?)
-                .map_err(|_| refused(format!("{} is not UTF-8", path.display())))?;
-            let labels = zones
-                .instances()
-                .into_iter()
-                .map(|instance| zones.label(instance))
-                .collect();
-            let regions = loaded
-                .geometry
-                .regions()
-                .iter()
-                .map(|region| region.name.clone())
-                .collect();
-            let parsed = intents::parse(&content, &labels, &regions)
-                .map_err(|message| refused(format!("intent file {}: {message}", path.display())))?;
-            names_no_sample(&content, &samples.iter().map(String::as_str).collect())?;
+            let parsed = read_intents(path, &zones, loaded.geometry.regions(), &samples)?;
             let base = head.as_ref().map_or("-", |head| head.row.entry.as_str());
             if parsed.series != series || parsed.base != base {
                 return Err(refused(format!(
@@ -642,6 +762,16 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         .transpose()?;
 
     let truth_check = TruthCheck::new(&loaded.manifest, &loaded.truth.database);
+    // A series starts on the truth its manifest pins; later checks measure
+    // against the head's truth (`comparable`), which only a rebase changes.
+    if head.is_none() && truth_check.state() != TruthState::Unchanged {
+        return Err(refused(format!(
+            "the truth is not the one the manifest pins (truth {}, {} sample(s) changed): \
+             the first check of a series needs the pinned database",
+            truth_check.state().label(),
+            truth_check.changed.len()
+        )));
+    }
     let configuration_sha256 =
         crate::runner::sha256_file(&args.dna.config).map_err(|source| Error::Read {
             kind: "configuration",
@@ -714,6 +844,10 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
     if let Some(head) = &head {
         comparable((&head.row.entry, &head.header), &header, args.rebase)?;
     }
+    let head_golden = head
+        .as_ref()
+        .map(|head| head.golden(&args.ledger, &samples))
+        .transpose()?;
     prepare_output(&args.output)?;
 
     let ran = Ran::run(&loaded, &args.dna, None)?;
@@ -772,76 +906,30 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         zones: &zones,
     });
 
-    let judgement = head.as_ref().map(|head| {
-        judge::judge(
-            &head.golden,
-            &golden,
-            intents.as_ref().map(|(intents, _)| intents),
-            &Context {
-                zones: &zones,
-                regions: geometry.regions(),
-                rebase: args.rebase,
-                version_moved: head.header.version_key != header.version_key,
-            },
-        )
-    });
-    let verdict = judgement
-        .as_ref()
-        .map_or(Verdict::Initial, |judgement| judgement.verdict);
-    let changed = judgement
-        .as_ref()
-        .map(Judgement::changed_samples)
-        .unwrap_or_default();
-    verdict.label().clone_into(&mut header.verdict);
-    header.rules = judgement
-        .iter()
-        .flat_map(|judgement| &judgement.rules)
-        .map(|rule| rule.label().to_owned())
-        .collect();
-    header.warnings = warnings(head.as_ref(), &header, judgement.as_ref(), intents.as_ref());
-    header.golden_sha256 = golden.sha256();
-    header.kinds = golden
-        .kind_digests()
-        .into_iter()
-        .map(|(kind, sha256, lines)| KindDigest {
-            kind: kind.label().to_owned(),
-            lines,
-            sha256,
-        })
-        .collect();
-    header.strata = golden
-        .stratum_digests(&strata)
-        .into_iter()
-        .map(|(stratum, members, golden_sha256)| StratumDigest {
-            changed_samples: changed
-                .iter()
-                .filter(|sample| strata[**sample] == stratum)
-                .count(),
-            stratum,
-            samples: members,
-            golden_sha256,
-        })
-        .collect();
-    header.counts = golden.counts();
-    header.changes = judgement
-        .as_ref()
-        .map(|judgement| ChangeCounts {
-            changed_samples: changed.len(),
-            changed_lines: judgement.changes.len(),
-            explained_lines: judgement.explained_lines(),
-            posthoc_rows: header
-                .intent
+    let judged = Judged::new(
+        &golden,
+        head_golden.as_ref(),
+        intents.as_ref().map(|(intents, _)| intents),
+        &Context {
+            zones: &zones,
+            regions: geometry.regions(),
+            rebase: args.rebase,
+            version_moved: head
                 .as_ref()
-                .map_or(0, |intent| intent.posthoc_rows),
-        })
-        .unwrap_or_default();
+                .is_some_and(|head| head.header.version_key != header.version_key),
+        },
+        &strata,
+    );
+    judged.record_in(&mut header);
+    let (judgement, verdict) = (judged.judgement.as_ref(), judged.verdict);
+    header.warnings = warnings(head.as_ref(), &header, judgement, intents.as_ref());
     header.seconds.total = started.elapsed().as_secs_f64();
 
     let intents = intents.as_ref().map(|(intents, _)| intents);
     let report_text = summary(
         &header,
         head.as_ref().map(|head| &head.header),
-        judgement.as_ref(),
+        judgement,
         (&golden.samples, &strata),
         intents,
     );
@@ -849,7 +937,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
     write(
         &args.output,
         CHANGES,
-        &judgement.as_ref().map_or_else(
+        &judgement.map_or_else(
             || judge::HEADER.to_owned(),
             |judgement| judge::table(judgement, &golden.samples, &strata, intents),
         ),
@@ -1106,6 +1194,12 @@ const fn entry_kind(verdict: Verdict) -> Option<&'static str> {
 }
 
 /// Runs `regress record` on `date`: returns what it recorded.
+///
+/// It refuses before writing anything: a dirty build, a build of another
+/// commit than [`MAIN`]'s current one, a failed verdict, a moved head, an
+/// existing entry, baselines that do not end at the head, and a `run.json`
+/// that a re-judgement of its golden output against the head and the intent
+/// file does not reproduce.
 fn record(args: &RecordArgs, git: &dyn Git, date: &str) -> Result<String> {
     if !ledger::valid_entry(&args.entry) {
         return Err(refused(format!(
@@ -1164,17 +1258,25 @@ fn record(args: &RecordArgs, git: &dyn Git, date: &str) -> Result<String> {
             args.entry
         )));
     }
-    if entries.last() != current.as_ref() {
-        return Err(refused(format!(
-            "the committed ledger ends at {}, the local ledger at {}",
-            entries.last().map_or("none", String::as_str),
-            current.as_deref().unwrap_or("none")
-        )));
+    for (path, last) in [
+        (&args.baseline, entries.last()),
+        (&args.strata, stratum_entries.last()),
+    ] {
+        if last != current.as_ref() {
+            return Err(refused(format!(
+                "{} ends at {}, the local ledger at {}",
+                path.display(),
+                last.map_or("none", String::as_str),
+                current.as_deref().unwrap_or("none")
+            )));
+        }
     }
     let repository = args.baseline.parent().unwrap_or(Path::new("."));
-    if !git.on_main(repository, &revision).map_err(refused)? {
+    let main = git.main_revision(repository).map_err(refused)?;
+    if revision != main {
         return Err(refused(format!(
-            "the run's revision {revision} is not on {MAIN}"
+            "the run's revision {revision} is not {MAIN} ({main}): fetch, then check and record \
+             the current main"
         )));
     }
     if let Some(intent) = &header.intent
@@ -1185,21 +1287,9 @@ fn record(args: &RecordArgs, git: &dyn Git, date: &str) -> Result<String> {
             intent.path.display()
         )));
     }
+    let head = head(&args.ledger)?;
+    rejudge(&header, &golden_text, head.as_ref(), &args.ledger)?;
 
-    let directory = args.ledger.join(&args.entry);
-    let failure = |path: &Path| {
-        let path = path.to_path_buf();
-        move |source| Error::Write { path, source }
-    };
-    fs::create_dir_all(&args.ledger).map_err(failure(&args.ledger))?;
-    fs::create_dir(&directory).map_err(failure(&directory))?;
-    for name in [GOLDEN, CHANGES, REPORT, RUN_JSON] {
-        fs::copy(args.run.join(name), directory.join(name))
-            .map_err(failure(&directory.join(name)))?;
-    }
-    if let Some(intent) = &header.intent {
-        fs::copy(&intent.path, directory.join(INTENT)).map_err(failure(&directory.join(INTENT)))?;
-    }
     let row = ledger::IndexRow {
         entry: args.entry.clone(),
         kind: kind.to_owned(),
@@ -1209,26 +1299,29 @@ fn record(args: &RecordArgs, git: &dyn Git, date: &str) -> Result<String> {
         verdict: header.verdict.clone(),
         recorded: date.to_owned(),
     };
-    let index_path = args.ledger.join(ledger::INDEX);
-    let index = format!(
-        "{}{}",
-        index.unwrap_or_else(|| ledger::INDEX_HEADER.to_owned()),
-        row.line()
-    );
-    fs::write(&index_path, index).map_err(failure(&index_path))?;
-    fs::write(
-        &args.baseline,
-        format!(
-            "{baseline}{}",
-            ledger::ledger_row(&args.entry, (date, kind), &header)
+    let files = [
+        (
+            args.baseline.clone(),
+            format!(
+                "{baseline}{}",
+                ledger::ledger_row(&args.entry, (date, kind), &header)
+            ),
         ),
-    )
-    .map_err(failure(&args.baseline))?;
-    fs::write(
-        &args.strata,
-        format!("{strata}{}", ledger::strata_rows(&args.entry, &header)),
-    )
-    .map_err(failure(&args.strata))?;
+        (
+            args.strata.clone(),
+            format!("{strata}{}", ledger::strata_rows(&args.entry, &header)),
+        ),
+        // The index goes last: it names the head.
+        (
+            args.ledger.join(ledger::INDEX),
+            format!(
+                "{}{}",
+                index.unwrap_or_else(|| ledger::INDEX_HEADER.to_owned()),
+                row.line()
+            ),
+        ),
+    ];
+    install(args, &header, &files)?;
     Ok(format!(
         "dna-eval: recorded {} ({kind}, {}) on {date}: {} and {} have a new row; commit them{}",
         args.entry,
@@ -1243,6 +1336,164 @@ fn record(args: &RecordArgs, git: &dyn Git, date: &str) -> Result<String> {
                 intent.path.display()
             ))
     ))
+}
+
+/// Re-derives a checked run's verdict and recorded fields from its golden
+/// output, the head's, the manifest, the configuration's geometry, and the
+/// intent file, and refuses a run whose `run.json` records anything else or
+/// whose inputs changed since the check.
+fn rejudge(
+    header: &Header,
+    golden_text: &str,
+    head: Option<&Head>,
+    ledger_directory: &Path,
+) -> Result<()> {
+    let manifest = manifest::parse(&read(
+        &header.manifest.path,
+        "manifest",
+        MAX_MANIFEST_BYTES,
+    )?)?;
+    regress_panel(&manifest)?;
+    if manifest.body_sha256 != header.manifest.body_sha256 {
+        return Err(refused(format!(
+            "the manifest {} changed since the check",
+            header.manifest.path.display()
+        )));
+    }
+    let configuration_sha256 =
+        crate::runner::sha256_file(&header.configuration_path).map_err(|source| Error::Read {
+            kind: "configuration",
+            path: header.configuration_path.clone(),
+            source,
+        })?;
+    let profile = crate::target_profile(&header.configuration_path)?;
+    if configuration_sha256 != header.version_key.configuration_sha256
+        || profile.identity().sha256 != header.profile_sha256
+    {
+        return Err(refused(format!(
+            "the configuration {} changed since the check",
+            header.configuration_path.display()
+        )));
+    }
+    let geometry = Geometry::of(&profile);
+    let zones = Zones::new(
+        geometry.regions(),
+        geometry.repeats(),
+        Widths {
+            after: header.zones.after,
+            edge: header.zones.edge,
+            overrun: header.zones.overrun,
+        },
+    );
+    let samples = manifest
+        .samples
+        .iter()
+        .map(|sample| sample.id.clone())
+        .collect::<Vec<_>>();
+    let strata = manifest
+        .samples
+        .iter()
+        .map(|sample| sample.stratum.as_str())
+        .collect::<Vec<_>>();
+    if let Some(head) = head {
+        comparable((&head.row.entry, &head.header), header, header.rebase)?;
+    } else if header.truth.state != TruthState::Unchanged.label() {
+        return Err(refused(
+            "the series' first check ran on another truth than the manifest pins",
+        ));
+    }
+    let head_golden = head
+        .map(|head| head.golden(ledger_directory, &samples))
+        .transpose()?;
+    let intents = header
+        .intent
+        .as_ref()
+        .map(|intent| read_intents(&intent.path, &zones, geometry.regions(), &samples))
+        .transpose()?;
+    let golden = Golden::parse(golden_text, &samples)
+        .map_err(|message| refused(format!("the run's golden.tsv: {message}")))?;
+    let judged = Judged::new(
+        &golden,
+        head_golden.as_ref(),
+        intents.as_ref(),
+        &Context {
+            zones: &zones,
+            regions: geometry.regions(),
+            rebase: header.rebase,
+            version_moved: head.is_some_and(|head| head.header.version_key != header.version_key),
+        },
+        &strata,
+    );
+    let disagreements = judged.disagreements(header);
+    if !disagreements.is_empty() {
+        return Err(refused(format!(
+            "the run's run.json disagrees with a re-judgement of its golden.tsv: {}",
+            disagreements.join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// The staging path of `path`: a hidden sibling.
+fn staged(path: &Path) -> PathBuf {
+    let name = path
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    path.with_file_name(format!(".{name}.partial"))
+}
+
+/// Writes a recorded entry: stages the entry directory and every file
+/// beside its target, then renames each into place, `files` in order, so
+/// an interrupted record never leaves a half-written file and leaves the
+/// head unchanged unless the index moved.
+fn install(args: &RecordArgs, header: &Header, files: &[(PathBuf, String)]) -> Result<()> {
+    let failure = |path: &Path| {
+        let path = path.to_path_buf();
+        move |source| Error::Write { path, source }
+    };
+    let directory = args.ledger.join(&args.entry);
+    let staging = staged(&directory);
+    for path in std::iter::once(&staging).chain(files.iter().map(|(path, _)| path)) {
+        let partial = if *path == staging {
+            staging.clone()
+        } else {
+            staged(path)
+        };
+        if partial.exists() {
+            return Err(refused(format!(
+                "{} is left from an interrupted record: remove it",
+                partial.display()
+            )));
+        }
+    }
+    let stage = || -> Result<()> {
+        fs::create_dir_all(&args.ledger).map_err(failure(&args.ledger))?;
+        fs::create_dir(&staging).map_err(failure(&staging))?;
+        for name in [GOLDEN, CHANGES, REPORT, RUN_JSON] {
+            fs::copy(args.run.join(name), staging.join(name))
+                .map_err(failure(&staging.join(name)))?;
+        }
+        if let Some(intent) = &header.intent {
+            fs::copy(&intent.path, staging.join(INTENT)).map_err(failure(&staging.join(INTENT)))?;
+        }
+        for (path, content) in files {
+            fs::write(staged(path), content).map_err(failure(&staged(path)))?;
+        }
+        Ok(())
+    };
+    if let Err(error) = stage() {
+        // Best effort: the staged copies are not the ledger's.
+        let _ = fs::remove_dir_all(&staging);
+        for (path, _) in files {
+            let _ = fs::remove_file(staged(path));
+        }
+        return Err(error);
+    }
+    fs::rename(&staging, &directory).map_err(failure(&directory))?;
+    for (path, _) in files {
+        fs::rename(staged(path), path).map_err(failure(path))?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

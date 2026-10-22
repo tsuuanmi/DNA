@@ -70,18 +70,41 @@ cargo run --release -p dna-eval -- regress record \
   `<ledger>/index.tsv`; with no head, it writes the golden output and the
   verdict `REGRESS INITIAL`. It writes nothing to the ledger.
 - **`record`** never runs DNA. It refuses a run whose build was dirty or
-  records no revision, whose revision is not on `origin/main`, whose verdict
-  is `REGRESS FAIL`, whose head is no longer the ledger head, or whose
-  `--entry` already exists (in the index, the ledger directory, or a baseline
-  file); it also refuses when the committed ledger does not end at the local
-  head, or when the intent file changed since the check. Otherwise it copies
-  the check into `<ledger>/<entry>/` (with the intent file as `intent.tsv`),
-  appends `index.tsv`, and appends one row to the ledger baseline and one row
-  per stratum to the strata baseline, which the pull request then commits.
+  records no revision, whose revision is not the current commit of
+  `origin/main` (fetch first; a run of an older `main` is checked again),
+  whose verdict is `REGRESS FAIL`, whose head is no longer the ledger head, or
+  whose `--entry` already exists (in the index, the ledger directory, or a
+  baseline file); it also refuses when either committed baseline does not end
+  at the local head, or when the intent file changed since the check.
+- **`record` re-judges** rather than trusting `run.json`: it reads the
+  manifest and the configuration the check names (refusing either if it
+  changed since), places the zones from the recorded widths, checks
+  comparability with the head again, and judges the run's `golden.tsv`
+  against the head's with the intent file. A verdict, rule, digest, count, or
+  change count that the re-judgement does not reproduce is refused.
+- **`record` writes atomically:** once everything is checked, it stages the
+  entry directory (the check, with the intent file as `intent.tsv`) and the
+  new `index.tsv` and baseline files as hidden `.<name>.partial` siblings,
+  then renames each into place, `index.tsv` last, so an interrupted record
+  leaves no half-written file and the head unchanged. A leftover staged file
+  is refused until removed. The pull request then commits the ledger
+  baseline's new row and the strata baseline's row per stratum.
 - **Exit status:** 0 for `SAME`, `EXPLAINED`, `INITIAL`, `REBASE`, and a
   recorded entry; 2 for `FAIL`; 1 for an input error.
 
 ## Comparability with the head
+
+A series starts on the truth its manifest pins: the first check refuses a
+truth database whose panel digest or per-sample digests differ from the
+manifest's. Before recording `r0001`, verify the frozen files against their
+checksums, from `results/test-panel/`:
+
+```bash
+grep ' (file)$' SHA256SUMS-regress-v1 | sed 's/ (file)$//' | sha256sum -c
+```
+
+Every later check measures against the head's truth instead, which only a
+rebase changes.
 
 `check` compares, against the head entry's `run.json`: the manifest body
 SHA-256 and the series; the panel truth digest; the re-check list SHA-256;
@@ -241,13 +264,23 @@ counts the non-het blocks in unchecked zones.
 2. Run `check`; resolve or declare (`posthoc=1`) every change; post the
    verdict of `regress.md` (its aggregate sections) in the pull request.
 3. After the merge, run `check` and then `record` on a clean build of `main`.
-4. Commit the two baseline rows and the intent file.
+4. Commit the two baseline rows; the intent file is already on `main` from
+   step 1.
 5. Cite the entry id in the CHANGELOG.
 
 The first entry `r0001` is an `INITIAL` on the `main` revision that
 introduces the command.
 
 ## Limits
+
+- **Not yet shared with `diff`** (specification section 3.1, item 3): `run`,
+  `bench`, and `regress check` share the options that run DNA, and `run` and
+  `regress check` one block classifier, but `diff` still classifies passes
+  with its own severities; unifying them waits for the set-based rework of
+  the `diff` gate, which rewrites that classifier. `--current-since`
+  stays `run`'s alone: it orders `run`'s summary and the gate of `diff`, and
+  neither `regress check` nor `bench` reports a current period, so it would
+  be an unused option there.
 
 - The set guards escapes mostly through its flagged discordant samples and
   `forbidden:flag_lost`: few recent samples carry a non-het escape.

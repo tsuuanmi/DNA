@@ -18,7 +18,8 @@ cargo run --release -p dna-eval -- bench \
 
 `--evidence-cache` and `--run-context` are `run`'s: the bench runs DNA with
 the same options, so a case under its batch's run context is judged as the
-panel run analyses it.
+panel run analyses it. With `--run-context`, `bench.md` names the directory,
+the batches with a context, and their digest beside the harness revision.
 
 ## What it checks
 

@@ -226,8 +226,8 @@ fn refuses_checks_that_measure_something_else() {
 #[test]
 fn only_regression_manifests_are_checked() -> std::result::Result<(), crate::error::ManifestError> {
     let manifest = |panel: &str| -> std::result::Result<Manifest, crate::error::ManifestError> {
-        crate::manifest::parse(
-            crate::manifest::tests::manifest(&[])
+        manifest::parse(
+            manifest::tests::manifest(&[])
                 .replacen("panel=dev", panel, 1)
                 .as_bytes(),
         )
@@ -249,16 +249,16 @@ fn only_regression_manifests_are_checked() -> std::result::Result<(), crate::err
 
 #[test]
 fn an_intent_file_names_no_sample() {
-    let samples = BTreeSet::from(["243256", "S1"]);
+    let samples = BTreeSet::from(["900001", "S1"]);
     assert!(names_no_sample("id\treason\nx\t#222 length notes 303-316\n", &samples).is_ok());
-    assert!(names_no_sample("x\tsee 243256\n", &samples).is_err());
+    assert!(names_no_sample("x\tsee 900001\n", &samples).is_err());
     assert!(names_no_sample("x\t*\tS1\n", &samples).is_err());
-    assert!(names_no_sample("x\tS12 and 2432567\n", &samples).is_ok());
+    assert!(names_no_sample("x\tS12 and 9000012\n", &samples).is_ok());
 }
 
 /// A git that answers from fixed values.
 struct Fake {
-    on_main: bool,
+    main: String,
     blob: String,
     asked: Cell<usize>,
 }
@@ -272,10 +272,47 @@ impl Git for Fake {
         Ok(self.blob.clone())
     }
 
-    fn on_main(&self, _: &Path, _: &str) -> std::result::Result<bool, String> {
+    fn main_revision(&self, _: &Path) -> std::result::Result<String, String> {
         self.asked.set(self.asked.get() + 1);
-        Ok(self.on_main)
+        Ok(self.main.clone())
     }
+}
+
+/// A clean build's revision in the synthetic headers.
+fn clean() -> String {
+    "a".repeat(40)
+}
+
+/// A git whose main is at `main`.
+fn git(main: &str) -> Fake {
+    Fake {
+        main: main.to_owned(),
+        blob: "5".repeat(40),
+        asked: Cell::new(0),
+    }
+}
+
+/// The two committed baseline files, empty, under `directory`.
+fn baselines(directory: &Path) -> std::io::Result<(PathBuf, PathBuf)> {
+    let baseline = directory.join("regress-v1-ledger.tsv");
+    fs::write(
+        &baseline,
+        format!(
+            "{}\n{}\n",
+            ledger::baseline_comment("regress-ledger", "regress-v1"),
+            ledger::LEDGER_COLUMNS
+        ),
+    )?;
+    let strata = directory.join("regress-v1-strata.tsv");
+    fs::write(
+        &strata,
+        format!(
+            "{}\n{}\n",
+            ledger::baseline_comment("regress-strata", "regress-v1"),
+            ledger::STRATA_COLUMNS
+        ),
+    )?;
+    Ok((baseline, strata))
 }
 
 /// A check output directory of `header`, a ledger directory, and the two
@@ -293,24 +330,7 @@ fn fixture(header: &Header) -> std::result::Result<Fixture, Box<dyn std::error::
     fs::write(run.join(CHANGES), judge::HEADER)?;
     fs::write(run.join(REPORT), "# Regress check\n")?;
     fs::write(run.join(RUN_JSON), header.text()?)?;
-    let baseline = directory.path().join("regress-v1-ledger.tsv");
-    fs::write(
-        &baseline,
-        format!(
-            "{}\n{}\n",
-            ledger::baseline_comment("regress-ledger", "regress-v1"),
-            ledger::LEDGER_COLUMNS
-        ),
-    )?;
-    let strata = directory.path().join("regress-v1-strata.tsv");
-    fs::write(
-        &strata,
-        format!(
-            "{}\n{}\n",
-            ledger::baseline_comment("regress-strata", "regress-v1"),
-            ledger::STRATA_COLUMNS
-        ),
-    )?;
+    let (baseline, strata) = baselines(directory.path())?;
     let args = RecordArgs {
         run,
         ledger: directory.path().join("ledger"),
@@ -322,71 +342,6 @@ fn fixture(header: &Header) -> std::result::Result<Fixture, Box<dyn std::error::
         _directory: directory,
         args,
     })
-}
-
-fn git(on_main: bool) -> Fake {
-    Fake {
-        on_main,
-        blob: "5".repeat(40),
-        asked: Cell::new(0),
-    }
-}
-
-#[test]
-fn records_a_clean_checked_run_and_appends_the_baselines()
--> std::result::Result<(), Box<dyn std::error::Error>> {
-    let header = header();
-    let fixture = fixture(&header)?;
-    let git = git(true);
-    let message = record(&fixture.args, &git, "2026-10-22")?;
-    assert!(message.contains("recorded r0001 (initial"), "{message}");
-    assert_eq!(git.asked.get(), 1);
-    let ledger = &fixture.args.ledger;
-    for name in [GOLDEN, CHANGES, REPORT, RUN_JSON] {
-        assert!(ledger.join("r0001").join(name).is_file(), "{name}");
-    }
-    let index = fs::read_to_string(ledger.join(ledger::INDEX))?;
-    assert_eq!(
-        index,
-        format!(
-            "{}r0001\tinitial\t-\t{}\t{}\tREGRESS INITIAL\t2026-10-22\n",
-            ledger::INDEX_HEADER,
-            "a".repeat(40),
-            header.golden_sha256
-        )
-    );
-    // The baseline row has one cell per column, in column order.
-    let baseline = fs::read_to_string(&fixture.args.baseline)?;
-    let row = baseline.lines().last().unwrap_or_default();
-    let columns = ledger::LEDGER_COLUMNS.split('\t').collect::<Vec<_>>();
-    let cells = row.split('\t').collect::<Vec<_>>();
-    assert_eq!(cells.len(), columns.len());
-    let cell = |name: &str| {
-        columns
-            .iter()
-            .position(|column| *column == name)
-            .map(|index| cells[index])
-    };
-    assert_eq!(cell("entry"), Some("r0001"));
-    assert_eq!(cell("date"), Some("2026-10-22"));
-    assert_eq!(cell("kind"), Some("initial"));
-    assert_eq!(cell("base"), Some("-"));
-    assert_eq!(cell("plugins"), Some("consensus=21,sanger=22"));
-    assert_eq!(cell("recheck_sha256"), Some("e".repeat(64).as_str()));
-    let kinds = format!("failure={}", golden::sha256(""));
-    assert_eq!(cell("kinds_sha256"), Some(kinds.as_str()));
-    assert_eq!(cell("samples"), Some("2"));
-    assert_eq!(cell("intent_blob"), Some("-"));
-    assert_eq!(cell("verdict"), Some("REGRESS INITIAL"));
-    let strata = fs::read_to_string(&fixture.args.strata)?;
-    assert!(strata.ends_with(&format!(
-        "r0001\ta\t1\t{}\t0\nr0001\tb\t1\t{}\t0\n",
-        "3".repeat(64),
-        "4".repeat(64)
-    )));
-    // The same entry again is refused.
-    assert!(record(&fixture.args, &git, "2026-10-22").is_err());
-    Ok(())
 }
 
 #[test]
@@ -403,7 +358,7 @@ fn record_refuses_dirty_failed_moved_existing_and_unmerged_runs()
             Err(Error::Regress(_))
         ))
     };
-    let main = git(true);
+    let main = git(&clean());
     let mut dirty = header();
     dirty.source.dirty = Some(true);
     assert!(refuses(dirty, &main, "r0001")?);
@@ -418,7 +373,10 @@ fn record_refuses_dirty_failed_moved_existing_and_unmerged_runs()
     moved.head = Some("r0001".into());
     assert!(refuses(moved, &main, "r0002")?);
     assert!(refuses(header(), &main, "1")?);
-    assert!(refuses(header(), &git(false), "r0001")?);
+    // A build of an ancestor of main, or of a branch, is not main's commit.
+    let ahead = git(&"9".repeat(40));
+    assert!(refuses(header(), &ahead, "r0001")?);
+    assert_eq!(ahead.asked.get(), 1);
     // An entry the ledger already holds.
     let existing = fixture(&header())?;
     fs::create_dir_all(existing.args.ledger.join("r0001"))?;
@@ -436,58 +394,300 @@ fn record_refuses_dirty_failed_moved_existing_and_unmerged_runs()
         record(&other.args, &main, "2026-10-22"),
         Err(Error::Regress(_))
     ));
+    // A strata baseline that does not end at the head.
+    let behind = fixture(&header())?;
+    fs::write(
+        &behind.args.strata,
+        format!(
+            "{}\n{}\nr0001\ta\t1\t{}\t0\n",
+            ledger::baseline_comment("regress-strata", "regress-v1"),
+            ledger::STRATA_COLUMNS,
+            "3".repeat(64)
+        ),
+    )?;
+    let mut later = behind.args;
+    later.entry = "r0002".into();
+    assert!(matches!(
+        record(&later, &main, "2026-10-22"),
+        Err(Error::Regress(_))
+    ));
     Ok(())
 }
 
+/// A synthetic regression set on disk: a truth database, a `panel=regress`
+/// manifest derived from it, traces DNA cannot read, a re-check list, the
+/// repository's configuration and reference, a ledger, and the two
+/// baselines.
+struct Set {
+    directory: tempfile::TempDir,
+    manifest: PathBuf,
+    truth: PathBuf,
+    recheck: PathBuf,
+    ledger: PathBuf,
+    baseline: PathBuf,
+    strata: PathBuf,
+}
+
+impl Set {
+    fn new() -> std::result::Result<Self, Box<dyn std::error::Error>> {
+        let directory = tempfile::tempdir()?;
+        let truth = crate::truth::tests::database(directory.path(), crate::truth::tests::FIXTURE)?;
+        let database = crate::truth::load(&truth, &BTreeSet::from(["S1", "S2", "S3"]))?;
+        let unreadable = directory.path().join("unreadable.ab1");
+        fs::write(&unreadable, b"not a trace")?;
+        let missing = directory.path().join("missing.ab1");
+        let rows = [
+            format!("S1\tb1\tbench\t1\t1\t0\t{}", unreadable.display()),
+            format!("S2\tb2\trecent\t1\t1\t0\t{}", missing.display()),
+            format!(
+                "S3\tb1\trecent\t1\t1\t0\t{};{}",
+                unreadable.display(),
+                missing.display()
+            ),
+        ];
+        let seed = manifest::tests::manifest(&rows.each_ref().map(String::as_str)).replacen(
+            "panel=dev",
+            "panel=regress",
+            1,
+        );
+        let parent = manifest::parse(seed.as_bytes())?;
+        let source = crate::panel::Source {
+            path: &truth,
+            sha256: "abc",
+            database: &database,
+        };
+        let manifest = directory.path().join("regress-v1.tsv");
+        fs::write(
+            &manifest,
+            crate::panel::derive(&parent, &source, "v1", "2026-10-22").text,
+        )?;
+        let recheck = directory.path().join("recheck.tsv");
+        fs::write(&recheck, format!("{}\n", crate::recheck::HEADER))?;
+        let (baseline, strata) = baselines(directory.path())?;
+        Ok(Self {
+            manifest,
+            truth,
+            recheck,
+            ledger: directory.path().join("ledger"),
+            baseline,
+            strata,
+            directory,
+        })
+    }
+
+    /// `regress check` arguments writing to `output`.
+    fn check(&self, output: &str) -> CheckArgs {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        CheckArgs {
+            manifest: self.manifest.clone(),
+            truth: self.truth.clone(),
+            recheck: self.recheck.clone(),
+            dna: DnaOptions {
+                config: repository.join("config/dna.toml"),
+                reference: repository.join("references/rCRS.fasta"),
+                threads: 2,
+                evidence_cache: None,
+                run_context: None,
+            },
+            review: ReviewOptions {
+                review_window: crate::conventions::REVIEW_WINDOW,
+                zone_after: crate::conventions::ZONE_AFTER,
+                zone_edge: crate::conventions::ZONE_EDGE,
+                zone_overrun: crate::conventions::ZONE_OVERRUN,
+            },
+            forms: None,
+            ledger: self.ledger.clone(),
+            intent: None,
+            rebase: false,
+            output: self.directory.path().join(output),
+        }
+    }
+
+    /// `regress record` arguments for the check output `run` as `entry`.
+    fn record(&self, run: &str, entry: &str) -> RecordArgs {
+        RecordArgs {
+            run: self.directory.path().join(run),
+            ledger: self.ledger.clone(),
+            entry: entry.to_owned(),
+            baseline: self.baseline.clone(),
+            strata: self.strata.clone(),
+        }
+    }
+
+    /// Marks the check output `run` as a clean build of [`clean`], as a
+    /// build of main's commit records it.
+    fn as_clean(&self, run: &str) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let path = self.directory.path().join(run).join(RUN_JSON);
+        let mut header: Header = serde_json::from_str(&fs::read_to_string(&path)?)?;
+        header.source = Source {
+            revision: Some(clean()),
+            dirty: Some(false),
+        };
+        fs::write(&path, header.text()?)?;
+        Ok(())
+    }
+}
+
 #[test]
-fn a_change_entry_follows_its_head() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    let fixture = fixture(&header())?;
-    record(&fixture.args, &git(true), "2026-10-22")?;
-    let mut next = header();
-    next.head = Some("r0001".into());
-    next.verdict = Verdict::Explained.label().into();
-    next.changes = ChangeCounts {
-        changed_samples: 1,
-        changed_lines: 2,
-        explained_lines: 2,
-        posthoc_rows: 1,
+fn checks_and_records_a_synthetic_set_end_to_end()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let set = Set::new()?;
+    let main = git(&clean());
+
+    // The first check seeds the series.
+    let (report, verdict) = check(&set.check("first"), &main)?;
+    assert_eq!(verdict, Verdict::Initial);
+    assert!(report.contains("**Verdict: REGRESS INITIAL**"), "{report}");
+    let first = set.directory.path().join("first");
+    let golden_text = fs::read_to_string(first.join(GOLDEN))?;
+    // Every sample fails: S1's trace is unreadable, S2's is missing.
+    assert!(golden_text.starts_with(golden::HEADER));
+    assert_eq!(
+        golden_text
+            .lines()
+            .skip(1)
+            .map(|line| line.split('\t').take(2).collect::<Vec<_>>().join(" "))
+            .collect::<Vec<_>>(),
+        ["S1 failure", "S2 failure", "S3 failure"]
+    );
+    assert_eq!(fs::read_to_string(first.join(CHANGES))?, judge::HEADER);
+    // The same check again writes the same golden output.
+    check(&set.check("again"), &main)?;
+    assert_eq!(
+        fs::read_to_string(set.directory.path().join("again").join(GOLDEN))?,
+        golden_text
+    );
+
+    // A run whose run.json claims another verdict is not recorded.
+    set.as_clean("first")?;
+    let path = first.join(RUN_JSON);
+    let honest = fs::read_to_string(&path)?;
+    let mut claimed: Header = serde_json::from_str(&honest)?;
+    claimed.counts.failed = 0;
+    fs::write(&path, claimed.text()?)?;
+    let refused = record(&set.record("first", "r0001"), &main, "2026-10-22");
+    assert!(
+        matches!(&refused, Err(Error::Regress(message)) if message.contains("re-judgement")),
+        "{refused:?}"
+    );
+    assert!(!set.ledger.join("r0001").exists());
+    fs::write(&path, honest)?;
+
+    // The first entry.
+    let message = record(&set.record("first", "r0001"), &main, "2026-10-22")?;
+    assert!(message.contains("recorded r0001 (initial"), "{message}");
+    for name in [GOLDEN, CHANGES, REPORT, RUN_JSON] {
+        assert!(set.ledger.join("r0001").join(name).is_file(), "{name}");
+    }
+    let index = fs::read_to_string(set.ledger.join(ledger::INDEX))?;
+    assert_eq!(
+        index,
+        format!(
+            "{}r0001\tinitial\t-\t{}\t{}\tREGRESS INITIAL\t2026-10-22\n",
+            ledger::INDEX_HEADER,
+            clean(),
+            golden::sha256(&golden_text)
+        )
+    );
+    // The baseline row has one cell per column, in column order.
+    let baseline = fs::read_to_string(&set.baseline)?;
+    let row = baseline.lines().last().unwrap_or_default();
+    let columns = ledger::LEDGER_COLUMNS.split('\t').collect::<Vec<_>>();
+    let cells = row.split('\t').collect::<Vec<_>>();
+    assert_eq!(cells.len(), columns.len());
+    let cell = |name: &str| {
+        columns
+            .iter()
+            .position(|column| *column == name)
+            .map(|index| cells[index])
     };
-    next.intent = Some(IntentHeader {
-        path: fixture.args.run.join(REPORT),
-        blob: "5".repeat(40),
-        pr: "#1".into(),
-        rows: 2,
-        posthoc_rows: 1,
-    });
-    fs::write(fixture.args.run.join(RUN_JSON), next.text()?)?;
-    let args = RecordArgs {
-        entry: "r0002".into(),
-        ..fixture.args
-    };
-    record(&args, &git(true), "2026-10-23")?;
-    let baseline = fs::read_to_string(&args.baseline)?;
+    assert_eq!(cell("entry"), Some("r0001"));
+    assert_eq!(cell("kind"), Some("initial"));
+    assert_eq!(cell("base"), Some("-"));
+    assert_eq!(cell("samples"), Some("3"));
+    assert_eq!(cell("failed"), Some("3"));
+    assert_eq!(cell("intent_blob"), Some("-"));
+    assert_eq!(cell("verdict"), Some("REGRESS INITIAL"));
+    let strata = fs::read_to_string(&set.strata)?;
+    assert_eq!(
+        strata
+            .lines()
+            .skip(2)
+            .map(|line| line.split('\t').take(3).collect::<Vec<_>>().join(" "))
+            .collect::<Vec<_>>(),
+        ["r0001 bench 1", "r0001 recent 2"]
+    );
+    // Nothing is left staged.
+    assert_eq!(
+        fs::read_dir(&set.ledger)?.count(),
+        2,
+        "the ledger holds index.tsv and r0001 only"
+    );
+    // The same entry again is refused.
+    assert!(record(&set.record("first", "r0001"), &main, "2026-10-22").is_err());
+
+    // Against the head: the same output is SAME, and records as a change.
+    let mut same = set.check("same");
+    let intent = set.directory.path().join("intent.tsv");
+    fs::write(
+        &intent,
+        format!(
+            "# regress-intent series=regress-v1 base=r0001 pr=#1\n{}\n\
+             hv1\tallele\tadded\tHV1\t*\t-\t0\t#1 a synthetic intent\n",
+            intents::COLUMNS
+        ),
+    )?;
+    // The intent file is checked against the harness's revision, which a
+    // build without git does not record.
+    let with_intent = crate::source().revision.is_some();
+    if with_intent {
+        same.intent = Some(intent.clone());
+    }
+    let (report, verdict) = check(&same, &main)?;
+    assert_eq!(verdict, Verdict::Same);
+    if with_intent {
+        assert!(report.contains("unused intent hv1"), "{report}");
+    }
+    set.as_clean("same")?;
+    record(&set.record("same", "r0002"), &main, "2026-10-23")?;
+    let baseline = fs::read_to_string(&set.baseline)?;
     let row = baseline.lines().last().unwrap_or_default();
     assert!(
         row.starts_with("r0002\t2026-10-23\tchange\tr0001\t"),
         "{row}"
     );
-    assert!(row.ends_with(&format!(
-        "\t1\t2\t2\t1\t{}\tREGRESS EXPLAINED",
-        "5".repeat(40)
-    )));
-    assert!(args.ledger.join("r0002").join(INTENT).is_file());
-    // An intent file changed since the check is refused.
-    let mut later = next.clone();
-    later.head = Some("r0002".into());
-    fs::write(args.run.join(RUN_JSON), later.text()?)?;
-    let changed = Fake {
-        blob: "6".repeat(40),
-        ..git(true)
-    };
-    let args = RecordArgs {
-        entry: "r0003".into(),
-        ..args
-    };
-    assert!(record(&args, &changed, "2026-10-24").is_err());
+    assert!(row.ends_with("\tREGRESS SAME"), "{row}");
+    assert_eq!(set.ledger.join("r0002").join(INTENT).is_file(), with_intent);
+
+    // A truth the manifest does not pin is refused: against the head
+    // without --rebase, and for a series' first check.
+    let refreshed = set.directory.path().join("refreshed");
+    fs::create_dir(&refreshed)?;
+    let sql = format!(
+        "{} INSERT INTO sample_status VALUES ('b1', 'S3', 'x', 'HOLD', 1, 1, '', 1, 1);",
+        crate::truth::tests::FIXTURE
+    );
+    let mut moved = set.check("moved");
+    moved.truth = crate::truth::tests::database(&refreshed, &sql)?;
+    assert!(matches!(check(&moved, &main), Err(Error::Regress(_))));
+    let mut first_moved = set.check("first-moved");
+    first_moved.truth = moved.truth.clone();
+    first_moved.ledger = set.directory.path().join("empty-ledger");
+    let refused = check(&first_moved, &main);
+    assert!(
+        matches!(&refused, Err(Error::Regress(message)) if message.contains("pins")),
+        "{refused:?}"
+    );
+
+    // Another series on this ledger names the series.
+    let mut v2 = set.check("v2");
+    let text = fs::read_to_string(&set.manifest)?.replacen("version=v1", "version=v2", 1);
+    v2.manifest = set.directory.path().join("regress-v2.tsv");
+    fs::write(&v2.manifest, text)?;
+    let refused = check(&v2, &main);
+    assert!(
+        matches!(&refused, Err(Error::Regress(message)) if message.contains("another series")),
+        "{refused:?}"
+    );
     Ok(())
 }

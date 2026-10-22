@@ -30,12 +30,19 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     non-het escapes, lost flags on discordant samples, and new or lost
     failures fail whatever the intents. `--rebase` accepts a new truth or
     re-check list when DNA's own output is unchanged.
-  - `regress record` appends a checked run of a clean `main` build to the
-    local ledger and one row each to `crates/dna-eval/baselines/regress-v1-ledger.tsv`
-    and `regress-v1-strata.tsv`, which name no sample.
+  - `regress record` appends a checked run of a clean build of
+    `origin/main`'s current commit to the local ledger and one row each to
+    `crates/dna-eval/baselines/regress-v1-ledger.tsv` and
+    `regress-v1-strata.tsv`, which name no sample. It re-judges the run's
+    golden output against the head and the intent file instead of trusting
+    `run.json`, and stages every file before renaming it into place.
+  - A series' first check refuses a truth database other than the one its
+    manifest pins.
   - `run` and `bench` read `panel=regress` manifests, as development data.
   - `bench` takes `--run-context`, and `run`, `bench`, and `regress check`
-    share one set of options for running DNA.
+    share one set of options for running DNA; with `--run-context`,
+    `bench.md` records the contexts' digest. `diff` keeps its own pass
+    classifier until the gate rework, and `--current-since` stays `run`'s.
   - `dna::plugins()` lists the static plugin registry.
   - No DNA output changes. The read-evidence cache starts a new generation:
     the registry's visibility changed in a read-stage source.

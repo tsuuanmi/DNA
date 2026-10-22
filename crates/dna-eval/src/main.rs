@@ -42,6 +42,7 @@ mod workload;
 mod zones;
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -394,7 +395,7 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
     }
     let reference = load_reference(&args.dna.reference)?;
     let cache = args.dna.caches(&reference.sequence_sha256)?;
-    let (contexts, _) = args.dna.contexts(&samples)?;
+    let (contexts, contexts_sha256) = args.dna.contexts(&samples)?;
     let outcomes = runner::run(
         &samples,
         (&args.dna.reference, &reference.sequence_sha256),
@@ -417,7 +418,7 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
         })
         .collect::<Vec<_>>();
     let source = source();
-    let revision = format!(
+    let mut revision = format!(
         "{}{}",
         source.revision.as_deref().unwrap_or("unknown revision"),
         match source.dirty {
@@ -426,6 +427,14 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
             None => " (dirty state unknown)",
         }
     );
+    if let Some(directory) = &args.dna.run_context {
+        let _ = write!(
+            revision,
+            "; run contexts {} ({} batches, sha256 {contexts_sha256})",
+            directory.display(),
+            contexts.len()
+        );
+    }
     let report = bench::report(&revision, &cases, &judged);
     if let Some(output) = &args.output {
         prepare_output(output)?;
