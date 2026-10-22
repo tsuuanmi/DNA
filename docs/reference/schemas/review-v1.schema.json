@@ -68,7 +68,7 @@
       }
     },
     "not_analysed": {
-      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); a check item labelled not_analysed holds each, and no zone; for called.",
+      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); a check item labelled not_analysed and a not_analysed zone hold each run of touching stretches; for called.",
       "type": "array",
       "items": {
         "$ref": "urn:signal:schema:consensus:v1#/$defs/stretch"
@@ -1123,15 +1123,21 @@
           "additionalProperties": false,
           "required": [
             "label",
-            "reason"
+            "reasons"
           ],
           "properties": {
             "label": {
               "const": "not_analysed"
             },
-            "reason": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]*$"
+            "reasons": {
+              "description": "The reasons of the touching not_analysed stretches the item holds, each once, in reference order.",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              }
             }
           }
         },
@@ -2203,8 +2209,9 @@
       ],
       "properties": {
         "kind": {
-          "description": "What the reads show there, in precedence order: a profile repeat window, no callable call, a read past a repeat out of phase, a read otherwise masked, every read in phase or vouched for.",
+          "description": "What the reads show there, in precedence order: a stretch the call does not analyse (rules version 36), a profile repeat window, no callable call, a read past a repeat out of phase, a read otherwise masked, every read in phase or vouched for.",
           "enum": [
+            "not_analysed",
             "repeat",
             "not_callable",
             "dephased",

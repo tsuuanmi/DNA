@@ -56,15 +56,17 @@ pub(super) fn priority(labels: &[LabelResult]) -> u8 {
 }
 
 /// Counts over the items, the reportable positions inside `regions` that
-/// `check` items hold, the `reference_only` positions, and the `zones` the
-/// checks touch; `clear` when the call succeeded and no item is a check.
+/// `check` items hold outside the stretches `not_analysed` (whose own
+/// positions are counted apart, so the two never overlap), the
+/// `reference_only` positions, and the `zones` the checks touch; `clear` when
+/// the call succeeded and no item is a check.
 pub(super) fn summarize(
     items: &[ItemResult],
     status: ReviewStatus,
     regions: &[[usize; 2]],
     zones: &[ZoneResult],
     reference_only: &[usize],
-    not_analysed: usize,
+    not_analysed: &[[usize; 2]],
 ) -> SummaryResult {
     let mut labels = LabelCounts::default();
     for item in items {
@@ -85,7 +87,7 @@ pub(super) fn summarize(
         .iter()
         .filter(|item| item.kind == ItemKind::Check)
         .flat_map(|item| item.first.position..=item.last.position)
-        .filter(|&position| inside(regions, position))
+        .filter(|&position| inside(regions, position) && !inside(not_analysed, position))
         .collect::<BTreeSet<_>>()
         .len();
     SummaryResult {
@@ -100,7 +102,10 @@ pub(super) fn summarize(
             reportable: regions.iter().map(|[start, end]| end - start + 1).sum(),
             check,
             reference_only: reference_only.len(),
-            not_analysed,
+            not_analysed: not_analysed
+                .iter()
+                .map(|[first, last]| last - first + 1)
+                .sum(),
         },
         zones: ZoneCounts {
             total: zones.len(),
@@ -213,7 +218,7 @@ mod tests {
             &[[1, 10]],
             &[],
             &[],
-            0,
+            &[],
         );
         assert_eq!((summary.items, summary.checks, summary.variants), (2, 0, 2));
         assert_eq!(summary.labels.get(LabelKind::OneStrand), 1);
@@ -230,7 +235,7 @@ mod tests {
         assert!(summary.clear);
 
         let check = item(ItemKind::Check, vec![LabelResult::NotCovered]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 0);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], &[]);
         assert_eq!(
             (summary.checks, summary.labels.get(LabelKind::NotCovered)),
             (1, 1)
@@ -246,24 +251,36 @@ mod tests {
             }
         );
         assert!(!summary.clear);
-        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[], 0).clear);
-        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[], 0).clear);
-        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 0).clear);
+        assert!(!summarize(&[], ReviewStatus::CallFailed, &[[1, 10]], &[], &[], &[]).clear);
+        assert!(!summarize(&[], ReviewStatus::Rejected, &[[1, 10]], &[], &[], &[]).clear);
+        assert!(summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], &[]).clear);
         // Reference-only positions are counted, and never make a check.
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4], 0);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4], &[]);
         assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
         // Positions not analysed are counted (SRS-CONS-012).
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 6);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], &[[1, 6]]);
         assert_eq!((summary.positions.not_analysed, summary.clear), (6, true));
         // A stretch's own item, labelled `not_analysed`, is a check: an
-        // allele the report omits there is never passed silently.
+        // allele the report omits there is never passed silently. Its
+        // positions count as not analysed, never also as check positions.
         let stretch = LabelResult::NotAnalysed {
-            reason: "poor_start_signal",
+            reasons: vec!["poor_start_signal"],
         };
         assert!(stretch.unassured());
-        let check = item(ItemKind::Check, vec![stretch]);
-        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 1);
+        let mut check = item(ItemKind::Check, vec![stretch]);
+        check.last.position = 3;
+        let summary = summarize(
+            &[check],
+            ReviewStatus::Called,
+            &[[1, 10]],
+            &[],
+            &[],
+            &[[1, 3]],
+        );
         assert_eq!(summary.labels.get(LabelKind::NotAnalysed), 1);
-        assert!(!summary.clear);
+        assert_eq!(
+            (summary.positions.check, summary.positions.not_analysed),
+            (0, 3)
+        );
     }
 }

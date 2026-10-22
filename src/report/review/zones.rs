@@ -7,14 +7,16 @@ use crate::model::review_result::{ItemKind, ItemResult, ReviewReadResult, ZoneKi
 
 /// The reportable positions within `regions` as zones a reviewer opens
 /// whole. Each position takes the first kind that holds, in [`ZoneKind`]
-/// order: inside a repeat window of the profile (1-based inclusive, with its
-/// name), outside the `callable` ranges, inside a read's masked stretch past a
+/// order: inside a stretch the call does not analyse (`not_analysed`,
+/// SRS-CONS-012), inside a repeat window of the profile (1-based inclusive,
+/// with its name), outside the `callable` ranges, inside a read's masked stretch past a
 /// repeat, inside another masked stretch, else clean. A zone is a maximal
 /// stretch of one kind (and window) within one region; it counts the `check`
 /// items touching it. Every boundary comes from the profile and the sample's
 /// reads, none from a width.
 pub(super) fn zones(
     regions: &[[usize; 2]],
+    not_analysed: &[[usize; 2]],
     windows: &[(usize, usize, &str)],
     callable: &[[usize; 2]],
     reads: &[ReviewReadResult],
@@ -36,6 +38,7 @@ pub(super) fn zones(
                 .iter()
                 .find(|(first, last, _)| *first <= position && position <= *last);
             let (kind, name) = match window {
+                _ if inside(not_analysed, position) => (ZoneKind::NotAnalysed, None),
                 Some(&(_, _, name)) => (ZoneKind::Repeat, Some(name)),
                 None if !inside(callable, position) => (ZoneKind::NotCallable, None),
                 None if masks(position, true) => (ZoneKind::Dephased, None),
@@ -105,6 +108,7 @@ mod tests {
         let variant = item(ItemKind::Variant, Vec::new());
         let zones = zones(
             &[[1, 10], [11, 13]],
+            &[],
             &[(4, 5, "W")],
             &[[1, 8], [11, 13]],
             &reads,
@@ -131,7 +135,7 @@ mod tests {
                 zone(ZoneKind::Clean, 11, 13, None, 0),
             ]
         );
-        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[], 0);
+        let summary = summarize(&[], ReviewStatus::Called, &[[1, 13]], &zones, &[], &[]);
         assert_eq!(summary.zones, ZoneCounts { total: 7, check: 1 });
     }
 }

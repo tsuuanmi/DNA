@@ -53,8 +53,8 @@ reads' unreliable spans (SRS-CONS-012).
   - The variants document lists the intervals as `not_analysed`. The EMPOP
     query cuts them with the reason `not_analysed`.
 - **Review.** The review lists the stretches as `not_analysed`, with their
-  reason, and holds no zone over them; since the amendment of 2026-10-22
-  (below), each is held by a check item labelled `not_analysed`. It also guards the rest of the
+  reason; since the amendment of 2026-10-22 (below), touching stretches are
+  one check item labelled `not_analysed` and one zone of their own. It also guards the rest of the
   region's edge zone. Every difference DNA calls within `review.edge_zone`
   positions of a region end it leaves out is a check, labelled
   `beside_not_analysed`. The reads there sit right after their poor start,
@@ -156,10 +156,12 @@ carries a flag there, never as a silent clear; rescuing the allele is later
 work. Letting the stretch pass without a flag where nothing covers it was
 rejected.
 
-Each stretch is now held by a check item labelled `not_analysed`, with the
-stretch's reason, and every covering read's observations there as its
-evidence (review rules 36, SRS-CONS-012). The stretch keeps no zone, and
-the call is unchanged. No position or threshold enters the rule.
+Each run of touching stretches is now one check item labelled
+`not_analysed`, listing every reason once, with every covering read's
+observations there as its evidence, and one zone of kind `not_analysed`, so
+a consumer that opens zones opens it (review rules 36, SRS-CONS-012). Its
+positions count as `not_analysed`, never also as check positions. The call
+is unchanged. No position or threshold enters the rule.
 
 Two variants were measured; the goal is no unflagged error first, the clear
 rate second.
