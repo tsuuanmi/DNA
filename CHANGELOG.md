@@ -33,6 +33,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   database alone (Breaking for the harness's command line). `run.json`
   records `forms_cache` (key, hit). Outputs are byte-identical. No DNA
   output changes.
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,

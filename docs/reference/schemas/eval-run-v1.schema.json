@@ -175,8 +175,7 @@
         "constants",
         "samples",
         "workload",
-        "seconds",
-        "outputs"
+        "seconds"
       ],
       "properties": {
         "harness": {
@@ -926,7 +925,7 @@
           }
         },
         "outputs": {
-          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`).",
+          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`). Every run of this revision records it; a run of an earlier harness revision has none, and `same` hashes its files.",
           "type": "object",
           "propertyNames": {
             "pattern": "^[a-z_]+\\.(tsv|md)$"
