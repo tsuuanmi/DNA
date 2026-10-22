@@ -726,7 +726,8 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   length; in 510 of the 540 newly clear samples below one read in phase
   confirms it, and DNA's run 2 equals the truth in all 540. Measured
   against `main` ea8627d1 (diff gate PASS on both panels, no status or
-  coverage change):
+  coverage change; development panel v5 re-measured against `main`
+  74c9cbaf after the review split, identical):
   - development panel v5, current period: clear 8,827 → 8,948, window@HV2
     checks 475 → 317, unreviewed non-het 4 → 4, unreviewed het-only
     370 → 370; earlier period clear 4,065 → 4,123, unreviewed non-het
