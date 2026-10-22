@@ -72,6 +72,9 @@ pub fn build(
         })
         .collect::<Vec<_>>();
     let unreliable_only = observe::unreliable_only(reads, &config.variant_calling);
+    // The reads as first observed, before any pass withdraws an observation:
+    // the two-strand rule reads their runs over each window.
+    let first_pass = observed.clone();
     // Reference confirmations (ADR-0080): none where a second sequence may
     // hide, none within or beside a site that differs from the reference, and
     // the positions they alone decide bound no neighbour's run when called.
@@ -101,7 +104,7 @@ pub fn build(
         reads,
         bases,
         consensus_config.length_rule(),
-        |first, last| read_runs_over(reads, reference, config, consensus_config, first, last),
+        |first, last| runs_over(&first_pass, bases, first, last),
     );
     let reference_only = confirmed_only(&observed);
 
@@ -153,15 +156,30 @@ pub fn read_runs_over(
     last: usize,
 ) -> Vec<Option<Vec<ReadRun>>> {
     let bases = reference.sequence.as_bytes();
-    reads
+    let observed = reads
         .iter()
         .map(|read| {
-            let observed = observe(
+            observe(
                 read,
                 &config.variant_calling,
                 bases,
                 consensus_config.seeded_run,
-            );
+            )
+        })
+        .collect::<Vec<_>>();
+    runs_over(&observed, bases, first, last)
+}
+
+/// [`read_runs_over`] from the reads' observations.
+fn runs_over(
+    observed: &[ReadObservations],
+    bases: &[u8],
+    first: usize,
+    last: usize,
+) -> Vec<Option<Vec<ReadRun>>> {
+    observed
+        .iter()
+        .map(|observed| {
             let (left, chars, right) = observed.span(first, last, bases.len())?;
             if chars.iter().any(|char| char.base == 'N') {
                 return None;
