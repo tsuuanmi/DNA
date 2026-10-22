@@ -802,6 +802,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     `omitted_not_analysed` gates; length notes, omitted tracts, and a note
     one unit off (`note_misread`) are reported, not gated; a note two or
     more units off is `non_het`, and one without a reading `omitted_other`.
+    The truth's length is its run as the note reads it, continuing past the
+    tract's window within its search window (a truth `302C` joins the HVS-II
+    run).
   - **Length notes** are a one-unit difference only; two or more is non-het,
     for a block and for an omission under a tract note alike.
   - **Duplicate traces** fail the sample typed (`duplicate_trace`,

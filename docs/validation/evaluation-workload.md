@@ -136,7 +136,9 @@ own, in the zone of its anchor:
   analyse (SRS-CONS-012), mostly a poor read start (`73G`);
 - `omitted tract`: in a profile length tract under a `tract_length` note
   whose reading (or, without one, the convention's reading) is the truth's
-  count of the tract's base there;
+  run: the tract's base over its window, and the run continuing past either
+  end of it within the tract's search window, as the note reads it (a truth
+  `302C` lengthens the HVS-II run);
 - `note misread`: there, when the note's reading is one unit off the
   truth's count: a length note (user decision 2026-10-22); two or more units
   off is `non-het`, and a note without a reading `omitted (other)`;

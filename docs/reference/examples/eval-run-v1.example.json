@@ -300,7 +300,7 @@
   "run.json": {
     "harness": "dna-eval",
     "harness_version": "0.1.0",
-    "workload_version": 1,
+    "workload_version": 2,
     "source": {
       "revision": "0123456789abcdef0123456789abcdef01234567",
       "dirty": false

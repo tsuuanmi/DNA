@@ -930,6 +930,10 @@ impl Loaded {
                 first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
                 last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
                 base: char::from(tract.base),
+                search: (
+                    i64::try_from(tract.search[0]).unwrap_or(i64::MAX),
+                    i64::try_from(tract.search[1]).unwrap_or(i64::MAX),
+                ),
             })
             .collect()
     }

@@ -32,7 +32,7 @@ use crate::zones::{Instance, Zones};
 /// `run.json` records it, and `dna-eval diff` refuses two runs, or a run and
 /// itself, that count otherwise, since their classes would not compare. A
 /// change to any of these rules is a new version.
-pub(crate) const COUNTING_VERSION: u32 = 1;
+pub(crate) const COUNTING_VERSION: u32 = 2;
 
 /// One window of an HV region, 1-based and inclusive.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -244,6 +244,9 @@ pub(crate) struct Tract {
     pub(crate) first: i64,
     pub(crate) last: i64,
     pub(crate) base: char,
+    /// The profile's search window of the tract, 1-based and inclusive:
+    /// how far a run of the tract's base may continue past its window.
+    pub(crate) search: (i64, i64),
 }
 
 impl Tract {
@@ -1135,6 +1138,7 @@ mod tests {
             first: 303,
             last: 309,
             base: 'C',
+            search: (302, 316),
         }];
         let tract = |start, end, dna: &str, truth: &str| {
             class_with(Block::fixture(start, end, dna, truth), &[], &tracts)

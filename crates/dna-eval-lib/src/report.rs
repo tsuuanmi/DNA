@@ -2023,33 +2023,76 @@ fn indel(allele: &Allele) -> bool {
     allele.position.contains('.') || allele.reference == "-" || allele.alternate == "-"
 }
 
-/// The truth's count of `tract`'s base over its window: the reference's,
-/// with the truth's substitutions, deletions, and insertions there applied.
+/// The truth's length of `tract`'s run, counted as a note reads it: the
+/// tract's base over its window, the reference's with the truth's
+/// substitutions, deletions, and insertions there applied, and the run of
+/// that base continuing past either end of the window, as far as the
+/// tract's search window reaches (a truth `302C` lengthens the HVS-II run
+/// that starts at 303).
 fn truth_length(tract: &Tract, alleles: &[Allele], reference: &[u8]) -> i64 {
-    let base = tract.base.to_string();
-    let count = (tract.first..=tract.last)
-        .filter(|position| {
-            usize::try_from(position - 1)
+    let first = tract.first.min(tract.search.0);
+    let last = tract.last.max(tract.search.1);
+    // The truth's sequence over `first..=last`: each reference position's
+    // base (a substitution's, none when deleted), then its inserted bases.
+    let mut sequence = Vec::new();
+    for position in first..=last {
+        let text = position.to_string();
+        let changed = alleles
+            .iter()
+            .find(|allele| allele.position == text && allele.reference != allele.alternate);
+        let base = match changed {
+            Some(allele) => allele.alternate.chars().next().filter(|base| *base != '-'),
+            None => usize::try_from(position - 1)
                 .ok()
                 .and_then(|index| reference.get(index))
-                .is_some_and(|symbol| char::from(*symbol) == tract.base)
-        })
-        .count();
-    let mut count = i64::try_from(count).unwrap_or(i64::MAX);
-    for allele in alleles {
-        let Some(anchor) = compare::anchor(&allele.position) else {
-            continue;
+                .map(|symbol| char::from(*symbol)),
         };
-        if !(tract.first..=tract.last).contains(&anchor) || allele.reference == allele.alternate {
-            continue;
-        }
-        if allele.position.contains('.') {
-            count += i64::from(allele.alternate == base);
-        } else {
-            count += i64::from(allele.alternate == base) - i64::from(allele.reference == base);
-        }
+        sequence.extend(base.map(|base| (position, base)));
+        let mut inserted = alleles
+            .iter()
+            .filter(|allele| {
+                allele.position.contains('.')
+                    && compare::anchor(&allele.position) == Some(position)
+                    && allele.alternate != "-"
+            })
+            .collect::<Vec<_>>();
+        inserted.sort_by_key(|allele| {
+            allele
+                .position
+                .split_once('.')
+                .and_then(|(_, ordinal)| ordinal.parse::<u32>().ok())
+                .unwrap_or(0)
+        });
+        sequence.extend(
+            inserted
+                .into_iter()
+                .filter_map(|allele| allele.alternate.chars().next())
+                .map(|base| (position, base)),
+        );
     }
-    count
+    let inside = |&&(position, _): &&(i64, char)| (tract.first..=tract.last).contains(&position);
+    let count = |bases: &mut dyn Iterator<Item = &(i64, char)>| {
+        bases.take_while(|(_, base)| *base == tract.base).count()
+    };
+    let within = sequence.iter().filter(inside).collect::<Vec<_>>();
+    let mut length = within
+        .iter()
+        .filter(|(_, base)| *base == tract.base)
+        .count();
+    // The run continues past the window's first or last base when that base
+    // is the tract's.
+    if within.first().is_some_and(|(_, base)| *base == tract.base) {
+        length += count(
+            &mut sequence
+                .iter()
+                .rev()
+                .filter(|element| element.0 < tract.first),
+        );
+    }
+    if within.last().is_some_and(|(_, base)| *base == tract.base) {
+        length += count(&mut sequence.iter().filter(|element| element.0 > tract.last));
+    }
+    i64::try_from(length).unwrap_or(i64::MAX)
 }
 
 /// The class of a truth allele omitted under a tract note: the note's
@@ -2184,6 +2227,45 @@ mod tests {
     use super::*;
     use crate::compare::Allele;
     use crate::runner::{Called, Identity, Threads};
+
+    /// The truth's run continues past the tract's window within its search
+    /// window, as the note reads it: `302C 309.1C 309.2C` is a run of 10.
+    #[test]
+    fn the_truths_run_continues_past_the_window_as_the_note_reads_it() {
+        // rCRS 300-316 (`AAACCCCCCCTCCCCCG`) at its own positions.
+        let reference = format!("{}AAACCCCCCCTCCCCCG", "N".repeat(299));
+        let tract = Tract {
+            name: "hvs2_c_tract".to_owned(),
+            first: 303,
+            last: 309,
+            base: 'C',
+            search: (302, 316),
+        };
+        let allele = |position: &str, reference: &str, alternate: &str| {
+            Allele::new(position, reference, alternate)
+        };
+        let length = |alleles: &[Allele]| truth_length(&tract, alleles, reference.as_bytes());
+        assert_eq!(&reference[299..316], "AAACCCCCCCTCCCCCG");
+        assert_eq!(length(&[]), 7);
+        assert_eq!(
+            length(&[allele("309.1", "-", "C"), allele("309.2", "-", "C")]),
+            9
+        );
+        // A truth 302C joins the run: 10, one unit from a note reading 11.
+        let joined = [
+            allele("302", "A", "C"),
+            allele("309.1", "-", "C"),
+            allele("309.2", "-", "C"),
+        ];
+        assert_eq!(length(&joined), 10);
+        assert_eq!(noted(Some(11), length(&joined)), BlockClass::NoteMisread);
+        // A note reading 1 against a run of 9 stays a DNA error.
+        assert_eq!(noted(Some(1), 9), BlockClass::NonHet);
+        // The run stops at the anchor 310T: run 2 is not counted.
+        assert_eq!(length(&[allele("315.1", "-", "C")]), 7);
+        // A deletion in the window shortens the run.
+        assert_eq!(length(&[allele("309", "C", "-")]), 6);
+    }
 
     #[test]
     fn an_omission_under_a_note_one_unit_off_is_a_length_note() {
