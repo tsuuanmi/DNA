@@ -1,0 +1,2 @@
+# regress-ledger series=regress-v1
+entry	date	kind	base	revision	dna_version	plugins	contracts	configuration_sha256	profile_sha256	reference_sha256	manifest_body_sha256	truth_digest	recheck_sha256	golden_sha256	kinds_sha256	samples	failed	clear	with_check	checks	notes	alleles	blocks_non_het	escapes	blocks_het	blocks_length_note	blocks_truth_n	blocks_recheck	changed_samples	changed_lines	explained_lines	posthoc_rows	intent_blob	verdict
