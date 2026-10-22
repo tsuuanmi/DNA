@@ -6,6 +6,56 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+#[test]
+fn the_files_follow_the_contract() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let schema: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../docs/reference/schemas/eval-regress-v1.schema.json"
+    ))?;
+    let definitions = &schema["$defs"];
+    let strings = |value: &serde_json::Value| {
+        value
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    };
+    let header_of = |name: &str| {
+        format!(
+            "{}\n",
+            strings(&definitions[name]["properties"]["columns"]["const"]).join("\t")
+        )
+    };
+    assert_eq!(header_of("golden"), golden::HEADER);
+    assert_eq!(header_of("changes"), judge::HEADER);
+    assert_eq!(
+        strings(
+            &definitions["golden"]["properties"]["rows"]["items"]["properties"]["kind"]["enum"]
+        ),
+        Kind::ALL.map(|kind| kind.label().to_owned())
+    );
+    let names = |value: &serde_json::Value| {
+        value
+            .as_object()
+            .map(|object| object.keys().cloned().collect::<BTreeSet<_>>())
+            .unwrap_or_default()
+    };
+    let written = serde_json::to_value(header())?;
+    let required = strings(&definitions["run"]["required"])
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    assert_eq!(names(&written), required);
+    assert_eq!(
+        names(&written["counts"]),
+        names(&definitions["run"]["properties"]["counts"]["properties"])
+    );
+    Ok(())
+}
+
 /// A clean head-like run header.
 fn header() -> Header {
     Header {

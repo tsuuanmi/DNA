@@ -45,7 +45,7 @@
     "run_context": null,
     "version_key": {
       "dna_version": "0.1.0",
-      "plugins": "consensus=21,decided=4,empop_export=3,read_call=13,review=25,sanger=23",
+      "plugins": "conformance=1,consensus=25,core=13,decided=4,empop=3,nomenclature=3,normalization=3,review=34,sanger=23,sequence=1",
       "contracts": "dna.analysis/v10,dna.review/v1,dna.variants/v1",
       "configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1"
     },
