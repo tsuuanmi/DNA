@@ -380,7 +380,7 @@ pub(crate) enum LabelResult {
         sequence: String,
     },
     /// A site whose supporting and opposing reads all lie on one strand
-    /// (rules version 30, ADR-0090): clean reads of one strand disagree, and
+    /// (rules version 31, ADR-0090): clean reads of one strand disagree, and
     /// their count alone cannot settle it; a check. Lists the supporting,
     /// then the opposing reads.
     SameStrandDissent {
@@ -407,7 +407,7 @@ pub(crate) enum LabelResult {
     },
     /// A decided site outside every repeat window that changes a homopolymer
     /// run's length and whose supporting reads all lie on one strand (rules
-    /// versions 28 and 32, ADR-0090): a check. Lists every supporting read.
+    /// versions 28 and 33, ADR-0090): a check. Lists every supporting read.
     RunIndel {
         strand: Orientation,
         reads: Vec<String>,
@@ -436,7 +436,7 @@ pub(crate) enum LabelResult {
     /// A difference resting on one strand, at a supporting read whose call
     /// at `position` shows another base than the reference with the
     /// reference base as a second peak above its threshold (SRS-CALL-020;
-    /// every read of the strand since rules version 32, ADR-0090): a check,
+    /// every read of the strand since rules version 33, ADR-0090): a check,
     /// one per position and read.
     ReferenceSecond {
         position: usize,
