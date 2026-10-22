@@ -26,6 +26,30 @@ pub enum ConfigError {
     /// A fixed scientific constraint is violated; the text names the keys.
     #[error("{0}")]
     Constraint(&'static str),
+    /// A count lies outside its closed range.
+    #[error("{key} must be in {minimum}..={maximum}")]
+    CountOutOfRange {
+        /// Dotted configuration key.
+        key: &'static str,
+        /// Smallest accepted count.
+        minimum: usize,
+        /// Largest accepted count.
+        maximum: usize,
+    },
+    /// A count is below its minimum.
+    #[error("{key} must be at least {minimum}")]
+    CountBelow {
+        /// Dotted configuration key.
+        key: &'static str,
+        /// Smallest accepted count.
+        minimum: usize,
+    },
+    /// A count is zero.
+    #[error("{key} must be positive")]
+    NotPositive {
+        /// Dotted configuration key.
+        key: &'static str,
+    },
     /// A floating-point value is not finite and positive.
     #[error("{key} must be finite and positive")]
     NotFinitePositive {

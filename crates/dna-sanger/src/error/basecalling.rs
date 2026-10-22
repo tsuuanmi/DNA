@@ -1,6 +1,6 @@
 //! DNA-derived base re-calling failures.
 
-use dna_kernel::error::LocusWindowError;
+use super::LocusWindowError;
 
 /// Why bases could not be re-called from the trace signal.
 #[derive(Debug, thiserror::Error)]

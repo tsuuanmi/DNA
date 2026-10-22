@@ -39,8 +39,7 @@ fn project_variant(
                     .copied()
                     .ok_or(CallEvidenceError::MissingCall { index })
                     .map_err(ReportError::CallEvidence)?;
-                let joined = sanger_call::on_reference(signal, orientation, index)
-                    .map_err(ReportError::CallEvidence)?;
+                let joined = sanger_call::on_reference(signal, orientation, index)?;
                 Ok(VariantCallResult {
                     role: call.mapping.role,
                     base: call.base,

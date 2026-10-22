@@ -5,9 +5,10 @@ vocabulary per modality-neutral stage (`FastaError`, `SequenceError`,
 `VariantsError`, `ConsensusDocumentError`, `RunContextError`, `ConfigError`, `ProfileError`,
 `EvidenceError`, `AlignmentError`, `VariantError`, `SampleError`,
 `ReportError`, and the representation, normalization, and nomenclature
-errors), plus shared `LocusWindowError` and `CallEvidenceError`. The Sanger
-stage failures (decoding, re-calling, signal, callability, quality control)
-are the [Sanger plugin's](../../../dna-sanger/src/error/README.md); the `dna`
+errors), plus `CallEvidenceError` for a variant's call mapping into the
+core's call records. The Sanger stage failures (decoding, locus windows,
+re-calling, signal, callability, quality control, and its products
+disagreeing) are the [Sanger plugin's](../../../dna-sanger/src/error/README.md); the `dna`
 facade wraps both.
 
 `Error` names the failing stage; the wrapped stage failure carries observed

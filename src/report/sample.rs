@@ -268,8 +268,7 @@ pub(crate) fn build(completed: CompletedSampleEvidence) -> Result<SampleEvidence
                                     &read.sanger.calls,
                                     read.orientation,
                                     call.call_index_0based,
-                                )
-                                .map_err(ReportError::CallEvidence)?;
+                                )?;
                                 Ok(SampleVariantCallResult {
                                     role: call.role,
                                     base: call.base,

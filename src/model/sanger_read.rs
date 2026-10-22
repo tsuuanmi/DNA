@@ -2,7 +2,7 @@
 //! core's products, as `dna.read_evidence/v1` carries it (PROP-0011), and its
 //! one projection from the Sanger plugin's products.
 
-use crate::error::{CallEvidenceError, ReportError, Result};
+use crate::error::{CallEvidenceError, ProductsError, ReportError, Result};
 use crate::model::basecall_result::BasecallWarningSummaryResult;
 use crate::model::read_observation::{RejectedRead, RejectionCause};
 use crate::model::result::{
@@ -51,11 +51,8 @@ impl SangerRead {
             );
         }
         let call_signals = (0..calls.len())
-            .map(|index| {
-                SangerCallSignal::of(calls, quality, second, index)
-                    .map_err(ReportError::CallEvidence)
-            })
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+            .map(|index| SangerCallSignal::of(calls, quality, second, index))
+            .collect::<Result<Vec<_>>>()?;
         Ok(Self {
             trim: IntervalResult {
                 start: quality.trim_start_0based,
@@ -132,17 +129,16 @@ impl SangerCallSignal {
         quality: &QualityControlResult,
         second: &[Option<SecondPeak>],
         index: usize,
-    ) -> std::result::Result<Self, CallEvidenceError> {
-        let call = calls
-            .calls
-            .get(index)
-            .ok_or(CallEvidenceError::MissingCall { index })?;
+    ) -> Result<Self> {
+        let call = calls.calls.get(index).ok_or(ReportError::CallEvidence(
+            CallEvidenceError::MissingCall { index },
+        ))?;
         let score = quality
             .per_call
             .get(index)
-            .ok_or(CallEvidenceError::MissingQuality { index })?;
+            .ok_or(ProductsError::MissingQuality { index })?;
         if call.index_0based != index || score.index_0based != index {
-            return Err(CallEvidenceError::IndexMismatch { index });
+            return Err(ProductsError::IndexMismatch { index }.into());
         }
         Ok(Self {
             scan: call.locus_position_0based,

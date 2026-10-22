@@ -5,8 +5,9 @@ holds what is known about one sequencing target — the reference it is validate
 against and its topology, the reportable regions, and the optional
 representation chain (indel placement, nomenclature windows, notation style),
 the report conventions that label its calls (`nomenclature.conventions`), the
-notation conventions checked on it (`conformance`), and whether `notation`
-exports an EMPOP query (`empop`).
+notation conventions checked on it (`conformance`), whether `notation`
+exports an EMPOP query (`empop`), and the homopolymer tracts whose length
+varies within a sample (`length_tracts`).
 
 Key children: `raw.rs` parses the TOML records and validates every rule;
 `window.rs` holds the validated nomenclature windows. Each window rule carries
@@ -19,15 +20,16 @@ Consumers: the input adapters load the profile named by the configuration and
 check the reference against it; `variant_calling` receives its regions;
 `variant_nomenclature` runs its windows and labels calls by its report
 conventions; `pipeline::represent` follows its
-normalization and notation choices; `conformance` checks its rules; `report`
-records its identity.
+normalization and notation choices; `conformance` checks its rules; the
+sample analysis, the review, and the EMPOP export read its length tracts;
+`report` records its identity.
 
 This module is part of `dna-kernel` (ADR-0070): it depends only on the
 kernel's `model`, `error`, `checksum`, and the reference-length cap in
 `reference`. It names its own
 vocabulary (`IndelPlacement`, `NotationStyle`, `ConformanceRule`,
-`ConventionKind`, `ConventionLabel`); `variant_normalization` maps
-the placement to its `NormalizationPolicy`. It does not run any rule, load
+`ConventionKind`, `ConventionLabel`, `LengthTract`); `variant_normalization`
+maps the placement to its `NormalizationPolicy`. It does not run any rule, load
 references, or read the scientific configuration.
 
 See [profile requirements](../../../../docs/requirements/profiles.md),

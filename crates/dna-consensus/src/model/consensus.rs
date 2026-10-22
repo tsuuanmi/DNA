@@ -56,7 +56,7 @@ pub enum RunEvidence {
     ReferenceFrame,
     /// No read shows both ends, but reads of both strands decode the run's
     /// length from their own signal, each beyond the strands' spread and
-    /// its strand's replicate noise (PROP-0012 increment 4): the length
+    /// its strand's replicate noise (SRS-CONS-013): the length
     /// replaces an estimate, never a length a read shows.
     TwoStrand,
 }
@@ -73,6 +73,29 @@ impl RunEvidence {
             Self::ReferenceFrame => "reference_frame",
             Self::TwoStrand => "two_strand",
         }
+    }
+
+    /// The length is an estimate, not observed: `phase_loss` or
+    /// `reference_frame`. It keeps its label even where it equals the
+    /// reference.
+    #[must_use]
+    pub const fn is_estimate(self) -> bool {
+        matches!(self, Self::PhaseLoss | Self::ReferenceFrame)
+    }
+
+    /// A read shows both of the run's ends, so its bounds place the run:
+    /// `in_phase` or `anchored_end`.
+    #[must_use]
+    pub const fn shown_by_read(self) -> bool {
+        matches!(self, Self::InPhase | Self::AnchoredEnd)
+    }
+
+    /// The two-strand rule may decide the length instead (SRS-CONS-013): an
+    /// `anchored_end` length, at most the dominant one of a mixture, or an
+    /// estimate.
+    #[must_use]
+    pub const fn yields_to_two_strand(self) -> bool {
+        matches!(self, Self::AnchoredEnd) || self.is_estimate()
     }
 }
 

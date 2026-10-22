@@ -18,6 +18,10 @@ use crate::reference::MAX_REFERENCE_LENGTH;
 const SCHEMA_VERSION: u32 = 2;
 /// Longest accepted profile identifier.
 const MAX_ID_LENGTH: usize = 64;
+/// Hexadecimal digits of a SHA-256 digest.
+const SHA256_HEX_DIGITS: usize = 64;
+/// Shortest run a rule may name: one base is not a run.
+const MIN_RUN: usize = 2;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -81,13 +85,7 @@ struct RawNormalization {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawNotation {
-    style: RawNotationStyle,
-}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum RawNotationStyle {
-    PerBaseDecimal,
+    style: NotationStyle,
 }
 
 #[derive(Debug, Deserialize)]
@@ -186,7 +184,7 @@ impl RawProfile {
             .into());
         }
         if let Some(digest) = &self.reference.sequence_sha256
-            && !(digest.len() == 64
+            && !(digest.len() == SHA256_HEX_DIGITS
                 && digest
                     .bytes()
                     .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')))
@@ -201,9 +199,7 @@ impl RawProfile {
             (Some(normalization), Some(notation)) => Some(Notation {
                 indel_placement: normalization.indel_placement,
                 max_trade: normalization.max_trade,
-                style: match notation.style {
-                    RawNotationStyle::PerBaseDecimal => NotationStyle::PerBaseDecimal,
-                },
+                style: notation.style,
             }),
             (None, None) => None,
             _ => {
@@ -231,7 +227,7 @@ impl RawProfile {
                     )
                     .into());
                 }
-                if raw.minimum_run_length < 2 {
+                if raw.minimum_run_length < MIN_RUN {
                     return Err(ProfileError::Constraint(
                         "conformance.minimum_run_length must be at least 2",
                     )
@@ -373,7 +369,7 @@ fn validate_conventions(raw: Vec<RawConvention>) -> Result<Vec<Convention>> {
         let kind = match kind {
             RawConventionKind::RunLength => {
                 let base = base_byte(base).ok_or_else(|| invalid("base must be A/C/G/T"))?;
-                if minimum_run < 2 {
+                if minimum_run < MIN_RUN {
                     return Err(invalid("minimum_run must be at least 2").into());
                 }
                 ConventionKind::RunLength { base, minimum_run }
