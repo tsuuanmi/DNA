@@ -759,6 +759,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- `dna-eval regress check`: `forbidden:escape` fires when a sample's number
+  of escapes (unflagged non-het blocks in zones no check item touches) rises
+  in a zone against the ledger head, and names the risen zone's new escape
+  lines (2026-10-22, user decision). An escape whose text or span changes
+  while the count holds no longer fires it: the intents judge its lines,
+  and a warning of `run.json` and `regress.md` lists them (`escape changed,
+  count not risen`). A new escape in a sample whose count rises still fails
+  whatever the intents (`docs/validation/regression-set.md`).
 - A read evidence document now depends on the configuration the evidence
   plugins read, not the configuration file: `dna.read_evidence/v1` records
   each plugin's configuration digest in

@@ -530,6 +530,7 @@
           }
         },
         "warnings": {
+          "description": "What the check reports beside the verdict: a moved version key, unused or posthoc intent rows, escapes a rebase measures, and each escape line that changed while its sample's escape count in the zone did not rise (`escape changed, count not risen: <sample> block <key> <change> <before> -> <after>`).",
           "type": "array",
           "items": {
             "type": "string",
