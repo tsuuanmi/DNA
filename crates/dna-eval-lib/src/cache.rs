@@ -296,9 +296,10 @@ pub(crate) struct Caches {
 }
 
 impl Caches {
-    /// Opens both caches of `root` for the configuration at `config` and
-    /// the reference whose sequence SHA-256 is `reference_sha256`, under the
-    /// read and placement stages of `identity`.
+    /// Opens both caches of `root` for the configuration at `config`, the
+    /// reference whose sequence SHA-256 is `reference_sha256`, and the target
+    /// profile file whose SHA-256 is `profile_sha256` (the placement aligns
+    /// on its topology), under the read and placement stages of `identity`.
     ///
     /// # Errors
     ///
@@ -306,7 +307,7 @@ impl Caches {
     pub(crate) fn open(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         identity: &Identity,
     ) -> Result<Self, CacheError> {
         Ok(Self {
@@ -314,7 +315,7 @@ impl Caches {
             placed: EvidenceCache::open_placed(
                 root,
                 config,
-                reference_sha256,
+                (reference_sha256, profile_sha256),
                 identity.placement_stage,
             )?,
         })
@@ -345,8 +346,9 @@ impl EvidenceCache {
     }
 
     /// Opens the placement cache's generation of `root` for the
-    /// configuration at `config` and the reference whose sequence SHA-256 is
-    /// `reference_sha256`, under the placement stage's code identity `code`.
+    /// configuration at `config`, the reference whose sequence SHA-256 is
+    /// `reference_sha256`, and the target profile file whose SHA-256 is
+    /// `profile_sha256`, under the placement stage's code identity `code`.
     ///
     /// # Errors
     ///
@@ -354,7 +356,7 @@ impl EvidenceCache {
     pub(crate) fn open_placed(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
         code: &str,
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
@@ -365,7 +367,7 @@ impl EvidenceCache {
             config,
             (
                 Kind::Placement,
-                &format!("placement;{code}reference={reference_sha256};"),
+                &format!("placement;{code}reference={reference_sha256};profile={profile_sha256};"),
             ),
         )
     }

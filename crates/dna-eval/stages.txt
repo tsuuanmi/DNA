@@ -7,13 +7,15 @@
 # workspace crate a listed crate depends on, is listed.
 #
 #   path            a file or directory on the stage's path;
-#   path: a, b      a file on the stage's path for items a and b only: listed,
-#                   but what its other items use is not followed;
+#   path: a, b      a file on the stage's path for items a and b only: listed
+#                   whole, and what those items use (their definitions and
+#                   impl blocks, through the file's `use` bindings too) is
+#                   followed, but not what its other items use;
 #   !path           used by a listed source, but not on the stage's path: the
 #                   check fails when nothing listed uses it.
 #
 # Every stage lists the build's own inputs: Cargo.lock, Cargo.toml, and
-# rust-toolchain.toml.
+# rust-toolchain.toml, and this file, so editing a list is a new identity.
 
 # From a trace to its read evidence document. The read stage reads no
 # profile, no reference, and nothing of the core (ADR-0069).
@@ -21,6 +23,7 @@
 Cargo.lock
 Cargo.toml
 rust-toolchain.toml
+crates/dna-eval/stages.txt
 crates/dna-kernel
 crates/dna-sanger
 crates/dna-trace
@@ -65,6 +68,7 @@ src/report/json.rs
 Cargo.lock
 Cargo.toml
 rust-toolchain.toml
+crates/dna-eval/stages.txt
 crates/dna-kernel
 crates/dna-align
 src/lib.rs: config, error, input, model, pipeline, recorded
@@ -100,7 +104,9 @@ src/pipeline/plugins.rs: EVIDENCE
 Cargo.lock
 Cargo.toml
 rust-toolchain.toml
+crates/dna-eval/stages.txt
 crates/dna-kernel
+crates/dna-eval-lib/Cargo.toml
 crates/dna-eval-lib/src/lib.rs: cause, compare, conventions, error, geometry, haplotype, manifest, truth
 crates/dna-eval-lib/src/cause/mod.rs: forms
 crates/dna-eval-lib/src/cause/forms.rs
@@ -111,3 +117,5 @@ crates/dna-eval-lib/src/geometry.rs
 crates/dna-eval-lib/src/haplotype.rs
 crates/dna-eval-lib/src/manifest.rs
 crates/dna-eval-lib/src/truth.rs
+# The error type names the caches' failures; the index never reaches them.
+!crates/dna-eval-lib/src/cache.rs

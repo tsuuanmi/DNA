@@ -327,12 +327,15 @@ fn run_bench(args: &BenchArgs, identity: &Identity) -> Result<bench::Report> {
         .evidence_cache
         .as_deref()
         .map(|directory| {
-            cache::Caches::open(
+            Ok::<_, Error>(cache::Caches::open(
                 directory,
                 &args.config,
-                &reference.sequence_sha256,
+                (
+                    &reference.sequence_sha256,
+                    &target_profile(&args.config)?.identity().sha256,
+                ),
                 identity,
-            )
+            )?)
         })
         .transpose()?;
     let outcomes = runner::run(
@@ -750,7 +753,12 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         .evidence_cache
         .as_deref()
         .map(|directory| {
-            cache::Caches::open(directory, &cli.config, &reference.sequence_sha256, identity)
+            cache::Caches::open(
+                directory,
+                &cli.config,
+                (&reference.sequence_sha256, &profile.identity().sha256),
+                identity,
+            )
         })
         .transpose()?;
     let contexts = cli

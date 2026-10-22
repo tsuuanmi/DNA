@@ -285,8 +285,10 @@ one.
   it, and every workspace crate a listed crate depends on, is listed, or
   marked as used but off the stage's path (the configuration envelope
   parses the core's sections, which the read stage never reads). A file on
-  the path for some items only is listed with them, and what its other
-  items use is not followed.
+  the path for some items only is listed with them: what those items use
+  is checked like a whole file's uses, and what its other items use is not
+  followed. Every list also names `stages.txt` itself, so editing a list is
+  a new identity.
 - **Storage.** Entries are gzip-compressed and renamed into place. An entry
   that does not decompress, is not JSON, or names another trace is a miss,
   remade and replaced.
@@ -331,7 +333,8 @@ one.
   each evidence document's `dna.placed_read/v1` document, written by
   `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
   generation named for the configuration, the placement stage's code
-  identity, and the reference. The code identity (`[placement]`) is the git
+  identity, the reference, and the target profile file (the placement
+  aligns on the profile's topology). The code identity (`[placement]`) is the git
   object ids of the build's inputs, the kernel, `dna-align`, and the
   facade's configuration, evidence reading, and writer. Every read is then placed from its document,
   which `dna-align` re-checks against the read's evidence and the reference.

@@ -34,7 +34,9 @@ code outside the list changed: every module a listed source uses (through
 re-export), every module file above a listed source, every workspace crate a
 listed source or crate depends on, and the build's own inputs, is listed. A
 file listed for some items only (``path: a, b``) must define or re-export
-them, and what its other items use is not followed. A path marked ``!path``
+them, and what those items' definitions and ``impl`` blocks use (directly or
+through the file's ``use`` bindings) is checked like a whole file's uses;
+what its other items use is not followed. A path marked ``!path``
 is used by a listed source but is not on the stage's path; it must be used.
 """
 
@@ -448,17 +450,68 @@ def relative_path(
     return None
 
 
-def stage_uses(tree: Tree, path: Path) -> tuple[set[Path], set[str]]:
-    """The files of its own crate and the crates a source file uses."""
+def item_spans(text: str, item: str) -> list[str]:
+    """The text of every definition, ``impl`` block, and ``use`` of ``item``:
+    from its keyword to its matching closing brace, or to its ``;``."""
+    spans: list[str] = []
+    starts = re.finditer(
+        rf"\b(?:fn|struct|enum|mod|const|static|type|trait)\s+{item}\b"
+        rf"|\bimpl\b(?:\s*<[^{{;]*?>)?\s+(?:[\w:<>, ]+\s+for\s+)?{item}\b"
+        rf"|\buse\b[^;]*\b{item}\b",
+        text,
+    )
+    for start in starts:
+        position = start.start()
+        brace = text.find("{", start.end())
+        end = text.find(";", start.end())
+        if start.group(0).startswith("use") or brace < 0 or 0 <= end < brace:
+            spans.append(text[position : (end + 1 if end >= 0 else len(text))])
+            continue
+        depth = 0
+        for index in range(brace, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    spans.append(text[position : index + 1])
+                    break
+        else:
+            spans.append(text[position:])
+    return spans
+
+
+def stage_uses(
+    tree: Tree, path: Path, items: tuple[str, ...] | None = None
+) -> tuple[set[Path], set[str]]:
+    """The files of its own crate and the crates a source file uses, or,
+    with ``items``, what those items' definitions use (through the file's
+    ``use`` bindings too)."""
     text = production_text(path)
     module = tree.module(path)
     children = set(MOD_DECLARATION.findall(text))
     bindings = dict(use_bindings(text))
+    scanned = (
+        text
+        if items is None
+        else "\n".join(span for item in items for span in item_spans(text, item))
+    )
     files: set[Path] = set()
     crates_used: set[str] = set()
-    for match in PATH_HEAD.finditer(text):
+    if items is not None:
+        words = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", scanned))
+        for name, bound in bindings.items():
+            if name not in words or not bound:
+                continue
+            if bound[0] in PATH_PREFIXES:
+                crates_used.add(PATH_PREFIXES[bound[0]])
+                continue
+            start = relative_path(module, children, bound)
+            if start is not None and (found := resolve(tree, *start)) is not None:
+                files.add(found)
+    for match in PATH_HEAD.finditer(scanned):
         head = match.group(1)
-        for full in expand(path_tokens(text, match.end())):
+        for full in expand(path_tokens(scanned, match.end())):
             segments = [head, *full.split("::")]
             if head in PATH_PREFIXES:
                 crates_used.add(PATH_PREFIXES[head])
@@ -472,6 +525,7 @@ def stage_uses(tree: Tree, path: Path) -> tuple[set[Path], set[str]]:
                 continue
             if (found := resolve(tree, *start)) is not None:
                 files.add(found)
+    files.discard(path)
     return files, crates_used
 
 
@@ -552,16 +606,12 @@ def check_stage(root: Path, stage: Stage) -> list[str]:
                 )
         if items is not None:
             text = production_text(path)
-            for item in items:
-                defined = re.search(
-                    rf"\b(fn|struct|enum|mod|const|static|type|trait)\s+{item}\b"
-                    rf"|\buse\b[^;]*\b{item}\b",
-                    text,
-                )
-                if not defined:
-                    failures.append(f"{where} {show(path)} has no item {item}")
-            continue
-        files, crates_used = stage_uses(tree, path)
+            failures.extend(
+                f"{where} {show(path)} has no item {item}"
+                for item in items
+                if not item_spans(text, item)
+            )
+        files, crates_used = stage_uses(tree, path, items)
         failures.extend(
             f"{where} {show(path)} uses {show(file)}, which is not listed"
             for file in sorted(files)

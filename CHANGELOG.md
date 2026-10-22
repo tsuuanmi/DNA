@@ -722,9 +722,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   (`Cargo.toml`, `rust-toolchain.toml`), the facade's crate root, error,
   operation log, plugin composition, pipeline module, artefact writer, and
   the result models the evidence names, all of which it missed; the forms
-  index's covers the kernel, the geometry, and the manifests it reads.
-  Every existing evidence, placement, and forms cache generation therefore
-  misses once. No DNA output changes; run outputs are byte-identical.
+  index's covers the kernel, the geometry, the manifests it reads, and the
+  harness library's manifest. A file listed for some items only has what
+  those items use checked too, and every list names `stages.txt`. The
+  placement cache's generation also names the target profile file's
+  SHA-256, whose topology the placement aligns on. Every existing evidence,
+  placement, and forms cache generation therefore misses once. No DNA output changes; run outputs are byte-identical.
 - A reference confirmation (ADR-0080) is no longer withdrawn because a read
   of the other strand shows the confirming call's own second base standing
   out when that read's modality explains its second too: the confirming
