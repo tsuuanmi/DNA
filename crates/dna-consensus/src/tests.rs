@@ -788,8 +788,11 @@ fn a_second_sequence_any_read_shows_withdraws_a_confirmation() {
     };
     // Nothing on the other read: the confirmation stands.
     assert!(observations(true, (false, None, false)));
-    // The other strand shows the same second base standing out.
-    assert!(!observations(true, (false, Some('C'), false)));
+    // The other strand shows the same second base standing out, which
+    // its modality explains: no unexplained second on either strand.
+    assert!(observations(true, (false, Some('C'), false)));
+    // The same, left unexplained: the two-strand signature.
+    assert!(!observations(true, (false, Some('C'), true)));
     // The same strand doing so is not a second sequence by itself.
     assert!(observations(true, (true, Some('C'), false)));
     // A read of the confirming strand with a second peak its modality
