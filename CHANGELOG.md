@@ -694,6 +694,98 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   zones' non-het counts were). The run's writers move from `main.rs` to
   `rundir.rs`. Every output of `run` and `diff` is byte-identical on
   development panel v5.
+- The Sanger edge and start identity rules (SRS-CALL-017, SRS-CALL-018)
+  take the read's and a stop's median spacing as the midpoint median, as
+  signal processing and callability do, instead of the upper median.
+  Development panel v5: one `start@HV1` check fewer, 10 fewer positions to
+  review, no unreviewed or clear-state change; readiness-v2 unchanged. Plugin:
+  `sanger` 23.
+- Configuration schema 25: the phase-mixture decomposition and the poor
+  start get their own keys instead of reusing other rules' keys.
+  `signal_processing.decompose_minimum_calls` (20) and
+  `signal_processing.decompose_onset_window` (16) replace
+  `callability.minimum_callable_calls` and `callability.repeat_window_calls`
+  in SRS-CALL-023, and `sanger_evidence.poor_start_calls` (12) replaces
+  `sanger_evidence.start_identity_margin` in SRS-CALL-024. The shipped
+  values are the old ones, so no call, label, or check changes; documents
+  record the new configuration digest.
+- **Breaking (Rust API):** the Sanger-only failures leave the kernel.
+  `LocusWindowError` moves from `dna_kernel::error` to `dna_sanger::error`
+  (still `dna::error::LocusWindowError`), and `CallEvidenceError` drops
+  `MissingQuality`, `IndexMismatch`, and `MissingPeakEvidence`, which become
+  `ProductsError` variants with the same messages. No output changes.
+- **Breaking (Rust API):** `dna_sanger::read_processing::read_evidence` takes
+  the `ProcessedRead` and the `[sanger_evidence]` configuration instead of
+  the read's seven products. No output changes.
+- **Breaking (Rust API):** single-key count checks of the Sanger sections
+  fail with the new `ConfigError::CountOutOfRange`, `CountBelow`, and
+  `NotPositive` (from `dna_kernel::bounds::count_range`, `count_at_least`,
+  and `positive_count`) instead of `Constraint`, with the same messages;
+  most validated Sanger configuration fields become crate-private.
+- **Breaking (Rust API):** Sanger identifiers use `Params` and US spelling:
+  `RunSignalParams`, `SecondCauseParams`, `SpikeParams`, and
+  `SecondCause::{NeighborTail, OffCenter}`. The labels (`neighbour_tail`,
+  `off_centre`) and every document are unchanged.
+- The review's `read_disagrees` reads a call a bounded-run exemption
+  covers as showing its base only where the consensus lifts `read_end` from
+  it (ADR-0076): a run call aligned as a match or inserted, a bound aligned
+  as a match. It trusted every exempt call before. One rule,
+  `Eligibility::exempt_as`, serves both. Plugin: `review` 34. Measured
+  against `main` af0823d3 with #239: every table byte-identical on
+  development panel v5 and readiness-v2; artefact bench unchanged.
+- The two-strand rule reads each read's runs as the confirmation and
+  set-aside passes leave them, so a read set aside at a stretch
+  (SRS-CONS-011) gives no in-phase view of its runs; it read the reads'
+  first observations before. Plugin: `consensus` 24. Measured against the
+  previous change: every table byte-identical on development panel v5 and
+  readiness-v2; artefact bench unchanged.
+- The consensus's two late passes now pass the rules before them
+  (SRS-CONS-009, SRS-CONS-010): after the one-strand insertion contest and
+  the two-strand rule, confirmations beside a site they made differ are
+  withdrawn and everything is decided again, and a length change nothing
+  beside it places is left undecided, a `two_strand` one included.
+  Plugin: `consensus` 23. Measured against `main` af0823d3 with #239 (diff
+  gate PASS on both panels, artefact bench unchanged, non-het unreviewed
+  blocks and clear samples unchanged): the HVS-II 303-316 window of 7
+  samples of development panel v5 (2 current) and 3 of readiness-v2
+  (2 current) is now undecided under a check (`undecided`,
+  `tract_length`), where a `two_strand` length beside an undecided
+  position had been called. Window@HV2 units needing a check: development
+  current 473 → 475, readiness-v2 current 847 → 849. Status changes:
+  development v5 2517874 discordant → concordant (primary, strict, IUPAC;
+  earlier period), 2535940 and LN_26_AB0117 strict concordant → discordant
+  (their `309.1C 309.2C` is now under the check); readiness-v2 2519487
+  discordant → concordant, LN_26_AF2954 strict concordant → discordant.
+- Configuration: `variant_calling.read_end_margin` and
+  `consensus.maximum_undecided_gap` must be at most the longest supported
+  reference (50,000); larger values, which no read or segment can use,
+  are refused. The two-strand rule's model constants (derived lengths 1 to
+  15, the deconvolution cap, the share floor) and τ's bound of ½ are named
+  constants of `dna_consensus::length`, documented under SRS-CONS-013. The
+  validated `[variant_calling]` and `[sample_reconciliation]` records are
+  read through accessors, as the other sections are. No output changes.
+- The review's label set, ranks, and checks are one table in DNA
+  (`LabelKind`): the summary counts every label exhaustively (a new label is
+  no longer counted as `poor_signal`). The `dna.review/v1` schema's
+  `summary.labels` carries the table as `x-rank` and `x-check` annotations,
+  which the review tests and the result validator read; the validator now
+  also accepts `note` items, ranks an `explained` possible heteroplasmy as
+  context, and checks that the reference's rank table and rules version, and
+  the example's, agree with DNA's. Review outputs are byte-identical.
+- One decode credit for the two-strand rule and the review (ADR-0091,
+  SRS-CONS-013): the consensus's two-strand rule credits a decode whose
+  first call sits on an inserted column to the position the insertion
+  follows, on either strand, as the review has since ADR-0091; the review
+  calls the consensus's `length::start_reference` and its copy is gone.
+  Plugin: `consensus` 22. Measured against `main` af0823d3 (diff gate PASS
+  on both panels, artefact bench unchanged): the rule now decides the
+  HVS-II 303-316 window in 35 more samples of development panel v5 and 47
+  of readiness-v2, whose window items lose `dephased_end` (and, in two,
+  `estimated_length`) and keep their other labels, so no check, clear
+  state, or non-het block moves. In readiness-v2 the two samples whose
+  item lost `estimated_length` now call `309.1C 309.2C` with 309-310
+  callable, and become strict-concordant (`hv2_309_2C` strict discordant
+  1,019 → 1,017).
 - Consensus over N reads per site and strand (ADR-0090), step 2: the
   review's one-strand gates count strands, not reads. `run_deletion`,
   `run_indel` and `edge_deletion` fire when every supporting read lies on

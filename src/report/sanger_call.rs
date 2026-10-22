@@ -1,6 +1,6 @@
 //! Sanger evidence joined to core call records by call index.
 
-use crate::error::CallEvidenceError;
+use crate::error::{CallEvidenceError, ProductsError, ReportError, Result};
 use crate::model::sanger_read::SangerCallSignal;
 use dna_align::model::alignment::Orientation;
 
@@ -18,11 +18,13 @@ pub(super) fn evidence(
     signals: &[SangerCallSignal],
     orientation: Orientation,
     index: usize,
-) -> Result<SangerCallEvidence, CallEvidenceError> {
+) -> Result<SangerCallEvidence> {
     let signal = signals
         .get(index)
         .copied()
-        .ok_or(CallEvidenceError::MissingCall { index })?;
+        .ok_or(ReportError::CallEvidence(CallEvidenceError::MissingCall {
+            index,
+        }))?;
     on_reference(signal, orientation, index)
 }
 
@@ -32,10 +34,10 @@ pub(super) fn on_reference(
     signal: SangerCallSignal,
     orientation: Orientation,
     index: usize,
-) -> Result<SangerCallEvidence, CallEvidenceError> {
+) -> Result<SangerCallEvidence> {
     let peaks = signal
         .peaks
-        .ok_or(CallEvidenceError::MissingPeakEvidence { index })?;
+        .ok_or(ProductsError::MissingPeakEvidence { index })?;
     Ok(SangerCallEvidence {
         peak_heights: reference_peak_heights(orientation, peaks),
         quality: signal.quality,
@@ -117,11 +119,12 @@ mod tests {
         quality: &QualityControlResult,
         orientation: Orientation,
         index: usize,
-    ) -> Result<SangerCallEvidence, CallEvidenceError> {
+    ) -> std::result::Result<SangerCallEvidence, String> {
         let signals = (0..calls.len())
             .map(|call| SangerCallSignal::of(calls, quality, &[], call))
-            .collect::<Result<Vec<_>, _>>()?;
-        evidence(&signals, orientation, index)
+            .collect::<Result<Vec<_>>>()
+            .map_err(|error| error.to_string())?;
+        evidence(&signals, orientation, index).map_err(|error| error.to_string())
     }
 
     #[test]
@@ -149,25 +152,39 @@ mod tests {
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[0]);
         assert_eq!(
             joined(&calls, &quality, Orientation::Forward, 1),
-            Err(CallEvidenceError::MissingCall { index: 1 })
+            Err(
+                "failed to assemble analysis report: variant references missing call index 1"
+                    .into()
+            )
         );
 
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[]);
         assert_eq!(
             joined(&calls, &quality, Orientation::Forward, 0),
-            Err(CallEvidenceError::MissingQuality { index: 0 })
+            Err(
+                "failed to assemble analysis report: variant references missing quality index 0"
+                    .into()
+            )
         );
 
         let (calls, quality) = records(vec![call(0, 'A', Some([1, 0, 0, 0]))], &[5]);
         assert_eq!(
             joined(&calls, &quality, Orientation::Forward, 0),
-            Err(CallEvidenceError::IndexMismatch { index: 0 })
+            Err(
+                "failed to assemble analysis report: variant call index 0 does not match \
+                 call/quality records"
+                    .into()
+            )
         );
 
         let (calls, quality) = records(vec![call(0, 'A', None)], &[0]);
         assert_eq!(
             joined(&calls, &quality, Orientation::Forward, 0),
-            Err(CallEvidenceError::MissingPeakEvidence { index: 0 })
+            Err(
+                "failed to assemble analysis report: variant call index 0 lacks \
+                 primary-event peak evidence"
+                    .into()
+            )
         );
     }
 }

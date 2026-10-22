@@ -9,7 +9,6 @@ use dna_call::VariantCallingConfig;
 use dna_call::model::called_read::CalledRead;
 use dna_kernel::error::{Result, SampleError};
 use dna_kernel::model::nucleotide::is_canonical;
-use dna_kernel::read_evidence::Placement;
 
 #[derive(Debug, Clone, Copy)]
 struct CoordinateObservation {
@@ -55,12 +54,7 @@ fn coordinates(
     calling: &VariantCallingConfig,
 ) -> Result<BTreeMap<usize, CoordinateObservation>> {
     let eligibility = Eligibility::new(&read.evidence, calling);
-    let shows_base = |call: usize| {
-        eligibility.trusted(call)
-            && read.evidence.calls().get(call).is_some_and(|evidence| {
-                evidence.placement == Placement::Scored && evidence.identity.withheld.is_empty()
-            })
-    };
+    let shows_base = |call: usize| eligibility.shows_base(call);
     let mut coordinates = BTreeMap::new();
     for column in read.alignment.columns() {
         let Some(reference_index_0based) = column.reference_index_0based() else {

@@ -5,6 +5,11 @@
 /// Gradient at or below which no column enters the active set, and value at
 /// or below which a passive coefficient leaves it.
 const TOLERANCE: f64 = 1e-10;
+/// Most sweeps of the one-sided Jacobi rotations (a computation cap).
+const JACOBI_SWEEPS: usize = 80;
+/// A QR diagonal at or below this times the largest column norm makes the
+/// passive set rank-deficient.
+const RANK_CUTOFF: f64 = 1e-8;
 
 /// Non-negative least squares by the Lawson–Hanson active-set method over
 /// `design`'s columns (each a vector over the observed rows), at most
@@ -143,7 +148,7 @@ fn least_squares(
                 .collect::<Vec<f64>>()
         })
         .collect::<Vec<_>>();
-    for _ in 0..80 {
+    for _ in 0..JACOBI_SWEEPS {
         let mut rotated = false;
         for p in 0..size {
             for q in p + 1..size {
@@ -233,7 +238,7 @@ fn full_rank_solution(
                 .sqrt()
         })
         .fold(0.0, f64::max);
-    let cutoff = 1e-8 * largest.max(f64::MIN_POSITIVE);
+    let cutoff = RANK_CUTOFF * largest.max(f64::MIN_POSITIVE);
     let shared = factor
         .columns
         .iter()
@@ -287,4 +292,78 @@ fn full_rank_solution(
         solution[k] = sum / factor.upper[k][k];
     }
     Some(solution)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn close(left: &[f64], right: &[f64]) -> bool {
+        left.len() == right.len() && left.iter().zip(right).all(|(a, b)| (a - b).abs() <= 1e-9)
+    }
+
+    #[test]
+    fn recovers_a_non_negative_combination() {
+        let design = vec![
+            vec![1.0, 0.0, 0.0],
+            vec![0.0, 1.0, 0.0],
+            vec![1.0, 1.0, 1.0],
+        ];
+        let solution = nnls(&design, &[5.0, 3.0, 3.0], 10);
+        assert!(close(&solution, &[2.0, 0.0, 3.0]), "{solution:?}");
+    }
+
+    #[test]
+    fn holds_a_negative_least_squares_coefficient_at_zero() {
+        // Unconstrained, the fit is 3 of the first column and -1 of the
+        // second; the best non-negative fit drops the second.
+        let design = vec![vec![1.0, 0.0], vec![1.0, 1.0]];
+        let solution = nnls(&design, &[2.0, -1.0], 10);
+        assert!(close(&solution, &[2.0, 0.0]), "{solution:?}");
+        // An observation no column correlates with positively fits nothing.
+        assert!(close(&nnls(&[vec![1.0, 1.0]], &[-1.0, -1.0], 10), &[0.0]));
+    }
+
+    #[test]
+    fn enters_at_most_max_outer_columns() {
+        let design = vec![vec![1.0, 0.0], vec![0.0, 1.0]];
+        assert!(close(&nnls(&design, &[1.0, 2.0], 0), &[0.0, 0.0]));
+        // The column of the largest gradient enters first.
+        assert!(close(&nnls(&design, &[1.0, 2.0], 1), &[0.0, 2.0]));
+        assert!(close(&nnls(&design, &[1.0, 2.0], 2), &[1.0, 2.0]));
+        assert!(nnls(&[], &[1.0], 5).is_empty());
+    }
+
+    #[test]
+    fn a_tie_enters_the_first_column() {
+        let design = vec![vec![1.0, 0.0], vec![1.0, 0.0]];
+        assert!(close(&nnls(&design, &[2.0, 0.0], 10), &[2.0, 0.0]));
+    }
+
+    #[test]
+    fn a_rank_deficient_passive_set_takes_the_minimum_norm_solution() {
+        let design = vec![vec![1.0, 0.0], vec![1.0, 0.0]];
+        let mut factor = Factor::default();
+        assert!(full_rank_solution(&design, &[2.0, 0.0], &[0, 1], &mut factor).is_none());
+        let solution = least_squares(&design, &[2.0, 0.0], &[0, 1], &mut Factor::default());
+        assert!(close(&solution, &[1.0, 1.0]), "{solution:?}");
+        assert!(least_squares(&design, &[2.0, 0.0], &[], &mut factor).is_empty());
+    }
+
+    #[test]
+    fn a_reused_factor_solves_as_a_fresh_one() {
+        let design = vec![
+            vec![1.0, 0.0, 0.0],
+            vec![0.0, 1.0, 0.0],
+            vec![1.0, 1.0, 1.0],
+        ];
+        let observed = [5.0, 3.0, 3.0];
+        let mut factor = Factor::default();
+        let first = full_rank_solution(&design, &observed, &[0, 2], &mut factor);
+        let reused = full_rank_solution(&design, &observed, &[0, 1, 2], &mut factor);
+        let fresh = full_rank_solution(&design, &observed, &[0, 1, 2], &mut Factor::default());
+        assert!(first.is_some());
+        assert_eq!(reused, fresh);
+        assert!(close(&fresh.unwrap_or_default(), &[2.0, 0.0, 3.0]));
+    }
 }

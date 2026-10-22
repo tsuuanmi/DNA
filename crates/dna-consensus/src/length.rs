@@ -1,5 +1,5 @@
-//! The two-strand run-length rule (PROP-0012 increment 4, "rule A",
-//! SRS-CONS-013): it decides the length of a run of one base beside a
+//! The two-strand run-length rule (SRS-CONS-013, from PROP-0012
+//! increment 4): it decides the length of a run of one base beside a
 //! single-base anchor in a length mixture, from the reads' tract decodes on
 //! both strands. The review confirms the runs it decides.
 //!
@@ -17,7 +17,7 @@
 //! `k` standard errors. Otherwise a single adjacent pair `n`/`n+1` that every
 //! view holds is near-equal, and anything else is a disagreement.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dna_align::model::alignment::{AlignmentColumn, Orientation};
 use dna_call::model::called_read::CalledRead;
@@ -25,13 +25,27 @@ use dna_kernel::nnls::nnls;
 use dna_kernel::read_evidence::{LengthMarginal, TractLengths};
 
 use crate::ReadRun;
+use crate::decide::Decision;
+use crate::model::consensus::RunEvidence;
+#[cfg(doc)]
+use crate::read_runs_over;
+use crate::runs::{anchored_pair, runs_of};
 
-/// Lengths a derived run may take: the shifts the deconvolution fits.
-const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
-/// Most columns the deconvolution's NNLS lets enter (a computation cap).
-const DECONVOLUTION_ITERATIONS: usize = 200;
-/// Derived shares at or below this, after normalising, are dropped.
-const SHARE_FLOOR: f64 = 1e-9;
+/// Lengths a derived run may take: the shifts the deconvolution fits. A
+/// method constant of the rule's model (SRS-CONS-013), the research
+/// reference's, not a level: the runs it derives are a few calls long.
+pub const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
+/// Most columns the deconvolution's NNLS lets enter: a computation cap
+/// (SRS-CONS-013).
+pub const DECONVOLUTION_ITERATIONS: usize = 200;
+/// Derived shares at or below this, after normalising, are dropped: a
+/// numeric tolerance (SRS-CONS-013).
+pub const SHARE_FLOOR: f64 = 1e-9;
+/// The largest replicate noise τ: a view's share `p` of its top two lengths
+/// is at most 1, so `p − ½` never clears more than ½, and a larger τ would
+/// decide nothing (SRS-CONS-013, SRS-CONS-014). The configured τ and the run
+/// context's calibrated τ are held to it.
+pub const MAXIMUM_NOISE: f64 = 0.5;
 
 /// The rule's constants: the confidence level `k` and each strand's
 /// replicate excess noise per run.
@@ -43,6 +57,41 @@ pub struct RuleParams {
     pub forward: [f64; 2],
     /// The same for a reverse view.
     pub reverse: [f64; 2],
+}
+
+/// One of an anchored window's two runs of its repeat base.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Run {
+    /// The run before the anchor, run 1.
+    Before,
+    /// The run after the anchor, run 2.
+    After,
+}
+
+impl Run {
+    /// Both runs, run 1 first.
+    pub const BOTH: [Self; 2] = [Self::Before, Self::After];
+
+    /// The run's index in a pair of per-run values, 0 or 1.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        match self {
+            Self::Before => 0,
+            Self::After => 1,
+        }
+    }
+
+    /// The run's published number, 1 or 2.
+    #[must_use]
+    pub const fn number(self) -> usize {
+        self.index() + 1
+    }
+
+    /// The run a read on the given strand reads after the other one.
+    #[must_use]
+    pub const fn read_second(forward: bool) -> Self {
+        if forward { Self::After } else { Self::Before }
+    }
 }
 
 /// Where a view of a run comes from.
@@ -160,7 +209,7 @@ pub fn deconvolve(first: &LengthMarginal, total: &LengthMarginal) -> Option<Vec<
             .zip(&marginal.shares)
             .filter(|(_, share)| **share > 0.0)
             .map(|(&length, &share)| (length, share))
-            .collect::<std::collections::BTreeMap<_, _>>()
+            .collect::<BTreeMap<_, _>>()
     };
     let first = positive(first);
     let total = positive(total);
@@ -265,10 +314,10 @@ pub enum Outcome {
     OneStrand,
 }
 
-/// The rule's outcome for run `run` (1 or 2) from its `views`, and the
-/// strands' spread `d` when the views share a top.
+/// The rule's outcome for run `run` from its `views`, and the strands'
+/// spread `d` when the views share a top.
 #[must_use]
-pub fn decide(views: &[View], run: usize, params: &RuleParams) -> (Outcome, Option<f64>) {
+pub fn decide(views: &[View], run: Run, params: &RuleParams) -> (Outcome, Option<f64>) {
     let forward = views.iter().filter(|view| view.forward).collect::<Vec<_>>();
     let reverse = views
         .iter()
@@ -308,7 +357,7 @@ pub fn decide(views: &[View], run: usize, params: &RuleParams) -> (Outcome, Opti
         .iter()
         .flat_map(|left| reverse.iter().map(move |right| (left.p - right.p).abs()))
         .fold(0.0, f64::max);
-    let index = run.clamp(1, 2) - 1;
+    let index = run.index();
     let passes = views.iter().all(|view| {
         let noise = if view.forward {
             params.forward[index]
@@ -344,36 +393,41 @@ pub struct Window {
     pub anchor_base: char,
 }
 
-const fn complement(base: char) -> char {
-    match base {
-        'A' => 'T',
-        'T' => 'A',
-        'C' => 'G',
-        'G' => 'C',
-        other => other,
-    }
+/// A reference-strand base on a read's strand: a reverse read's canonical
+/// base is complemented, which is its own inverse.
+const fn on_strand(base: char, forward: bool) -> char {
+    let orientation = if forward {
+        Orientation::Forward
+    } else {
+        Orientation::Reverse
+    };
+    orientation.reference_base(base)
 }
 
-/// The reference position (1-based) a read's call `call` is aligned to, or,
-/// on an inserted column, that of the nearest aligned call before it in the
-/// read's order.
+/// The reference position (1-based) a read's call `call` is aligned to in
+/// its alignment `columns`, or, on an inserted column, the position the
+/// insertion follows on the reference, on either strand: an inserted base of
+/// a run lies at the run's 3' end (SRS-ALN-012), after the run's last
+/// position. The first position after it stands in only where no aligned
+/// column precedes it. The two-strand rule and the review place a decode by
+/// it alike.
 #[must_use]
-pub fn start_reference(read: &CalledRead, call: usize) -> Option<usize> {
-    let columns = read.alignment.columns();
+pub fn start_reference(columns: &[AlignmentColumn], call: usize) -> Option<usize> {
     let index = columns
         .iter()
         .position(|column| column.original_call_index_0based() == Some(call))?;
     let aligned = |column: &AlignmentColumn| column.reference_index_0based();
-    let found = match read.alignment.orientation() {
-        Orientation::Forward => columns[..=index].iter().rev().find_map(aligned),
-        Orientation::Reverse => columns[index..].iter().find_map(aligned),
-    };
-    found.map(|position| position + 1)
+    columns[..=index]
+        .iter()
+        .rev()
+        .find_map(aligned)
+        .or_else(|| columns[index..].iter().find_map(aligned))
+        .map(|position| position + 1)
 }
 
-/// The run of `window` a tract enters first: 1 before the anchor, 2 after
-/// it, 1 when DNA calls one run (`single`); `None` when the tract is of
-/// another base, or starts outside the window or at its anchor.
+/// The run of `window` a tract enters first: the one before the anchor or
+/// after it, the first when DNA calls one run (`single`); `None` when the
+/// tract is of another base, or starts outside the window or at its anchor.
 #[must_use]
 pub fn entered(
     window: &Window,
@@ -381,41 +435,51 @@ pub fn entered(
     reference: Option<usize>,
     tract: &TractLengths,
     single: bool,
-) -> Option<usize> {
-    let run_base = if forward {
-        window.repeat
-    } else {
-        complement(window.repeat)
-    };
-    let position = reference?;
-    if tract.run != run_base
-        || position < window.first
-        || position > window.last
-        || position == window.anchor
-    {
+) -> Option<Run> {
+    if tract.run != on_strand(window.repeat, forward) {
         return None;
     }
-    Some(if single || position < window.anchor {
-        1
-    } else {
-        2
+    entered_run(
+        window.first,
+        window.last,
+        Some(window.anchor),
+        reference?,
+        single,
+    )
+}
+
+/// The run of a window over the 1-based `first..=last` that a tract starting
+/// at `position` enters first: the one after the window's `anchor`, unless
+/// DNA calls one run (`single`), and the first otherwise, also in a window
+/// without an anchor; `None` when it starts outside the window or at its
+/// anchor. The two-strand rule and the review credit a decode by it alike.
+#[must_use]
+pub fn entered_run(
+    first: usize,
+    last: usize,
+    anchor: Option<usize>,
+    position: usize,
+    single: bool,
+) -> Option<Run> {
+    if position < first || position > last || anchor == Some(position) {
+        return None;
+    }
+    Some(match anchor {
+        Some(anchor) if !single && position > anchor => Run::After,
+        _ => Run::Before,
     })
 }
 
 /// The anchor base on a read's strand.
 #[must_use]
 pub const fn anchor_on(window: &Window, forward: bool) -> char {
-    if forward {
-        window.anchor_base
-    } else {
-        complement(window.anchor_base)
-    }
+    on_strand(window.anchor_base, forward)
 }
 
 /// The rule's views of a two-run window's runs (run 1 first) from the
 /// reads' tract decodes and, on a strand no decode views a run from, the
 /// reads that show the run in phase (`shown_runs`, by read, as
-/// [`read_runs_over`](crate::read_runs_over) gives them over the window).
+/// [`read_runs_over`] gives them over the window).
 #[must_use]
 pub fn views(
     window: &Window,
@@ -427,7 +491,7 @@ pub fn views(
         let forward = read.alignment.orientation() == Orientation::Forward;
         let anchor = anchor_on(window, forward);
         for tract in read.evidence.tracts() {
-            let reference = start_reference(read, tract.call_start);
+            let reference = start_reference(read.alignment.columns(), tract.call_start);
             let Some(run) = entered(window, forward, reference, tract, false) else {
                 continue;
             };
@@ -437,13 +501,13 @@ pub fn views(
             let Some(view) = direct(forward, &tract.first) else {
                 continue;
             };
-            runs[run - 1].push(view);
-            let next = if forward { 2 } else { 1 };
+            runs[run.index()].push(view);
+            let next = Run::read_second(forward);
             if run != next
                 && tract.mark == Some(anchor)
                 && let Some(view) = derived(forward, &tract.first, &tract.total)
             {
-                runs[next - 1].push(view);
+                runs[next.index()].push(view);
             }
         }
     }
@@ -452,23 +516,136 @@ pub fn views(
             continue;
         };
         let forward = read.alignment.orientation() == Orientation::Forward;
-        let Some(index) = (0..shown.len().saturating_sub(2)).find(|&index| {
-            shown[index].base == window.repeat
-                && shown[index + 1].base == window.anchor_base
-                && shown[index + 1].length == 1
-                && shown[index + 2].base == window.repeat
-        }) else {
+        let Some(index) = anchored_pair(shown, window.repeat, window.anchor_base) else {
             continue;
         };
-        for (run, view) in [(0, &shown[index]), (1, &shown[index + 2])] {
+        for (run, view) in [
+            (Run::Before, &shown[index]),
+            (Run::After, &shown[index + 2]),
+        ] {
+            let runs = &mut runs[run.index()];
             if view.in_phase
-                && !runs[run]
+                && !runs
                     .iter()
                     .any(|seen| seen.forward == forward && seen.source != Source::InPhase)
             {
-                runs[run].push(in_phase(forward, view.length));
+                runs.push(in_phase(forward, view.length));
             }
         }
     }
     runs
+}
+
+/// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013)
+/// the runs a stretch's decision left as an estimate
+/// (an anchored end, a phase loss, or the reference frame), in every pair of
+/// runs of one base the stretch splits by a single-base anchor, where its
+/// call keeps the reference's run composition. A run the rule decides takes
+/// its length, with `two_strand` evidence. A run a read shows in phase, or
+/// whose ends two reads confirm, keeps its length whatever the rule says;
+/// the review flags their disagreement. The pattern is the stretch's own
+/// structure, never a position: the rule names no region. `shown` gives each
+/// read's runs over a 0-based reference stretch, as [`read_runs_over`] does.
+pub(crate) fn two_strand(
+    decided: &mut BTreeMap<usize, (usize, Decision)>,
+    reads: &[&CalledRead],
+    bases: &[u8],
+    params: &RuleParams,
+    shown: impl Fn(usize, usize) -> Vec<Option<Vec<ReadRun>>>,
+) {
+    for (&start, (end, decision)) in decided.iter_mut() {
+        if !decision
+            .runs
+            .iter()
+            .any(|run| run.evidence.yields_to_two_strand())
+        {
+            continue;
+        }
+        let reference_runs = runs_of(bases[start..=*end].iter().map(|&base| char::from(base)));
+        if reference_runs.len() != decision.runs.len()
+            || reference_runs
+                .iter()
+                .zip(&decision.runs)
+                .any(|((base, _), run)| *base != run.base)
+        {
+            continue;
+        }
+        // Each reference run's first position, 1-based.
+        let firsts = reference_runs
+            .iter()
+            .scan(start + 1, |position, (_, length)| {
+                let first = *position;
+                *position += length;
+                Some(first)
+            })
+            .collect::<Vec<_>>();
+        let mut changed = false;
+        for index in 0..reference_runs.len().saturating_sub(2) {
+            let (repeat, anchor) = (reference_runs[index], reference_runs[index + 1]);
+            if reference_runs[index + 2].0 != repeat.0
+                || anchor.1 != 1
+                || decision.runs[index + 1].length != 1
+                || !(decision.runs[index].evidence.yields_to_two_strand()
+                    || decision.runs[index + 2].evidence.yields_to_two_strand())
+            {
+                continue;
+            }
+            let window = Window {
+                first: firsts[index],
+                last: firsts[index + 2] + reference_runs[index + 2].1 - 1,
+                anchor: firsts[index + 1],
+                repeat: repeat.0,
+                anchor_base: anchor.0,
+            };
+            let shown = shown(window.first - 1, window.last - 1);
+            let views = views(&window, reads, &shown);
+            for (run, slot) in [(Run::Before, index), (Run::After, index + 2)] {
+                if !decision.runs[slot].evidence.yields_to_two_strand() {
+                    continue;
+                }
+                let (Outcome::Decided(length), _) = decide(&views[run.index()], run, params) else {
+                    continue;
+                };
+                decision.runs[slot].length = length;
+                decision.runs[slot].evidence = RunEvidence::TwoStrand;
+                changed = true;
+            }
+        }
+        if changed {
+            decision.value = Some(
+                decision
+                    .runs
+                    .iter()
+                    .map(|run| run.base.to_string().repeat(run.length))
+                    .collect(),
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
+        AlignmentColumn::new(base, 'C', call, reference)
+    }
+
+    // SRS-API-020, SRS-CONS-013
+    #[test]
+    fn an_inserted_first_call_is_credited_to_the_position_it_follows() {
+        // Reference 315-316 (0-based 314-315) read C G; a reverse read's run
+        // of C starts, in its order, on the C inserted after 315.
+        let columns = [
+            column('C', Some(9), Some(313)),
+            column('C', Some(8), Some(314)),
+            column('C', Some(7), None),
+            column('G', Some(6), Some(315)),
+        ];
+        assert_eq!(start_reference(&columns, 7), Some(315));
+        assert_eq!(start_reference(&columns, 6), Some(316));
+        // With no aligned column before it, the next one stands in.
+        let leading = [column('C', Some(0), None), column('C', Some(1), Some(4))];
+        assert_eq!(start_reference(&leading, 0), Some(5));
+    }
 }
