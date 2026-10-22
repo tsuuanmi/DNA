@@ -29,7 +29,8 @@ cargo run --release -p dna-eval -- run \
   [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
   [--evidence-cache <dir>] [--run-context <dir>]
 
-cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n>
+cargo run --release -p dna-eval -- cache list --dir <dir>
+cargo run --release -p dna-eval -- cache prune --dir <dir> --keep <n> [--dry-run]
 
 cargo run --release -p dna-eval -- panel \
   --manifest <parent-panel.tsv> --truth <statistics.sqlite> \
@@ -290,8 +291,26 @@ one.
   that does not decompress, is not JSON, or names another trace is a miss,
   remade and replaced.
 - **Record.** `run.json` records the directory, the key, the hits, misses,
-  and replaced entries, and the generation's size. `cache prune --keep <n>`
-  removes every generation but the `n` most recently used.
+  and replaced entries, and the generation's size.
+- **Hygiene.** Every generation labels itself when a run opens it:
+  `key.json` records its kind (`evidence`, `placement`, or `forms`) and key,
+  written once, and `last_used` the time of the latest run that opened it,
+  rewritten by each run, so recency is use, not the last write. A
+  generation written before the labels lists as `unlabelled`, by its newest
+  entry, until a run opens it: in a cache from before the labels, a
+  generation still in use can look old, so run once on what you keep, and
+  read `--dry-run`, before pruning it. `cache list` prints one line per
+  generation (TSV: generation, kind, last use in UTC, entries, bytes, key)
+  by kind and most recently used first, and counts the temporary files of
+  runs no longer alive. `cache prune --keep <n>` keeps the `n` most recently used
+  generations of each kind, unlabelled ones being a kind of their own, and
+  removes those temporary files; a temporary file is named for its writer's
+  process, and one whose process no longer runs on this host is orphaned.
+  The check sees this host's processes in its own PID namespace only, so a
+  run on another host or in another container writing to a shared cache
+  looks orphaned: prune where no such run is writing. `--keep` is at least
+  1.
+  `--dry-run` reports what it would remove and removes nothing.
 - **Forms cache.** The same directory caches the index of the truth's
   written forms ([[validation/evaluation-measures#Discrepancy causes|forms]]),
   which otherwise indexes the whole truth database on every run. A
@@ -304,10 +323,9 @@ one.
   is never read. An entry that does not decompress or parse is rebuilt and
   replaced. A harness built with those sources differing from its commit
   builds the index and stores nothing; the evidence cache still works.
-  `run.json` records the key and whether it was a hit (`forms_cache`), and
-  `cache prune` counts the generation like any other. On development
-  panel v5 the tables are byte-identical with a cold forms cache, a warm
-  one, and none.
+  `run.json` records the key and whether it was a hit (`forms_cache`). On
+  development panel v5 the tables are byte-identical with a cold forms
+  cache, a warm one, and none.
 - **Placement cache** ([[ADR-0087]], proposed). The same directory holds
   each evidence document's `dna.placed_read/v1` document, written by
   `dna-align`. Entries are keyed by the evidence document's SHA-256, in a

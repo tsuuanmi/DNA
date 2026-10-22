@@ -69,8 +69,10 @@ different things, and exits 2 with `GATE FAIL` when, in the current period
 non-het unreviewed block, or when the two runs failed on different current
 samples (rerun a side that failed transiently); het blocks and the earlier
 period are reported, not gated. Keep one cache
-directory per machine, and remove old generations with
-`dna-eval cache prune --dir <dir> --keep <n>`. An evidence generation holds
+directory per machine; `dna-eval cache list --dir <dir>` shows its
+generations by kind and last use, and
+`dna-eval cache prune --dir <dir> --keep <n> [--dry-run]` keeps the `n` most
+recently used of each kind. An evidence generation holds
 every read run through it: about 3 GB for panel v5 alone, about 7 GB when
 readiness-v2 runs through the same one. The placement cache shares the
 directory, under 1 GB a generation.

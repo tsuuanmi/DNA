@@ -133,7 +133,10 @@ describes them.
   atomically, a corrupt entry being a miss; the index of the truth's
   written forms, in a generation keyed by the truth database, the reference
   sequence, the profile's repeat windows, and the index's code identity;
-  `cache prune` keeps the newest generations.
+  each generation's label (`key.json`: kind and key) and last use
+  (`last_used`), which `cache list` shows and by which `cache prune` keeps
+  the most recently used of each kind, sweeping the temporary files of
+  writers no longer alive.
 - `components.rs` — `components.tsv`: every phase-mixture component
   (ADR-0082) with the reference run clusters it covers, measured as
   haplotypes against the truth, and an unexplained mixture's offsets and
