@@ -29,7 +29,7 @@ use crate::decide::Decision;
 use crate::model::consensus::RunEvidence;
 #[cfg(doc)]
 use crate::read_runs_over;
-use crate::runs::runs_of;
+use crate::runs::{anchored_pair, runs_of};
 
 /// Lengths a derived run may take: the shifts the deconvolution fits.
 const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
@@ -392,19 +392,37 @@ pub fn entered(
     tract: &TractLengths,
     single: bool,
 ) -> Option<usize> {
-    let run_base = on_strand(window.repeat, forward);
-    let position = reference?;
-    if tract.run != run_base
-        || position < window.first
-        || position > window.last
-        || position == window.anchor
-    {
+    if tract.run != on_strand(window.repeat, forward) {
         return None;
     }
-    Some(if single || position < window.anchor {
-        1
-    } else {
-        2
+    entered_run(
+        window.first,
+        window.last,
+        Some(window.anchor),
+        reference?,
+        single,
+    )
+}
+
+/// The run of a window over the 1-based `first..=last` that a tract starting
+/// at `position` enters first: 2 after the window's `anchor`, unless DNA
+/// calls one run (`single`), and 1 otherwise, also in a window without an
+/// anchor; `None` when it starts outside the window or at its anchor. The
+/// two-strand rule and the review credit a decode by it alike.
+#[must_use]
+pub fn entered_run(
+    first: usize,
+    last: usize,
+    anchor: Option<usize>,
+    position: usize,
+    single: bool,
+) -> Option<usize> {
+    if position < first || position > last || anchor == Some(position) {
+        return None;
+    }
+    Some(match anchor {
+        Some(anchor) if !single && position > anchor => 2,
+        _ => 1,
     })
 }
 
@@ -454,12 +472,7 @@ pub fn views(
             continue;
         };
         let forward = read.alignment.orientation() == Orientation::Forward;
-        let Some(index) = (0..shown.len().saturating_sub(2)).find(|&index| {
-            shown[index].base == window.repeat
-                && shown[index + 1].base == window.anchor_base
-                && shown[index + 1].length == 1
-                && shown[index + 2].base == window.repeat
-        }) else {
+        let Some(index) = anchored_pair(shown, window.repeat, window.anchor_base) else {
             continue;
         };
         for (run, view) in [(0, &shown[index]), (1, &shown[index + 2])] {

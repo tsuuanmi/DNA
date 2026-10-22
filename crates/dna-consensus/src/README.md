@@ -12,8 +12,9 @@ review's one source of in-phase run lengths, SRS-API-020),
 `insertion_views` and `InsertionView` (each read's view of a site decided
 with an insertion, the review's one source for `one_strand_insertion`,
 SRS-CONS-015), [runs](runs.rs) (`runs_of`, a sequence's runs of one
-base, and `reference_run`, the reference run holding a position: the
-consensus's and the review's one reading of runs), [length](length.rs)
+base, `reference_run`, the reference run holding a position, and
+`anchored_pair`, the first two runs of one base around a single anchor
+base: the consensus's and the review's one reading of runs), [length](length.rs)
 (the two-strand run-length rule), [noise](noise.rs) (a run's length noise
 statistics and the calibration of τ by them), the `consensus`
 plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`
@@ -54,7 +55,9 @@ behind every non-trivial decision.
   increment 4): each strand's view of a window's run from the reads' tract
   decodes (direct, derived by NNLS deconvolution of the total, or in phase),
   and `decide`, which takes a length only when both strands put it on top
-  beyond their own replicate noise; and `two_strand`, the pass that applies
+  beyond their own replicate noise, with `start_reference` and `entered_run`,
+  which credit a decode to a window's run for the rule and the review alike;
+  and `two_strand`, the pass that applies
   it to the decided stretches: in a stretch with two runs of one base
   around a single-base anchor, a run left as an estimate takes the length
   the rule decides.

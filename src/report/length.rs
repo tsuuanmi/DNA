@@ -27,8 +27,9 @@
 //! here decides a length; it labels them.
 
 use dna_consensus::ReadRun;
+use dna_consensus::length::entered_run;
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
-use dna_consensus::runs::runs_of;
+use dna_consensus::runs::{anchored_pair, runs_of};
 use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
 use dna_normalize::length_convention::{RULE as CONVENTION_RULE, ShortestDominant};
 
@@ -49,15 +50,11 @@ pub(super) fn called_runs(haplotype: &str, window: &LengthWindow) -> Option<Vec<
         return None;
     }
     let runs = runs_of(haplotype.chars());
-    let split = window.anchor.and_then(|(_, anchor_base)| {
-        runs.windows(3).find(|triple| {
-            triple[0].0 == window.repeat
-                && triple[1] == (anchor_base, 1)
-                && triple[2].0 == window.repeat
-        })
-    });
+    let split = window
+        .anchor
+        .and_then(|(_, anchor_base)| anchored_pair(&runs, window.repeat, anchor_base));
     match split {
-        Some(triple) => Some(vec![triple[0].1, triple[2].1]),
+        Some(index) => Some(vec![runs[index].1, runs[index + 2].1]),
         None => runs
             .iter()
             .filter(|(base, _)| *base == window.repeat)
@@ -89,12 +86,7 @@ pub(super) struct InPhase<'a> {
 /// the first anchor between two repeat runs, else the longest repeat run.
 fn window_runs<'r>(runs: &'r [ReadRun], window: &LengthWindow) -> Vec<(usize, &'r ReadRun)> {
     if let Some((_, anchor_base)) = window.anchor
-        && let Some(index) = (0..runs.len().saturating_sub(2)).find(|&index| {
-            runs[index].base == window.repeat
-                && runs[index + 1].base == anchor_base
-                && runs[index + 1].length == 1
-                && runs[index + 2].base == window.repeat
-        })
+        && let Some(index) = anchored_pair(runs, window.repeat, anchor_base)
     {
         return vec![(1, &runs[index]), (2, &runs[index + 2])];
     }
@@ -111,13 +103,7 @@ pub(super) fn two_strand_runs(runs: &[ConsensusRun], window: &LengthWindow) -> V
     let Some((_, anchor_base)) = window.anchor else {
         return Vec::new();
     };
-    (0..runs.len().saturating_sub(2))
-        .find(|&index| {
-            runs[index].base == window.repeat
-                && runs[index + 1].base == anchor_base
-                && runs[index + 1].length == 1
-                && runs[index + 2].base == window.repeat
-        })
+    anchored_pair(runs, window.repeat, anchor_base)
         .map(|index| {
             [1, 2]
                 .into_iter()
@@ -332,16 +318,18 @@ pub(super) fn judge(
         let Some(position) = decode.reference else {
             continue;
         };
-        if tract.run != orient(window.repeat) || position < window.first || position > window.last {
-            continue;
-        }
-        if window.anchor.is_some_and(|(anchor, _)| position == anchor) {
+        if tract.run != orient(window.repeat) {
             continue;
         }
         let single = called.is_some_and(|runs| runs.len() == 1);
-        let entered = match window.anchor {
-            Some((anchor, _)) if !single && position > anchor => 2,
-            _ => 1,
+        let Some(entered) = entered_run(
+            window.first,
+            window.last,
+            window.anchor.map(|(anchor, _)| anchor),
+            position,
+            single,
+        ) else {
+            continue;
         };
         // A plain run has no anchor: a mark the read chooses lies past it.
         let structure_differs = called.is_some()
