@@ -6,10 +6,13 @@
 //! code alone: the read stage reads no profile and no reference (ADR-0069),
 //! and nothing of the core, the consensus, or the review. So an entry is
 //! keyed by the trace's content SHA-256 under a generation directory named
-//! for the configuration file's SHA-256 (which the document's provenance
-//! records and the reader checks), the `sanger` plugin version, and the read
-//! stage's code identity: the git object ids of every source on the path
-//! from a trace to its document, recorded at build time. A build from a
+//! for the digest of the configuration the evidence plugins read
+//! (`dna::recorded::evidence_configuration_sha256`, over the digests the
+//! document's provenance records and the reader checks), the `sanger`
+//! plugin version, and the read stage's code identity: the git object ids of
+//! every source on the path from a trace to its document, recorded at build
+//! time. Editing another configuration section keeps the generation. A
+//! build from a
 //! checkout whose read-stage sources differ from their commit has no code
 //! identity, and the cache is refused: a plugin version does not move on a
 //! work-in-progress commit, and a stale document would fake a measurement.
@@ -113,6 +116,14 @@ pub(crate) enum CacheError {
         "--evidence-cache needs a build from committed read-stage and placement-stage sources; this build has no code identity for one of them"
     )]
     NoCodeIdentity,
+    /// The configuration cannot be read or is invalid.
+    #[error("evidence cache: configuration {path}: {message}")]
+    Configuration {
+        /// The configuration file.
+        path: PathBuf,
+        /// What DNA reported.
+        message: String,
+    },
     /// The cache directory cannot be created or read.
     #[error("evidence cache {path}: {source}")]
     Io {
@@ -128,7 +139,10 @@ pub(crate) enum CacheError {
 pub(crate) struct Key {
     /// The `sanger` plugin version.
     pub(crate) sanger: u32,
-    /// The configuration file's SHA-256.
+    /// The configuration digest the stage depends on: for the evidence
+    /// cache, the evidence plugins' sections
+    /// (`dna::recorded::evidence_configuration_sha256`); for the placement
+    /// cache, the configuration file's SHA-256.
     pub(crate) configuration_sha256: String,
     /// The SHA-256 of the read stage's code identity.
     pub(crate) code_sha256: String,
@@ -340,7 +354,17 @@ impl EvidenceCache {
     /// Returns [`CacheError`] without a code identity (`code` empty), or
     /// when the directory cannot be created or the configuration read.
     pub(crate) fn open(root: &Path, config: &Path, code: &str) -> Result<Self, CacheError> {
-        Self::with_code(root, config, (Kind::Evidence, code))
+        if code.is_empty() {
+            return Err(CacheError::NoCodeIdentity);
+        }
+        let configuration =
+            dna::recorded::evidence_configuration_sha256(config).map_err(|error| {
+                CacheError::Configuration {
+                    path: config.to_path_buf(),
+                    message: error.to_string(),
+                }
+            })?;
+        Self::with_code(root, configuration, (Kind::Evidence, code))
     }
 
     /// Opens the placement cache's generation of `root` for the
@@ -359,9 +383,13 @@ impl EvidenceCache {
         if code.is_empty() {
             return Err(CacheError::NoCodeIdentity);
         }
+        let configuration = fs::read(config).map_err(|source| CacheError::Io {
+            path: config.to_path_buf(),
+            source,
+        })?;
         Self::with_code(
             root,
-            config,
+            format!("{:x}", Sha256::digest(&configuration)),
             (
                 Kind::Placement,
                 &format!("placement;{code}reference={reference_sha256};"),
@@ -369,22 +397,19 @@ impl EvidenceCache {
         )
     }
 
+    /// Opens the generation of `root` for the configuration digest
+    /// `configuration_sha256` under the code identity `code` of `kind`.
     fn with_code(
         root: &Path,
-        config: &Path,
+        configuration_sha256: String,
         (kind, code): (Kind, &str),
     ) -> Result<Self, CacheError> {
         if code.is_empty() {
             return Err(CacheError::NoCodeIdentity);
         }
-        let io = |path: &Path| {
-            let path = path.to_path_buf();
-            move |source| CacheError::Io { path, source }
-        };
-        let configuration = fs::read(config).map_err(io(config))?;
         let key = Key {
             sanger: dna_sanger::read_processing::PLUGIN.version,
-            configuration_sha256: format!("{:x}", Sha256::digest(&configuration)),
+            configuration_sha256,
             code_sha256: format!("{:x}", Sha256::digest(code.as_bytes())),
         };
         let (root, generation) = open_generation(root, kind, &key.generation(), &key)?;
@@ -801,14 +826,7 @@ mod tests {
     }
 
     fn cache(root: &Path, code: &str) -> Result<EvidenceCache, CacheError> {
-        let config = root.join("dna.toml");
-        if !config.exists() {
-            fs::write(&config, "schema_version = 19\n").map_err(|source| CacheError::Io {
-                path: config.clone(),
-                source,
-            })?;
-        }
-        EvidenceCache::with_code(&root.join("cache"), &config, (Kind::Evidence, code))
+        EvidenceCache::with_code(&root.join("cache"), "c".repeat(64), (Kind::Evidence, code))
     }
 
     /// A miss stores the document, a hit reads it back, and a build without
@@ -945,11 +963,8 @@ mod tests {
         let directory = root.path().join("cache");
         let old = cache(root.path(), "crates/dna-sanger=old;")?;
         let new = cache(root.path(), "crates/dna-sanger=new;")?;
-        let placed = EvidenceCache::with_code(
-            &directory,
-            &root.path().join("dna.toml"),
-            (Kind::Placement, "placement;"),
-        )?;
+        let placed =
+            EvidenceCache::with_code(&directory, "c".repeat(64), (Kind::Placement, "placement;"))?;
         fs::write(old.generation.join(LAST_USED), "100\n")?;
         fs::write(new.generation.join(LAST_USED), "200\n")?;
         fs::write(placed.generation.join(LAST_USED), "50\n")?;

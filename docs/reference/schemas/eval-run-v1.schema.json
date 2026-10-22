@@ -401,7 +401,7 @@
           }
         },
         "evidence_cache": {
-          "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under this configuration by this `sanger` version and read-stage code.",
+          "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under a configuration with these evidence plugins' sections by this `sanger` version and read-stage code.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -433,7 +433,7 @@
                   "minimum": 1
                 },
                 "configuration_sha256": {
-                  "description": "The configuration file's SHA-256.",
+                  "description": "The digest of the configuration the evidence plugins read (`dna::recorded::evidence_configuration_sha256`): the SHA-256 of one `<plugin>\\t<digest>` line per evidence plugin, each the digest the documents record in `provenance.plugin_configuration_sha256`. Another section, a comment, or the layout leaves it unchanged.",
                   "$ref": "#/$defs/sha256"
                 },
                 "code_sha256": {

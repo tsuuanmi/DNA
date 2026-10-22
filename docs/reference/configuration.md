@@ -149,6 +149,18 @@ For a uniquely strongest basecalling peak, `secondary_peak_ratio` applies both t
 
 `basecall` consumes the basecalling, signal-processing, callability, and quality-control settings; it still validates the complete schema and records the complete configuration checksum. Alignment and variant-calling settings are used by reference-guided operations; sample-reconciliation settings are consumed only by `sample` after every read has completed independent placement. Signal-processing values control observation-only annotations and never change calls, trim bounds, alignments, or variants. Callability values control the read callability view (ADR-0067), which sets the trim interval, the masked alignment query, variant eligibility, and masked sample observations; the double-peak threshold is `callability.double_peak_ratio`, set apart from `basecalling.secondary_peak_ratio`. Reference topology and reportable regions belong to the target profile. Compact result contracts record the raw configuration checksum and the profile identity but omit method constants and expanded effective values. The sample-reconciliation defaults are Tracy-derived pre-consensus admission controls: they require at least 25 comparable canonical-base positions and at least 0.50 canonical-base agreement for an overlapping read pair to be eligible for later consensus. Gaps, deletions, and unresolved symbols do not enter this nucleotide denominator. Effective values and the configuration schema version remain in the strict TOML selected for the run; the local path is omitted.
 
+Each plugin's configuration digest names what the plugin reads of the
+configuration: the SHA-256 of one `<section>\t<section digest>` line per
+section the plugin's descriptor owns (`config_sections`), in the
+descriptor's order, `-` for a section the file does not hold; a section's
+digest is the SHA-256 of its values in canonical form (keys in order,
+strings quoted, floats in shortest round-trip form), so comments, layout,
+key order, and how a number is written do not count. `dna.read_evidence/v1`
+records the evidence plugins' digests
+(`provenance.plugin_configuration_sha256`), and its reader compares them,
+not the configuration file's SHA-256, so editing another plugin's section
+keeps a read's evidence valid.
+
 `read_end_margin` (ADR-0062) makes a variant ineligible when any of its mapped calls lies within that many calls of an uninformative call (`read_end`): beyond the trim interval, which is the callable span plus at most `trim_context_margin` dephased context calls per side, or inside a masked segment that aligns as unresolved. Masked evidence calls add the reason of their phase segment (ADR-0067). These rules use only the read's own calls and signal; no primer or file-name knowledge is involved.
 
 ## `.env`

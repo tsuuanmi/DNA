@@ -49,7 +49,10 @@ facade re-exports exactly these public items from them:
   makes a read's `dna.placed_read/v1` document, and `analyze_placed_outcome`
   analyses a sample from `ReadDocuments` (evidence, with a placed read when
   given) without searching the given placements again ([[ADR-0087]],
-  proposed);
+  proposed). `evidence_configuration_sha256` is the digest of the
+  configuration the evidence plugins read: two configurations with the same
+  digest give a trace the same document, apart from the configuration
+  file's SHA-256 it records, and each reads the other's documents;
 - `sample_analysis` exposes `SampleEvidence` (`dna-sample`) and `Consensus` (`dna-consensus`) and
   `SangerAttachment` and `SangerRejection` (`dna-sanger`), the records of a
   [sample analysis](#sample-analysis);

@@ -267,10 +267,14 @@ one.
 
 - **Key.** The read stage reads no profile and no reference ([[ADR-0069]]),
   and nothing of the core, so a document depends on the trace, the
-  configuration, and the read-stage code alone. An entry is the trace's
-  content SHA-256 in a generation named for the configuration file's SHA-256
-  (which the document's provenance records and the reader checks), the
-  `sanger` version, and the read-stage code identity.
+  configuration the Sanger plugin reads, and the read-stage code alone. An
+  entry is the trace's content SHA-256 in a generation named for that
+  configuration's digest (`dna::recorded::evidence_configuration_sha256`,
+  over the digests the document's provenance records and the reader
+  checks), the `sanger` version, and the read-stage code identity. Editing
+  another section (`[review]`, `[consensus]`), a comment, or the layout
+  keeps the generation; the placement cache, keyed by the configuration
+  file, still misses.
 - **Code identity.** The identity is the git object ids of every source from
   a trace to its document, which `crates/dna-eval/stages.txt` lists
   (`[read]`): the build's inputs (`Cargo.lock`, `Cargo.toml`,

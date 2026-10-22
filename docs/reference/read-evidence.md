@@ -34,6 +34,9 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
   `sanger` plugin), and the trace's file `name` beside its SHA-256. The
   sample documents name a read by the stem of that name, so a read from its
   document has the name its trace gives it, whatever the document is called.
+  `plugin_configuration_sha256` holds each plugin's configuration digest by
+  plugin id ([configuration](configuration.md)): what the evidence depends
+  on of the configuration.
 - `read`:
   - `call_count`: the number of calls;
   - `trim`: the relative-quality trim interval, as in `dna.basecalls/v3`;
@@ -159,9 +162,12 @@ commands write for the same traces and configuration, byte for byte,
 The reader:
 
 - accepts only `dna.read_evidence/v1`, each object closed, at most 16 MiB;
-- requires the configuration SHA-256 of the loaded configuration and this
-  build's evidence plugins in provenance, so the analysis records one
-  configuration and the plugins that made it;
+- requires the loaded configuration's digest of each of this build's
+  evidence plugins (`plugin_configuration_sha256`, exactly those plugins)
+  and those plugins in provenance, so the analysis records a configuration
+  that made the same evidence and the plugins that made it; the
+  configuration file's SHA-256 need only be a SHA-256, so a document stays
+  valid when another plugin's section, a comment, or the layout changes;
 - requires a trace file name without a directory, the calls in call order,
   every reason label one the Sanger plugin raises (a core label or an unknown
   one is refused), each verdict's reasons listed once, callability segments

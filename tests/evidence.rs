@@ -186,6 +186,81 @@ fn analyzes_a_read_from_its_evidence_exactly_as_from_its_trace()
 }
 
 // SRS-API-018
+/// Evidence written under one configuration reads under another whose
+/// Sanger sections are the same, and the analysis equals the one from the
+/// trace under that other configuration; a change to a Sanger section
+/// refuses it.
+#[test]
+fn reads_evidence_under_a_configuration_with_the_same_sanger_sections()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let directory = directory.path();
+    let trace = directory.join("trace.ab1");
+    let config = directory.join("dna.toml");
+    write_abif(&trace, QUERY)?;
+    write_reference(&directory.join("reference.fa"), &format!("TTTT{QUERY}CCCC"))?;
+    write_config(&config, "linear")?;
+    run("evidence", &trace, &config, directory)?.success();
+    let evidence = evidence_output_path(directory, &trace)?;
+
+    let text = fs::read_to_string(&config)?;
+    let other = |name: &str, from: &str, to: &str| -> Result<_, Box<dyn std::error::Error>> {
+        let directory = tempdir()?;
+        let path = directory.path().join("dna.toml");
+        write_config(&path, "linear")?;
+        assert!(text.contains(from), "{from}");
+        fs::write(&path, text.replacen(from, to, 1))?;
+        fs::copy(&trace, directory.path().join(format!("{name}.ab1")))?;
+        fs::copy(
+            &evidence,
+            directory.path().join(format!("{name}.evidence.json")),
+        )?;
+        write_reference(
+            &directory.path().join("reference.fa"),
+            &format!("TTTT{QUERY}CCCC"),
+        )?;
+        Ok(directory)
+    };
+
+    let review = other("trace", "edge_zone=20", "edge_zone=21")?;
+    let review_directory = review.path();
+    let review_config = review_directory.join("dna.toml");
+    let review_trace = review_directory.join("trace.ab1");
+    analyze(
+        &[review_trace.as_os_str()],
+        review_directory,
+        &review_config,
+    )
+    .success();
+    let from_trace = fs::read(analysis_output_path(review_directory, &review_trace))?;
+    fs::remove_dir_all(review_directory.join("results"))?;
+    let copied = review_directory.join("trace.evidence.json");
+    analyze(
+        &["--evidence".as_ref(), copied.as_os_str()],
+        review_directory,
+        &review_config,
+    )
+    .success();
+    let from_evidence = fs::read(analysis_output_path(review_directory, &review_trace))?;
+    assert_eq!(from_evidence, from_trace);
+
+    let sanger = other(
+        "trace",
+        "secondary_peak_ratio=0.33",
+        "secondary_peak_ratio=0.34",
+    )?;
+    let copied = sanger.path().join("trace.evidence.json");
+    analyze(
+        &["--evidence".as_ref(), copied.as_os_str()],
+        sanger.path(),
+        &sanger.path().join("dna.toml"),
+    )
+    .failure()
+    .stderr(predicate::str::contains("is not the loaded configuration"));
+    Ok(())
+}
+
+// SRS-API-018
 #[test]
 fn refuses_evidence_it_cannot_read_back() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
@@ -207,7 +282,7 @@ fn refuses_evidence_it_cannot_read_back() -> Result<(), Box<dyn std::error::Erro
     order["calls"][0]["index"] = 1.into();
     order["calls"][1]["index"] = 0.into();
     let mut configuration = document;
-    configuration["provenance"]["configuration_sha256"] = "0".repeat(64).into();
+    configuration["provenance"]["plugin_configuration_sha256"]["sanger"] = "0".repeat(64).into();
     for (name, edited, message) in [
         ("schema", schema, "unsupported schema version"),
         ("reason", reason, "unknown reason label \"made_up_reason\""),

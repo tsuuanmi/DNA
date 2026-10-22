@@ -1,6 +1,8 @@
 //! The validated configuration envelope: target profile, source identity, and
 //! the sections each plugin owns (ADR-0069).
 
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -10,6 +12,8 @@ use dna_align::RawAlignmentConfig;
 use dna_call::RawVariantCallingConfig;
 use dna_call::read_call::{CallConfig, RawCallConfig};
 use dna_consensus::{ConsensusConfig, RawConsensusConfig};
+use dna_kernel::checksum::hex_sha256;
+use dna_kernel::plugin::PluginDescriptor;
 use dna_normalize::length_convention::ShortestDominant;
 use dna_sample::{RawSampleReconciliationConfig, SampleReconciliationConfig};
 use dna_sanger::basecalling::RawBasecallingConfig;
@@ -42,6 +46,30 @@ pub(crate) struct Config {
     pub(crate) length_convention: Option<ShortestDominant>,
     pub(crate) source_path: PathBuf,
     pub(crate) source_sha256: String,
+    /// Each section's digest as written: the SHA-256 of the section's table
+    /// serialized again as TOML, so comments, layout, and key order do not
+    /// count.
+    pub(crate) section_sha256: BTreeMap<String, String>,
+}
+
+impl Config {
+    /// The configuration digest of `plugin`: the SHA-256 of one
+    /// `<section>\t<section digest>` line per section the plugin owns, in
+    /// the descriptor's order (`-` for a section the file does not hold).
+    /// Two configurations whose sections of the plugin are equal have the
+    /// same digest, whatever their other sections hold, so it names what
+    /// the plugin read.
+    pub(crate) fn plugin_sha256(&self, plugin: &PluginDescriptor) -> String {
+        let mut lines = String::new();
+        for section in plugin.config_sections {
+            let digest = self
+                .section_sha256
+                .get(*section)
+                .map_or("-", String::as_str);
+            let _ = writeln!(lines, "{section}\t{digest}");
+        }
+        hex_sha256(lines.as_bytes())
+    }
 }
 
 /// The configuration as written: one table per plugin-owned section.
@@ -135,7 +163,12 @@ impl RawReviewConfig {
 }
 
 impl RawConfig {
-    pub(super) fn validate(self, source_path: PathBuf, source_sha256: String) -> Result<Config> {
+    pub(super) fn validate(
+        self,
+        source_path: PathBuf,
+        source_sha256: String,
+        section_sha256: BTreeMap<String, String>,
+    ) -> Result<Config> {
         if self.schema_version != SCHEMA_VERSION {
             return Err(ConfigError::UnsupportedSchemaVersion {
                 found: self.schema_version,
@@ -181,6 +214,7 @@ impl RawConfig {
             length_convention,
             source_path,
             source_sha256,
+            section_sha256,
         })
     }
 }
@@ -196,7 +230,7 @@ mod tests {
     /// Parses TOML, then returns the typed scientific validation outcome.
     fn validate_raw(text: &str) -> std::result::Result<Result<Config>, toml::de::Error> {
         let raw: RawConfig = toml::from_str(text)?;
-        Ok(raw.validate("dna.toml".into(), String::new()))
+        Ok(raw.validate("dna.toml".into(), String::new(), BTreeMap::new()))
     }
 
     // SRS-CFG-003
@@ -227,7 +261,7 @@ mod tests {
 
     fn validate(text: &str) -> std::result::Result<Config, Box<dyn std::error::Error>> {
         let raw: RawConfig = toml::from_str(text)?;
-        Ok(raw.validate(PathBuf::from("dna.toml"), String::new())?)
+        Ok(raw.validate(PathBuf::from("dna.toml"), String::new(), BTreeMap::new())?)
     }
 
     #[test]
@@ -250,7 +284,11 @@ mod tests {
     fn resolves_the_profile_against_the_configuration_directory()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let raw: RawConfig = toml::from_str(VALID)?;
-        let config = raw.validate(PathBuf::from("deploy/config/dna.toml"), String::new())?;
+        let config = raw.validate(
+            PathBuf::from("deploy/config/dna.toml"),
+            String::new(),
+            BTreeMap::new(),
+        )?;
         assert_eq!(
             config.profile_path,
             PathBuf::from("deploy/config/profiles/target.toml")

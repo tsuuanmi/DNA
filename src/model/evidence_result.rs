@@ -2,6 +2,8 @@
 //! modality hands it to the core, or why the modality set the read aside
 //! (PROP-0011).
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 
 use crate::model::basecall_result::BasecallWarningSummaryResult;
@@ -60,8 +62,12 @@ pub(crate) struct EvidenceResult {
 #[derive(Debug, Serialize)]
 pub(crate) struct EvidenceProvenanceResult {
     pub(crate) input: EvidenceInputResult,
+    /// The configuration file the evidence was written under.
     pub(crate) configuration_sha256: String,
     pub(crate) plugins: Vec<PluginResult>,
+    /// Each plugin's configuration digest, by plugin id: what the evidence
+    /// depends on of the configuration.
+    pub(crate) plugin_configuration_sha256: BTreeMap<&'static str, String>,
 }
 
 /// The trace the evidence was written from: its file name, from which the
