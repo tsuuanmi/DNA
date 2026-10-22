@@ -19,7 +19,8 @@
 //! when the consensus decided it by the two-strand rule (SRS-CONS-013) and
 //! no read's structure differs from DNA's.
 //! DNA reports a run's length only when every position it must show to
-//! measure the run ([`run_spans`]) is callable; otherwise its
+//! measure the run ([`run_spans`], [`reported_runs`]) is callable, an anchor
+//! the consensus shows bounding both runs; otherwise its
 //! decided length is an estimate, never a reading, and the run instead
 //! carries the reads' floor reading, the least length any read gives as its
 //! top or next. A run of a length tract whose dominant
@@ -227,20 +228,63 @@ impl Contribution<'_> {
 /// only the runs' lengths, by insertions or deletions of the repeat base),
 /// each run is measured between its bounds: run 1 spans the position before
 /// the window to the anchor, run 2 the anchor to the position after the
-/// window. So a run 1 whose 3' end is only estimated leaves run 2 reported
-/// while the anchor stays callable, and a run whose own positions are
-/// callable but whose anchor is not stays an estimate. Otherwise (one run, or
-/// a structure another call moves) every run spans the whole window. Empty
-/// when DNA calls no run there.
-fn run_spans(window: &LengthWindow, called: Option<&[usize]>, anchored: bool) -> Vec<[usize; 2]> {
+/// window. So a run 1 whose 3' end is only estimated leaves run 2 reported.
+/// With the anchor shown `beside` (the consensus reads it, rules version
+/// 35), neither span holds the anchor itself: run 1 ends before it and run 2
+/// starts after it. Otherwise (one run, or a structure another call moves)
+/// every run spans the whole window. Empty when DNA calls no run there.
+fn run_spans(
+    window: &LengthWindow,
+    called: Option<&[usize]>,
+    anchored: bool,
+    beside: bool,
+) -> Vec<[usize; 2]> {
     let count = called.map_or(0, <[usize]>::len);
     match window.anchor {
-        Some((anchor, _)) if anchored && count == 2 => vec![
-            [window.first.saturating_sub(1).max(1), anchor],
-            [anchor, window.last + 1],
-        ],
+        Some((anchor, _)) if anchored && count == 2 => {
+            let gap = usize::from(beside);
+            vec![
+                [window.first.saturating_sub(1).max(1), anchor - gap],
+                [anchor + gap, window.last + 1],
+            ]
+        }
         _ => vec![[window.first, window.last]; count],
     }
+}
+
+/// The runs of `window` (numbered from 1) whose length DNA reports: each run
+/// whose span ([`run_spans`]) is callable inside the analysed `regions`. DNA
+/// reports a run's length only where the run and the positions that bound it
+/// are callable; elsewhere its decided length is an estimate. An anchor DNA
+/// decided its two runs around bounds both, and it need not be callable
+/// itself where the consensus `shown` reads it (rules version 35): an
+/// insertion excluded at run 1's estimated 3' end leaves the anchor out of the
+/// callable segments beside its junction (SRS-VAR-019), yet the anchor's
+/// base is read. An anchor the consensus does not show (no segment holds it,
+/// or only reference confirmations observe it, ADR-0080) must be callable.
+/// Without DNA's calls in the profile's notation (`anchored` false), its runs
+/// are not known to lie around the anchor.
+fn reported_runs(
+    window: &LengthWindow,
+    called: Option<&[usize]>,
+    anchored: bool,
+    regions: &[[usize; 2]],
+    callable: &[[usize; 2]],
+    shown: &[[usize; 2]],
+) -> Vec<usize> {
+    let beside = window
+        .anchor
+        .is_some_and(|(anchor, _)| inside(shown, anchor));
+    run_spans(window, called, anchored, beside)
+        .into_iter()
+        .enumerate()
+        .filter(|&(_, [start, end])| {
+            within(regions, start, end).is_some_and(|[start, end]| {
+                (start..=end).all(|position| inside(callable, position))
+            })
+        })
+        .map(|(index, _)| index + 1)
+        .collect()
 }
 
 /// Whether DNA's `calls` leave `window`'s runs around its anchor: every call
@@ -663,21 +707,15 @@ impl<'a> Sample<'a> {
                 })
                 .map(|site| two_strand_runs(&site.runs, window))
                 .unwrap_or_default();
-            // DNA reports a run's length only where the run and the
-            // positions that bound it are callable; elsewhere its decided
-            // length is an estimate. Without DNA's calls in the profile's
-            // notation, its runs are not known to lie around the anchor.
             let anchored = self.notation && anchored(window, self.calls);
-            let reported = run_spans(window, called.as_deref(), anchored)
-                .into_iter()
-                .enumerate()
-                .filter(|&(_, [start, end])| {
-                    within(self.regions, start, end).is_some_and(|[start, end]| {
-                        (start..=end).all(|position| inside(self.callable, position))
-                    })
-                })
-                .map(|(index, _)| index + 1)
-                .collect::<Vec<_>>();
+            let reported = reported_runs(
+                window,
+                called.as_deref(),
+                anchored,
+                self.regions,
+                self.callable,
+                &self.shown,
+            );
             let judged = judge(
                 window,
                 called.as_deref(),
@@ -1331,23 +1369,81 @@ mod tests {
         assert_eq!(runs[1].result.agreement, "confirmed");
     }
 
+    // SRS-API-020, SRS-VAR-019
+    #[test]
+    fn an_excluded_run_1_insertion_leaves_run_2_reported_beside_a_shown_anchor() {
+        let call = |position: usize,
+                    ordinal: usize,
+                    reference: Option<char>,
+                    alternate: Option<char>| NotationCall {
+            position,
+            ordinal,
+            reference,
+            alternate,
+            text: String::new(),
+            convention: None,
+        };
+        let regions = [[73, 340]];
+        // 309.1C excluded at run 1's estimated 3' end: 309 and 310, beside
+        // its junction, are not callable (SRS-VAR-019).
+        let callable = [[73, 308], [311, 340]];
+        let shown = [[73, 340]];
+        let reported = |haplotype: &str, calls: &[NotationCall], shown: &[[usize; 2]]| {
+            let called = called_runs(haplotype, &HVS2);
+            reported_runs(
+                &HVS2,
+                called.as_deref(),
+                anchored(&HVS2, calls),
+                &regions,
+                &callable,
+                shown,
+            )
+        };
+        let insertion = [call(309, 1, None, Some('C'))];
+        // DNA decides C8 T C5: run 2 reported, run 1 (its 3' end an
+        // estimate) not.
+        assert_eq!(reported("CCCCCCCCTCCCCC", &insertion, &shown), [2]);
+        // The anchor undecided: no run.
+        assert!(reported("CCCCCCCCNCCCCC", &insertion, &shown).is_empty());
+        // A call at the anchor (T310Y): the window-wide rule, so no run.
+        let mixed = [
+            call(309, 1, None, Some('C')),
+            call(310, 0, Some('T'), Some('Y')),
+        ];
+        assert!(reported("CCCCCCCCYCCCCC", &mixed, &shown).is_empty());
+        // The anchor not shown by the consensus (a coverage edge, or only
+        // reference confirmations): it must be callable, so no run.
+        let edge = [[73, 309], [311, 340]];
+        assert!(reported("CCCCCCCCTCCCCC", &insertion, &edge).is_empty());
+        // Everything callable: both runs reported, shown or not.
+        assert_eq!(
+            reported_runs(&HVS2, Some(&[8, 5]), true, &regions, &regions, &edge),
+            [1, 2]
+        );
+    }
+
     // SRS-API-020
     #[test]
     fn bounds_each_run_by_its_flank_and_the_anchor() {
         // Anchored: run 1 from 302 to the anchor 310, run 2 from 310 to 316.
         assert_eq!(
-            run_spans(&HVS2, Some(&[8, 5]), true),
+            run_spans(&HVS2, Some(&[8, 5]), true, false),
             vec![[302, 310], [310, 316]]
+        );
+        // The anchor shown by the consensus: each run stops beside it.
+        assert_eq!(
+            run_spans(&HVS2, Some(&[8, 5]), true, true),
+            vec![[302, 309], [311, 316]]
         );
         // A structure another call moves: each run spans the window.
         assert_eq!(
-            run_spans(&HVS2, Some(&[8, 5]), false),
+            run_spans(&HVS2, Some(&[8, 5]), false, true),
             vec![[303, 315], [303, 315]]
         );
         // One run where the anchor is lost: the window.
-        assert_eq!(run_spans(&HVS2, Some(&[14]), true), vec![[303, 315]]);
+        assert_eq!(run_spans(&HVS2, Some(&[14]), true, true), vec![[303, 315]]);
         // No run without a call.
-        assert!(run_spans(&HVS2, None, true).is_empty());
+        assert!(run_spans(&HVS2, None, true, true).is_empty());
     }
 
     // SRS-API-020
