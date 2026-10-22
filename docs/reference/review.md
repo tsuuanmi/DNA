@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-CONS, SRS-VAR]
-decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0082, ADR-0084, ADR-0089, ADR-0090]
+decided-by: [ADR-0071, ADR-0074, ADR-0076, ADR-0080, ADR-0085, ADR-0082, ADR-0084, ADR-0089, ADR-0090]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -135,9 +135,9 @@ output. Traces of one file name from different folders are different reads
   reason}` at the reportable regions' ends that the call does not analyse
   (SRS-CONS-012): positions only reads' unreliable spans observe
   (`poor_start_signal`), up to the last one the consensus does not settle
-  as the reference. They are poor data, not a decision: no item, zone, or
-  check holds them, the call reports nothing there, and the analysed range
-  (`callable`, the EMPOP ranges) starts or ends after them.
+  as the reference. They are poor data, not a decision: the call reports
+  nothing there, the analysed range (`callable`, EMPOP) skips them, and no
+  zone holds them; a check item labelled `not_analysed` does (rules 36).
 - `zones` (`called`, rules version 14): the reportable positions as the
   zones a reviewer opens whole, in reference order, tiling every reportable
   region but its `not_analysed` stretches. Each position takes the first
@@ -184,8 +184,8 @@ the clipped columns, what most of its supporting reads show there). It has:
   `possible_heteroplasmy` unless
   `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
   `not_called`, `long_run`, `edge_deletion`, `run_deletion`, `run_indel`,
-  `one_strand_insertion`, `beside_not_analysed`, `not_covered`), whatever its
-  calls; otherwise `variant`: it
+  `one_strand_insertion`, `beside_not_analysed`, `not_analysed`, `not_covered`),
+  whatever its calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
   reference; otherwise `note` (rules version 19): it holds an `explained`
@@ -260,11 +260,11 @@ carries this table (`x-rank`, and `x-check` for a check); CI checks they agree.
 |---:|---|
 | 0 | `read_disagrees`, `same_strand_dissent`, `strands_disagree` |
 | 1 | `possible_heteroplasmy`, `reference_second` |
-| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_analysed`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 35)
+## Labels (rules version 36)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A difference *rests on one strand* when
@@ -385,18 +385,18 @@ exemption lifts the margin (ADR-0076).
   position, where a read's own edge loses or doubles a base (rules version
   7; one read, `{read}`, before rules version 33). On current development
   data such deletions were 88 % wrong, against 0.2 % inside the regions and
-  0.8 % with both strands. Rules
-  version 20 widened the zone with `review.edge_zone`; rules version 22 gives
-  it its own key at its earlier width, since the wider zone flagged the
-  common true `106-111DEL`, read by one HVS-II forward read 40 to 70 calls
-  from its end (41 checks on development panel v5, DNA right in all).
+  0.8 % with both strands. Rules version 20 widened the zone with
+  `review.edge_zone`; rules version 22 gives it its own key at its earlier
+  width, since the wider zone flagged the common true `106-111DEL`, read by
+  one HVS-II forward read 40 to 70 calls from its end (41 checks on
+  development panel v5, DNA right in all).
 - `beside_not_analysed` (rules version 20): an item with a difference lies
   within `review.edge_zone` positions of a reportable region's end that the
   call does not analyse (`not_analysed`, SRS-CONS-012). The reads there sit
-  right after their poor start, where an indel is often wrong: on
-  development panel v5, three such differences (an insertion at 111 in two
-  samples, a shift at 102 in one) were DNA errors that a check at the cut
-  edge had covered before.
+  right after their poor start, where an indel is often wrong: on panel v5,
+  three (an insertion at 111 in two samples, a shift at 102 in one) were DNA
+  errors a check at the cut edge had covered before.
+- `not_analysed` `{reason}` (rules version 36): the check over one `not_analysed` stretch, so an allele omitted there is never passed silently ([[ADR-0085]]).
 - `run_deletion` `{strand, reads}`: a decided site that rests on one strand
   whose call is at least `review.run_growth` bases shorter than its
   reference, where the reference holds a run of at least `review.phase_run`

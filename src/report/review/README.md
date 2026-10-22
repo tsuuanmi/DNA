@@ -12,7 +12,7 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
   in-process review list (`list`), and the sample under review (`Sample`)
   with its reads.
 - `items.rs` — the items: drafts over the consensus sites, the second
-  bases, and the gaps, each finished into an item with its labels, kind,
+  bases, the gaps, and the stretches not analysed, each finished into an item with its labels, kind,
   and evidence, or dropped when it is DNA's own decision.
 - `labels.rs` — label order within an item, an item's priority, and the
   summary's counts over the items.

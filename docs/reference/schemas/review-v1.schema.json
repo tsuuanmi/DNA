@@ -68,7 +68,7 @@
       }
     },
     "not_analysed": {
-      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); no item or zone holds them; for called.",
+      "description": "The stretches at the reportable regions' ends the call does not analyse, with their reason (SRS-CONS-012); a check item labelled not_analysed holds each, and no zone; for called.",
       "type": "array",
       "items": {
         "$ref": "urn:signal:schema:consensus:v1#/$defs/stretch"
@@ -1123,6 +1123,23 @@
           "additionalProperties": false,
           "required": [
             "label",
+            "reason"
+          ],
+          "properties": {
+            "label": {
+              "const": "not_analysed"
+            },
+            "reason": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
             "runs"
           ],
           "properties": {
@@ -1951,6 +1968,7 @@
             "run_indel",
             "one_strand_insertion",
             "beside_not_analysed",
+            "not_analysed",
             "one_read",
             "one_strand",
             "noisy_signal",
@@ -2037,6 +2055,12 @@
               "x-check": true
             },
             "beside_not_analysed": {
+              "type": "integer",
+              "minimum": 0,
+              "x-rank": 2,
+              "x-check": true
+            },
+            "not_analysed": {
               "type": "integer",
               "minimum": 0,
               "x-rank": 2,
