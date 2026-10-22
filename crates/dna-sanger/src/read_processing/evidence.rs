@@ -14,6 +14,7 @@ use super::SangerEvidenceConfig;
 use crate::error::{ProductsError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
+use crate::model::locus_evidence::{LocusEvidence, channel_width};
 use crate::model::quality::QualityControlResult;
 use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::model::signal::SignalAnalysis;
@@ -153,12 +154,7 @@ pub fn read_evidence(
             // unexplained.
             let peak = second.get(index).copied().flatten();
             let stands_out = peak.is_some_and(|peak| peak.stands_out);
-            let artefact = peak.is_some_and(|peak| {
-                matches!(
-                    peak.cause,
-                    SecondCause::NeighbourTail | SecondCause::DyeBlob
-                )
-            });
+            let artefact = peak.is_some_and(explained);
             let mut evidence = CallEvidence {
                 second: second_base(call).map(|second| SecondBase {
                     stands_out,
@@ -210,12 +206,7 @@ pub fn read_evidence(
                             state.is_none() || (at < start && *state == Some(PhaseState::Weak))
                         }) && calls.calls.get(at).is_some_and(|call| {
                             call.qualifying_channels.len() == 1
-                                || second.get(at).copied().flatten().is_some_and(|peak| {
-                                    matches!(
-                                        peak.cause,
-                                        SecondCause::NeighbourTail | SecondCause::DyeBlob
-                                    )
-                                })
+                                || second.get(at).copied().flatten().is_some_and(explained)
                         })
                     })
                 };
@@ -238,20 +229,11 @@ pub fn read_evidence(
     let mut evidence = edged.calls().to_vec();
     for &index in &leading {
         let call = &mut evidence[index];
-        let mut withheld = Reasons::default();
-        if call.identity.withheld.contains(PEAK_BELOW_MINIMUM) {
-            withheld.insert(PEAK_BELOW_MINIMUM)?;
-        }
+        let verdict = vouched(&call.identity)?;
         *call = CallEvidence {
             placement: Placement::Scored,
-            identity: Verdict {
-                edge: false,
-                withheld,
-            },
-            indel: Verdict {
-                edge: false,
-                withheld,
-            },
+            identity: verdict,
+            indel: verdict,
             bound: Bound::Withheld,
             ..*call
         };
@@ -270,14 +252,7 @@ pub fn read_evidence(
     lifted.dedup();
     for index in lifted {
         let call = &mut evidence[index];
-        let mut withheld = Reasons::default();
-        if call.identity.withheld.contains(PEAK_BELOW_MINIMUM) {
-            withheld.insert(PEAK_BELOW_MINIMUM)?;
-        }
-        call.identity = Verdict {
-            edge: false,
-            withheld,
-        };
+        call.identity = vouched(&call.identity)?;
     }
     // A call inside an electrophoretic spike reads the spike's channel, not
     // the template's base (SRS-CALL-027): it shows no base, places no indel,
@@ -326,6 +301,28 @@ pub fn read_evidence(
             .with_unreliable(poor)?
             .with_tracts(tracts.to_vec())?,
     )
+}
+
+/// Whether a second peak's cause is the call's own signal: a neighbour's tail
+/// or a dye blob (SRS-CALL-021).
+fn explained(peak: SecondPeak) -> bool {
+    matches!(
+        peak.cause,
+        SecondCause::NeighbourTail | SecondCause::DyeBlob
+    )
+}
+
+/// The verdict on a call its own signal vouches for: off the edge, and
+/// withheld for nothing but the peak floor, if `verdict` was.
+fn vouched(verdict: &Verdict) -> Result<Verdict> {
+    let mut withheld = Reasons::default();
+    if verdict.withheld.contains(PEAK_BELOW_MINIMUM) {
+        withheld.insert(PEAK_BELOW_MINIMUM)?;
+    }
+    Ok(Verdict {
+        edge: false,
+        withheld,
+    })
 }
 
 /// Whether a call is withheld for nothing but the peak floor or its relative
@@ -580,6 +577,13 @@ fn leading_identity(
         .collect()
 }
 
+/// The upper median of `values`: the middle value, the upper of the two
+/// middle ones for an even count; `None` for none.
+fn median(mut values: Vec<f64>) -> Option<f64> {
+    values.sort_by(f64::total_cmp);
+    values.get(values.len() / 2).copied()
+}
+
 /// The medians a call's own signal is judged against: primary peak, width,
 /// and spacing.
 #[derive(Debug, Clone, Copy)]
@@ -587,6 +591,125 @@ struct Norms {
     height: f64,
     width: f64,
     spacing: f64,
+}
+
+impl Norms {
+    /// The norms, when each median exists.
+    fn new(height: Option<f64>, width: Option<f64>, spacing: Option<f64>) -> Option<Self> {
+        Some(Self {
+            height: height?,
+            width: width?,
+            spacing: spacing?,
+        })
+    }
+
+    /// The medians of the primary peaks and widths of `indices` (in read
+    /// order), and of the spacings between those of them that are adjacent.
+    fn of(signal: Signal<'_>, indices: &[usize]) -> Option<Self> {
+        Self::new(
+            median(
+                indices
+                    .iter()
+                    .filter_map(|&index| signal.calls.calls.get(index).and_then(primary_height))
+                    .map(f64::from)
+                    .collect(),
+            ),
+            median(
+                indices
+                    .iter()
+                    .filter_map(|&index| signal.width(index))
+                    .collect(),
+            ),
+            median(
+                indices
+                    .windows(2)
+                    .filter(|pair| pair[1] == pair[0] + 1)
+                    .filter_map(|pair| signal.gap(pair[0], pair[1]))
+                    .collect(),
+            ),
+        )
+    }
+}
+
+/// A read's calls and their locus evidence, as the edge and start rules
+/// judge a call's own signal.
+#[derive(Clone, Copy)]
+struct Signal<'a> {
+    calls: &'a BaseCalls,
+    loci: &'a [LocusEvidence],
+}
+
+impl Signal<'_> {
+    /// The width of the call's primary peak, when positive.
+    fn width(self, index: usize) -> Option<f64> {
+        let call = self.calls.calls.get(index)?;
+        let channel = Nucleotide::from_char(call.primary)?.channel_index();
+        channel_width(self.loci, index, channel).map(|width| width as f64)
+    }
+
+    /// Whether the call has a canonical primary and no other qualifying
+    /// channel.
+    fn single(self, index: usize) -> bool {
+        self.calls
+            .calls
+            .get(index)
+            .is_some_and(|call| is_canonical(call.primary) && call.qualifying_channels.len() == 1)
+    }
+
+    /// The distance between two calls' loci, in samples.
+    fn gap(self, left: usize, right: usize) -> Option<f64> {
+        Some(
+            self.loci.get(right)?.locus_position_0based as f64
+                - self.loci.get(left)?.locus_position_0based as f64,
+        )
+    }
+
+    /// Whether the call lies `edge_spacing_minimum` to
+    /// `edge_spacing_maximum` times `spacing` from `other`; true when either
+    /// has no locus.
+    fn spaced(
+        self,
+        index: usize,
+        other: usize,
+        spacing: f64,
+        config: &SangerEvidenceConfig,
+    ) -> bool {
+        self.gap(index.min(other), index.max(other))
+            .is_none_or(|gap| {
+                gap >= config.edge_spacing_minimum * spacing
+                    && gap <= config.edge_spacing_maximum * spacing
+            })
+    }
+
+    /// Whether the call's own signal shows its base alone against `norms`:
+    /// single-channel, a primary peak of at least `height_fraction` of the
+    /// norm, a second-channel share below `second_share`, a primary peak no
+    /// wider than `edge_width_factor` times the norm, and spaced from each
+    /// neighbour.
+    fn unambiguous(
+        self,
+        evidence: &[CallEvidence],
+        index: usize,
+        norms: Norms,
+        (height_fraction, second_share): (f64, f64),
+        config: &SangerEvidenceConfig,
+    ) -> bool {
+        self.single(index)
+            && self
+                .calls
+                .calls
+                .get(index)
+                .and_then(primary_height)
+                .is_some_and(|primary| f64::from(primary) >= height_fraction * norms.height)
+            && evidence[index]
+                .second
+                .is_none_or(|second| second.share < second_share)
+            && self
+                .width(index)
+                .is_some_and(|width| width <= config.edge_width_factor * norms.width)
+            && (index == 0 || self.spaced(index, index - 1, norms.spacing, config))
+            && (index + 1 >= evidence.len() || self.spaced(index, index + 1, norms.spacing, config))
+    }
 }
 
 /// The calls at a signal edge that their own signal vouches for by their
@@ -627,43 +750,16 @@ struct Norms {
 /// against its own read only, never a position.
 fn edge_identity(
     calls: &BaseCalls,
-    loci: &[crate::model::locus_evidence::LocusEvidence],
+    loci: &[LocusEvidence],
     evidence: &[CallEvidence],
     informative: &std::ops::Range<usize>,
     config: &SangerEvidenceConfig,
 ) -> Vec<usize> {
     let margin = config.edge_identity_margin;
     let count = evidence.len();
-    let median = |mut values: Vec<f64>| {
-        values.sort_by(f64::total_cmp);
-        values.get(values.len() / 2).copied()
-    };
-    let width = |index: usize| {
-        let call = calls.calls.get(index)?;
-        let channel = Nucleotide::from_char(call.primary)?.channel_index();
-        let width = *loci.get(index)?.channel_widths.get(channel)?;
-        (width > 0).then_some(width as f64)
-    };
-    let single = |index: usize| {
-        calls
-            .calls
-            .get(index)
-            .is_some_and(|call| is_canonical(call.primary) && call.qualifying_channels.len() == 1)
-    };
-    let gap = |left: usize, right: usize| {
-        Some(
-            loci.get(right)?.locus_position_0based as f64
-                - loci.get(left)?.locus_position_0based as f64,
-        )
-    };
-    let norms = |height: Option<f64>, width: Option<f64>, spacing: Option<f64>| {
-        Some(Norms {
-            height: height?,
-            width: width?,
-            spacing: spacing?,
-        })
-    };
-    let read_norms = norms(
+    let signal = Signal { calls, loci };
+    let single = |index: usize| signal.single(index);
+    let read_norms = Norms::new(
         median(
             calls
                 .calls
@@ -676,7 +772,7 @@ fn edge_identity(
             informative
                 .clone()
                 .filter(|&index| single(index))
-                .filter_map(width)
+                .filter_map(|index| signal.width(index))
                 .collect(),
         ),
         median(
@@ -696,21 +792,7 @@ fn edge_identity(
             .take(config.end_norm_calls)
             .collect::<Vec<_>>();
         last.reverse();
-        norms(
-            median(
-                last.iter()
-                    .filter_map(|&index| calls.calls.get(index).and_then(primary_height))
-                    .map(f64::from)
-                    .collect(),
-            ),
-            median(last.iter().filter_map(|&index| width(index)).collect()),
-            median(
-                last.windows(2)
-                    .filter(|pair| pair[1] == pair[0] + 1)
-                    .filter_map(|pair| gap(pair[0], pair[1]))
-                    .collect(),
-            ),
-        )
+        Norms::of(signal, &last)
     };
     let scored = |range: std::ops::Range<usize>| {
         range
@@ -757,25 +839,14 @@ fn edge_identity(
             && index < first
             && stop - first >= 2
     };
-    let spaced = |index: usize, other: usize, spacing: f64| {
-        gap(index.min(other), index.max(other)).is_none_or(|gap| {
-            gap >= config.edge_spacing_minimum * spacing
-                && gap <= config.edge_spacing_maximum * spacing
-        })
-    };
     let unambiguous = |index: usize, norms: Norms, height_fraction: f64| {
-        single(index)
-            && calls
-                .calls
-                .get(index)
-                .and_then(primary_height)
-                .is_some_and(|primary| f64::from(primary) >= height_fraction * norms.height)
-            && evidence[index]
-                .second
-                .is_none_or(|second| second.share < config.edge_second_share)
-            && width(index).is_some_and(|width| width <= config.edge_width_factor * norms.width)
-            && (index == 0 || spaced(index, index - 1, norms.spacing))
-            && (index + 1 >= count || spaced(index, index + 1, norms.spacing))
+        signal.unambiguous(
+            evidence,
+            index,
+            norms,
+            (height_fraction, config.edge_second_share),
+            config,
+        )
     };
     // A call reading the base of its neighbour towards a stop may be that
     // neighbour's signal one position off.
@@ -888,7 +959,7 @@ fn edge_identity(
 /// of the call before it.
 fn start_identity(
     calls: &BaseCalls,
-    loci: &[crate::model::locus_evidence::LocusEvidence],
+    loci: &[LocusEvidence],
     evidence: &[CallEvidence],
     informative: &std::ops::Range<usize>,
     callable_start: usize,
@@ -896,55 +967,13 @@ fn start_identity(
 ) -> Vec<usize> {
     let margin = config.start_identity_margin;
     let count = evidence.len();
-    let median = |mut values: Vec<f64>| {
-        values.sort_by(f64::total_cmp);
-        values.get(values.len() / 2).copied()
-    };
-    let single = |index: usize| {
-        calls
-            .calls
-            .get(index)
-            .is_some_and(|call| is_canonical(call.primary) && call.qualifying_channels.len() == 1)
-    };
-    let width = |index: usize| {
-        let call = calls.calls.get(index)?;
-        let channel = Nucleotide::from_char(call.primary)?.channel_index();
-        let width = *loci.get(index)?.channel_widths.get(channel)?;
-        (width > 0).then_some(width as f64)
-    };
+    let signal = Signal { calls, loci };
     let norm = (callable_start..count)
-        .filter(|&index| evidence[index].placement == Placement::Scored && single(index))
+        .filter(|&index| evidence[index].placement == Placement::Scored && signal.single(index))
         .take(config.start_norm_calls)
         .collect::<Vec<_>>();
-    let (Some(height), Some(median_width), Some(spacing)) = (
-        median(
-            norm.iter()
-                .filter_map(|&index| calls.calls.get(index).and_then(primary_height))
-                .map(f64::from)
-                .collect(),
-        ),
-        median(norm.iter().filter_map(|&index| width(index)).collect()),
-        median(
-            norm.windows(2)
-                .filter(|pair| pair[1] == pair[0] + 1)
-                .filter_map(|pair| {
-                    Some(
-                        loci.get(pair[1])?.locus_position_0based as f64
-                            - loci.get(pair[0])?.locus_position_0based as f64,
-                    )
-                })
-                .collect(),
-        ),
-    ) else {
+    let Some(norms) = Norms::of(signal, &norm) else {
         return Vec::new();
-    };
-    let spaced = |index: usize, other: usize| {
-        let (Some(left), Some(right)) = (loci.get(index.min(other)), loci.get(index.max(other)))
-        else {
-            return true;
-        };
-        let gap = right.locus_position_0based as f64 - left.locus_position_0based as f64;
-        gap >= config.edge_spacing_minimum * spacing && gap <= config.edge_spacing_maximum * spacing
     };
     let end = (callable_start + margin).min(count);
     // A call vouched for its base: scored and off the edge, or accepted by
@@ -974,18 +1003,13 @@ fn start_identity(
             && (index + 1..(index + 1 + margin).min(count))
                 .all(|inner| evidence[inner].placement == Placement::Scored)
             && same_base_vouched
-            && single(index)
-            && calls
-                .calls
-                .get(index)
-                .and_then(primary_height)
-                .is_some_and(|primary| f64::from(primary) >= config.start_height_fraction * height)
-            && call
-                .second
-                .is_none_or(|second| second.share < config.start_second_share)
-            && width(index).is_some_and(|width| width <= config.edge_width_factor * median_width)
-            && (index == 0 || spaced(index, index - 1))
-            && (index + 1 >= count || spaced(index, index + 1));
+            && signal.unambiguous(
+                evidence,
+                index,
+                norms,
+                (config.start_height_fraction, config.start_second_share),
+                config,
+            );
         if qualifies {
             vouched[index] = true;
             accepted.push(index);
@@ -1000,22 +1024,20 @@ fn start_identity(
 /// unmasked call.
 fn placement(callability: &ReadCallability, index: usize) -> Option<Placement> {
     let state = callability.mask.get(index).copied().flatten()?;
-    if state == PhaseState::InPhase {
-        return None;
-    }
+    let reason = match state {
+        PhaseState::InPhase => return None,
+        PhaseState::Dephased => DEPHASED_SIGNAL,
+        PhaseState::Mixed => MIXED_SIGNAL,
+        PhaseState::Weak => WEAK_SIGNAL,
+        PhaseState::Irregular => IRREGULAR_SPACING,
+    };
     let after_repeat = callability
         .segment_at(index)
         .is_some_and(|segment| segment.after_repeat);
     let reason = if after_repeat {
         POST_HOMOPOLYMER
     } else {
-        match state {
-            PhaseState::Dephased => DEPHASED_SIGNAL,
-            PhaseState::Mixed => MIXED_SIGNAL,
-            PhaseState::Weak => WEAK_SIGNAL,
-            PhaseState::Irregular => IRREGULAR_SPACING,
-            PhaseState::InPhase => return None,
-        }
+        reason
     };
     Some(if state == PhaseState::Dephased {
         Placement::Anchoring(reason)
