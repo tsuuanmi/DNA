@@ -96,6 +96,11 @@ pub(crate) struct RunHeader {
     /// cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) placement_cache: Option<cache::Usage>,
+    /// The cached index of the truth's written forms the run read or
+    /// stored, with `--evidence-cache` and a build with the index's code
+    /// identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) forms_cache: Option<cache::FormsUsage>,
     /// The run contexts the consensus was calibrated by.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) run_context: Option<RunContextHeader>,
@@ -621,6 +626,16 @@ pub(crate) mod tests {
                 replaced: 0,
                 bytes: 90_000,
             }),
+            forms_cache: Some(cache::FormsUsage {
+                directory: "/cache/evidence".into(),
+                key: cache::FormsKey {
+                    truth: "a".repeat(64),
+                    reference: "a".repeat(64),
+                    windows: "d".repeat(64),
+                    code: "e".repeat(64),
+                },
+                hit: true,
+            }),
             run_context: None,
             zones: ZoneHeader {
                 after: 20,
@@ -669,6 +684,7 @@ pub(crate) mod tests {
             forced_windows: None,
             recheck: None,
             outputs: BTreeMap::new(),
+            forms_cache: None,
             workload: WorkloadHeader {
                 all: header.workload.all,
                 current: None,

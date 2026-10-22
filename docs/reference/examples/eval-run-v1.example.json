@@ -365,6 +365,16 @@
       "replaced": 0,
       "bytes": 270000
     },
+    "forms_cache": {
+      "directory": "/cache/evidence",
+      "key": {
+        "truth": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "reference": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "windows": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "code": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "hit": true
+    },
     "zones": {
       "after": 20,
       "edge": 40,

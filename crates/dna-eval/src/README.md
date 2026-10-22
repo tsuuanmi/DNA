@@ -117,8 +117,10 @@ describes them.
   trace's `dna.read_evidence/v1` document, gzip-compressed, in a generation
   keyed by the configuration's SHA-256, the `sanger` version, and the read
   stage's code identity (git object ids recorded by `build.rs`), written
-  atomically, a corrupt entry being a miss; `cache prune` keeps the newest
-  generations.
+  atomically, a corrupt entry being a miss; the index of the truth's
+  written forms, in a generation keyed by the truth database, the reference
+  sequence, the profile's repeat windows, and the index's code identity;
+  `cache prune` keeps the newest generations.
 - `components.rs` — `components.tsv`: every phase-mixture component
   (ADR-0082) with the reference run clusters it covers, measured as
   haplotypes against the truth, and an unexplained mixture's offsets and

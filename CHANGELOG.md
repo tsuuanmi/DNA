@@ -24,6 +24,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   checks them against the files, so a file edited after its run is refused.
   `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
   without them. No DNA output changes.
+- `dna-eval run --evidence-cache` also caches the index of the truth's
+  written forms (`forms.tsv`), keyed by the truth database file, the
+  reference sequence, the target profile's repeat windows, and the index's
+  code identity, so a renamed or moved window, or a change to the index's
+  code, is a new generation rather than a stale file. It replaces
+  `run --forms`, which read an earlier run's `forms.tsv` checked against the
+  database alone (Breaking for the harness's command line). `run.json`
+  records `forms_cache` (key, hit). Outputs are byte-identical. No DNA
+  output changes.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,

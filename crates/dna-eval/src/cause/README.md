@@ -25,7 +25,8 @@ deferred item.
 - `forms.rs` — how the reviewers write each sequence over the whole truth:
   per repeat window and window sequence, the samples per written form, and
   outside the windows the samples per set of calls (a proxy); written as
-  `forms.tsv` and read back for the same truth database.
+  `forms.tsv`, and cached by `cache.rs` per truth database, reference,
+  and repeat windows.
 
 It depends on `classes`, `compare`, and `lod` for the sample's class,
 comparisons, and limit-of-detection signals, on `truth` for the written
