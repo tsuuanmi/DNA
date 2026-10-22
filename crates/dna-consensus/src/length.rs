@@ -360,21 +360,25 @@ const fn on_strand(base: char, forward: bool) -> char {
     orientation.reference_base(base)
 }
 
-/// The reference position (1-based) a read's call `call` is aligned to, or,
-/// on an inserted column, that of the nearest aligned call before it in the
-/// read's order.
+/// The reference position (1-based) a read's call `call` is aligned to in
+/// its alignment `columns`, or, on an inserted column, the position the
+/// insertion follows on the reference, on either strand: an inserted base of
+/// a run lies at the run's 3' end (SRS-ALN-012), after the run's last
+/// position. The first position after it stands in only where no aligned
+/// column precedes it. The two-strand rule and the review place a decode by
+/// it alike.
 #[must_use]
-pub fn start_reference(read: &CalledRead, call: usize) -> Option<usize> {
-    let columns = read.alignment.columns();
+pub fn start_reference(columns: &[AlignmentColumn], call: usize) -> Option<usize> {
     let index = columns
         .iter()
         .position(|column| column.original_call_index_0based() == Some(call))?;
     let aligned = |column: &AlignmentColumn| column.reference_index_0based();
-    let found = match read.alignment.orientation() {
-        Orientation::Forward => columns[..=index].iter().rev().find_map(aligned),
-        Orientation::Reverse => columns[index..].iter().find_map(aligned),
-    };
-    found.map(|position| position + 1)
+    columns[..=index]
+        .iter()
+        .rev()
+        .find_map(aligned)
+        .or_else(|| columns[index..].iter().find_map(aligned))
+        .map(|position| position + 1)
 }
 
 /// The run of `window` a tract enters first: 1 before the anchor, 2 after
@@ -425,7 +429,7 @@ pub fn views(
         let forward = read.alignment.orientation() == Orientation::Forward;
         let anchor = anchor_on(window, forward);
         for tract in read.evidence.tracts() {
-            let reference = start_reference(read, tract.call_start);
+            let reference = start_reference(read.alignment.columns(), tract.call_start);
             let Some(run) = entered(window, forward, reference, tract, false) else {
                 continue;
             };
@@ -555,5 +559,32 @@ pub(crate) fn two_strand(
                     .collect(),
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn column(base: char, call: Option<usize>, reference: Option<usize>) -> AlignmentColumn {
+        AlignmentColumn::new(base, 'C', call, reference)
+    }
+
+    // SRS-API-020, SRS-CONS-013
+    #[test]
+    fn an_inserted_first_call_is_credited_to_the_position_it_follows() {
+        // Reference 315-316 (0-based 314-315) read C G; a reverse read's run
+        // of C starts, in its order, on the C inserted after 315.
+        let columns = [
+            column('C', Some(9), Some(313)),
+            column('C', Some(8), Some(314)),
+            column('C', Some(7), None),
+            column('G', Some(6), Some(315)),
+        ];
+        assert_eq!(start_reference(&columns, 7), Some(315));
+        assert_eq!(start_reference(&columns, 6), Some(316));
+        // With no aligned column before it, the next one stands in.
+        let leading = [column('C', Some(0), None), column('C', Some(1), Some(4))];
+        assert_eq!(start_reference(&leading, 0), Some(5));
     }
 }
