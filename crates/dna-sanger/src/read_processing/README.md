@@ -71,7 +71,10 @@ modality-neutral core.
 
 `config.rs` owns the `[sanger_evidence]` section and `SangerConfig`, which
 validates every Sanger-owned section together, including the cross-section
-check of the relative-quality threshold. `mod.rs` also declares the Sanger
+check of the relative-quality threshold. Each section checks its values with the
+kernel's `bounds` helpers, so a message names the key and its rule. A
+validated section's fields are crate-private, except the few the facade
+reads. `mod.rs` also declares the Sanger
 plugin descriptor. Every read-edge parameter, the trim's context margin
 included, is the plugin's own configuration; no core key is read.
 

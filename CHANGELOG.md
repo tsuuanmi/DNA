@@ -690,6 +690,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 - **Breaking (Rust API):** `dna_sanger::read_processing::read_evidence` takes
   the `ProcessedRead` and the `[sanger_evidence]` configuration instead of
   the read's seven products. No output changes.
+- **Breaking (Rust API):** single-key count checks of the Sanger sections
+  fail with the new `ConfigError::CountOutOfRange`, `CountBelow`, and
+  `NotPositive` (from `dna_kernel::bounds::count_range`, `count_at_least`,
+  and `positive_count`) instead of `Constraint`, with the same messages;
+  most validated Sanger configuration fields become crate-private.
 - The review's `read_disagrees` reads a call a bounded-run exemption
   covers as showing its base only where the consensus lifts `read_end` from
   it (ADR-0076): a run call aligned as a match or inserted, a bound aligned

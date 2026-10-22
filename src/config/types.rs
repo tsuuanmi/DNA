@@ -205,8 +205,13 @@ mod tests {
     -> std::result::Result<(), toml::de::Error> {
         assert!(matches!(
             validate_raw(&VALID.replace("window_size_bases=10", "window_size_bases=11"))?,
-            Err(Error::Kernel(KernelError::Config(ConfigError::Constraint(rule))))
-                if rule.starts_with("signal_processing.window_size_bases")
+            Err(Error::Kernel(KernelError::Config(
+                ConfigError::CountOutOfRange {
+                    key: "signal_processing.window_size_bases",
+                    minimum: 5,
+                    maximum: 10,
+                }
+            )))
         ));
         assert!(matches!(
             validate_raw(&VALID.replace("secondary_peak_ratio=0.33", "secondary_peak_ratio=1.5"))?,
