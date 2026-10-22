@@ -261,7 +261,7 @@ pub(crate) enum LabelResult {
         sequence: String,
     },
     /// A site whose supporting and opposing reads all lie on one strand
-    /// (rules version 30, ADR-0090): clean reads of one strand disagree, and
+    /// (rules version 31, ADR-0090): clean reads of one strand disagree, and
     /// their count alone cannot settle it; a check. Lists the supporting,
     /// then the opposing reads.
     SameStrandDissent {
@@ -271,16 +271,27 @@ pub(crate) enum LabelResult {
     LongRun {
         runs: Vec<GrowthResult>,
     },
+    /// A decided deletion near a reportable region's end whose supporting
+    /// reads all lie on one strand (rules version 33, ADR-0090): a check.
+    /// Lists every supporting read.
     EdgeDeletion {
-        read: String,
+        strand: Orientation,
+        reads: Vec<String>,
     },
+    /// A decided site at least `review.run_growth` bases shorter than its
+    /// reference, over a reference run, whose supporting reads all lie on
+    /// one strand (rules version 33, ADR-0090): a check. Lists every
+    /// supporting read.
     RunDeletion {
-        read: String,
+        strand: Orientation,
+        reads: Vec<String>,
     },
-    /// A decided site outside every repeat window that rests on one read
-    /// and changes a homopolymer run's length (rules version 28): a check.
+    /// A decided site outside every repeat window that changes a homopolymer
+    /// run's length and whose supporting reads all lie on one strand (rules
+    /// versions 28 and 33, ADR-0090): a check. Lists every supporting read.
     RunIndel {
-        read: String,
+        strand: Orientation,
+        reads: Vec<String>,
     },
     /// A decided insertion outside every repeat window and length tract
     /// whose supporting reads all lie on one strand, while no read of the
@@ -303,9 +314,11 @@ pub(crate) enum LabelResult {
         explained: bool,
         reads: Vec<ShareResult>,
     },
-    /// A difference resting on one read whose call at `position` shows
-    /// another base than the reference with the reference base as a second
-    /// peak above its threshold (SRS-CALL-020): a check.
+    /// A difference resting on one strand, at a supporting read whose call
+    /// at `position` shows another base than the reference with the
+    /// reference base as a second peak above its threshold (SRS-CALL-020;
+    /// every read of the strand since rules version 33, ADR-0090): a check,
+    /// one per position and read.
     ReferenceSecond {
         position: usize,
         read: String,
@@ -399,7 +412,7 @@ pub(crate) struct ShareResult {
 }
 
 /// A decided run longer than its reference run by `run_growth` or more,
-/// whose length rests on an anchored end or a single read.
+/// whose length rests on an anchored end or on one strand (ADR-0090).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct GrowthResult {
     pub(crate) base: char,
