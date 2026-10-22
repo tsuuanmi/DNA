@@ -1415,6 +1415,7 @@
       "run_indel": 0,
       "one_strand_insertion": 0,
       "beside_not_analysed": 0,
+      "not_analysed": 0,
       "one_read": 2,
       "one_strand": 2,
       "noisy_signal": 0,

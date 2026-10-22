@@ -40,7 +40,8 @@ pub(super) fn key(label: &LabelResult) -> (u8, &'static str, usize, &str) {
         | LabelResult::OneStrand { .. }
         | LabelResult::NotCovered
         | LabelResult::DephasedEnd { .. }
-        | LabelResult::BesideNotAnalysed => (0, ""),
+        | LabelResult::BesideNotAnalysed
+        | LabelResult::NotAnalysed { .. } => (0, ""),
     };
     (label.rank(), label.kind().name(), position, read)
 }
@@ -251,9 +252,18 @@ mod tests {
         // Reference-only positions are counted, and never make a check.
         let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[3, 4], 0);
         assert_eq!((summary.positions.reference_only, summary.clear), (2, true));
-        // Positions not analysed are counted, and never make a check
-        // (SRS-CONS-012).
+        // Positions not analysed are counted (SRS-CONS-012).
         let summary = summarize(&[], ReviewStatus::Called, &[[1, 10]], &[], &[], 6);
         assert_eq!((summary.positions.not_analysed, summary.clear), (6, true));
+        // A stretch's own item, labelled `not_analysed`, is a check: an
+        // allele the report omits there is never passed silently.
+        let stretch = LabelResult::NotAnalysed {
+            reason: "poor_start_signal",
+        };
+        assert!(stretch.unassured());
+        let check = item(ItemKind::Check, vec![stretch]);
+        let summary = summarize(&[check], ReviewStatus::Called, &[[1, 10]], &[], &[], 1);
+        assert_eq!(summary.labels.get(LabelKind::NotAnalysed), 1);
+        assert!(!summary.clear);
     }
 }

@@ -135,9 +135,11 @@ output. Traces of one file name from different folders are different reads
   reason}` at the reportable regions' ends that the call does not analyse
   (SRS-CONS-012): positions only reads' unreliable spans observe
   (`poor_start_signal`), up to the last one the consensus does not settle
-  as the reference. They are poor data, not a decision: no item, zone, or
-  check holds them, the call reports nothing there, and the analysed range
-  (`callable`, the EMPOP ranges) starts or ends after them.
+  as the reference. They are poor data, not a decision: no zone holds them,
+  the call reports nothing there, and the analysed range (`callable`, the
+  EMPOP ranges) starts or ends after them. Since rules version 36, each is
+  held by a `check` item labelled `not_analysed`, so an allele the report
+  omits there is flagged, never passed silently.
 - `zones` (`called`, rules version 14): the reportable positions as the
   zones a reviewer opens whole, in reference order, tiling every reportable
   region but its `not_analysed` stretches. Each position takes the first
@@ -173,7 +175,8 @@ output. Traces of one file name from different folders are different reads
 An item is one consensus site, or one position or run of positions outside
 every site, inside the profile's reportable regions (a site is clipped to
 them; since rules version 16, a clipped site's `sequence` is its decision over
-the clipped columns, what most of its supporting reads show there). It has:
+the clipped columns, what most of its supporting reads show there), or, since
+rules version 36, one `not_analysed` stretch. It has:
 
 - `first`, `last`: its first and last reference columns, each a `position`
   and an insertion `ordinal` (`309.1` is `309`/`1`). In version 1 both
@@ -184,7 +187,8 @@ the clipped columns, what most of its supporting reads show there). It has:
   `possible_heteroplasmy` unless
   `explained`, `reference_second`, `estimated_length`, `length_unconfirmed`, `undecided`,
   `not_called`, `long_run`, `edge_deletion`, `run_deletion`, `run_indel`,
-  `one_strand_insertion`, `beside_not_analysed`, `not_covered`), whatever its
+  `one_strand_insertion`, `beside_not_analysed`, `not_analysed`,
+  `not_covered`), whatever its
   calls; otherwise `variant`: it
   has calls, or, when there are no notation calls (a profile without
   notation, or `call_failed`), the consensus decided a sequence other than the
@@ -260,11 +264,11 @@ carries this table (`x-rank`, and `x-check` for a check); CI checks they agree.
 |---:|---|
 | 0 | `read_disagrees`, `same_strand_dissent`, `strands_disagree` |
 | 1 | `possible_heteroplasmy`, `reference_second` |
-| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
+| 2 | `beside_not_analysed`, `edge_deletion`, `estimated_length`, `length_unconfirmed`, `long_run`, `not_analysed`, `not_called`, `one_strand_insertion`, `run_deletion`, `run_indel`, `undecided` |
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 35)
+## Labels (rules version 36)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A difference *rests on one strand* when
@@ -397,6 +401,17 @@ exemption lifts the margin (ADR-0076).
   development panel v5, three such differences (an insertion at 111 in two
   samples, a shift at 102 in one) were DNA errors that a check at the cut
   edge had covered before.
+- `not_analysed` `{reason}` (rules version 36): the item over one
+  `not_analysed` stretch, with the stretch's reason; its evidence is every
+  covering read's observations there, masked ones included. The stretch
+  leaves the region's reported range short, so an allele there would be
+  omitted from the report; the check makes a reviewer look instead (user
+  decision 2026-10-22, [ADR-0085](../decisions/adr/0085-not-analysed-region-edge.md)).
+  Every stretch is one: on development panel v5, of 352 current clear
+  samples with a stretch, 117 omitted a truth allele inside it (`73G` in
+  112), and on readiness-v2 a heteroplasmy the reads there show as the
+  reference (`16037R`) would escape a check limited to stretches whose reads
+  depart from the reference.
 - `run_deletion` `{strand, reads}`: a decided site that rests on one strand
   whose call is at least `review.run_growth` bases shorter than its
   reference, where the reference holds a run of at least `review.phase_run`

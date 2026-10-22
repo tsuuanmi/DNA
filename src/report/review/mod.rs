@@ -74,7 +74,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 35,
+    version: 36,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -291,6 +291,7 @@ pub(crate) fn build(completed: CompletedReview) -> Result<ReviewResult> {
         &names,
         &reference,
         &analysed,
+        &not_analysed,
         &callable,
         notation,
         signal.as_ref().map(|(signal, _)| signal),
@@ -371,12 +372,13 @@ pub(crate) fn list(
         merge(segments(call.callable_segments.iter().map(|segment| {
             (segment.start_0based, segment.end_0based_exclusive)
         })));
-    let (analysed, _) = analysed_regions(analysis, &regions);
+    let (analysed, not_analysed) = analysed_regions(analysis, &regions);
     let items = Sample::new(
         analysis,
         &names,
         reference,
         &analysed,
+        &not_analysed,
         &callable,
         call.notation.as_deref(),
         signal,
@@ -468,8 +470,8 @@ struct Sample<'a> {
     /// The profile's reportable regions, whose ends are the amplicons'.
     reportable: Vec<[usize; 2]>,
     /// The stretches at the reportable regions' ends the call does not
-    /// analyse (SRS-CONS-012), 1-based and inclusive.
-    not_analysed: Vec<[usize; 2]>,
+    /// analyse (SRS-CONS-012), 1-based and inclusive, with their reasons.
+    not_analysed: &'a [StretchResult],
     callable: &'a [[usize; 2]],
     /// Reference segments of the admitted reads, merged, 1-based inclusive.
     covered: Vec<[usize; 2]>,
@@ -534,6 +536,7 @@ impl<'a> Sample<'a> {
         names: &'a [String],
         reference: &'a Reference,
         regions: &'a [[usize; 2]],
+        not_analysed: &'a [StretchResult],
         callable: &'a [[usize; 2]],
         notation: Option<&'a [NotationCall]>,
         signal: Option<&RunSignal>,
@@ -590,20 +593,7 @@ impl<'a> Sample<'a> {
                 .filter(|position| !analysis.consensus.reference_only.contains(position))
                 .map(|position| (position, position + 1)),
         ));
-        // The reportable positions outside the analysed `regions`: the
-        // stretches the call does not analyse.
         let reportable = clip(&analysis.loaded.profile.regions, reference.len());
-        let mut not_analysed: Vec<[usize; 2]> = Vec::new();
-        for position in reportable
-            .iter()
-            .flat_map(|&[start, end]| start..=end)
-            .filter(|&position| !inside(regions, position))
-        {
-            match not_analysed.last_mut() {
-                Some(last) if last[1] + 1 == position => last[1] = position,
-                _ => not_analysed.push([position, position]),
-            }
-        }
         let loci = analysis
             .observations(1, reference.len())?
             .into_iter()
