@@ -5,6 +5,11 @@
 /// Gradient at or below which no column enters the active set, and value at
 /// or below which a passive coefficient leaves it.
 const TOLERANCE: f64 = 1e-10;
+/// Most sweeps of the one-sided Jacobi rotations (a computation cap).
+const JACOBI_SWEEPS: usize = 80;
+/// A QR diagonal at or below this times the largest column norm makes the
+/// passive set rank-deficient.
+const RANK_CUTOFF: f64 = 1e-8;
 
 /// Non-negative least squares by the Lawson–Hanson active-set method over
 /// `design`'s columns (each a vector over the observed rows), at most
@@ -143,7 +148,7 @@ fn least_squares(
                 .collect::<Vec<f64>>()
         })
         .collect::<Vec<_>>();
-    for _ in 0..80 {
+    for _ in 0..JACOBI_SWEEPS {
         let mut rotated = false;
         for p in 0..size {
             for q in p + 1..size {
@@ -233,7 +238,7 @@ fn full_rank_solution(
                 .sqrt()
         })
         .fold(0.0, f64::max);
-    let cutoff = 1e-8 * largest.max(f64::MIN_POSITIVE);
+    let cutoff = RANK_CUTOFF * largest.max(f64::MIN_POSITIVE);
     let shared = factor
         .columns
         .iter()

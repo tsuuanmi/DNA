@@ -343,11 +343,8 @@ fn quality_vetoes_only(withheld: &Reasons) -> bool {
 /// spacing, so the span needs no level of its own. None when the read's first
 /// `margin` calls are sound; the whole read when no such run exists.
 fn poor_start(evidence: &[CallEvidence], margin: usize) -> Vec<UnreliableSpan> {
-    let sound = |call: &CallEvidence| {
-        call.placement == Placement::Scored
-            && !call.identity.edge
-            && call.identity.withheld.is_empty()
-    };
+    let sound =
+        |call: &CallEvidence| call.placement == Placement::Scored && call.identity.trusted();
     let mut run = 0;
     let mut settled = None;
     for (index, call) in evidence.iter().enumerate() {
@@ -442,7 +439,7 @@ fn reference_only_calls(
             || !single
             || !quality_vetoes_only(&call.identity.withheld)
             || call.second_unexplained
-            || (call.identity.withheld.is_empty() && !call.identity.edge)
+            || call.identity.trusted()
             || (call.identity.edge && !benign_edge(evidence, index))
         {
             continue;
