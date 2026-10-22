@@ -63,6 +63,7 @@ dna-consensus = { path = "crates/dna-consensus", version = "0.1.0" }
 dna-sample = { path = "crates/dna-sample", version = "0.1.0" }
 dna-kernel = { path = "crates/dna-kernel", version = "0.1.0" }
 dna-empop = { path = "crates/dna-empop", version = "0.1.0" }
+dna-eval-lib = { path = "crates/dna-eval-lib", version = "0.1.0" }
 dna-normalize = { path = "crates/dna-normalize", version = "0.1.0" }
 dna-sanger = { path = "crates/dna-sanger", version = "0.1.0" }
 dna-trace = { path = "crates/dna-trace", version = "0.1.0" }

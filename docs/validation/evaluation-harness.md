@@ -11,7 +11,8 @@ reviewer truth ([[PROP-0005]],
 the only place in the repository for truth formats and comparison
 (SRS-COMPAT-003). Its outputs are validation evidence about a DNA revision,
 not DNA result contracts; their shape is the harness's own versioned contract
-([outputs](#outputs)). Source: [crates/dna-eval](../../crates/dna-eval/src/README.md).
+([outputs](#outputs)). Source: [crates/dna-eval-lib](../../crates/dna-eval-lib/src/README.md),
+under the thin [crates/dna-eval](../../crates/dna-eval/src/README.md) binary.
 
 Measures, discrepancy classes, and causes are in [[validation/evaluation-measures]]; the review workload, its passes, estimates, and anchors are in [[validation/evaluation-workload]].
 
@@ -271,12 +272,21 @@ one.
   (which the document's provenance records and the reader checks), the
   `sanger` version, and the read-stage code identity.
 - **Code identity.** The identity is the git object ids of every source from
-  a trace to its document: `Cargo.lock`, `dna-kernel`, `dna-sanger`,
-  `dna-trace`, and the facade's configuration, trace loading, evidence
-  models, and writer, recorded by `dna-eval`'s build script. A harness built
-  with any of those sources differing from its commit has no identity, and
-  the option fails. A plugin version does not move on a work-in-progress
-  commit, so it alone would serve stale documents.
+  a trace to its document, which `crates/dna-eval/stages.txt` lists
+  (`[read]`): the build's inputs (`Cargo.lock`, `Cargo.toml`,
+  `rust-toolchain.toml`), `dna-kernel`, `dna-sanger`, `dna-trace`, and the
+  facade's configuration, trace loading, evidence models, plugin
+  composition, and writer, with the module files above them, recorded by
+  the `dna-eval` binary's build script. A harness built with any of those
+  sources differing from its commit has no identity, and the option fails.
+  A plugin version does not move on a work-in-progress commit, so it alone
+  would serve stale documents. `validate_module_layers.py` checks the list
+  is closed: every module a listed source uses, every module file above
+  it, and every workspace crate a listed crate depends on, is listed, or
+  marked as used but off the stage's path (the configuration envelope
+  parses the core's sections, which the read stage never reads). A file on
+  the path for some items only is listed with them, and what its other
+  items use is not followed.
 - **Storage.** Entries are gzip-compressed and renamed into place. An entry
   that does not decompress, is not JSON, or names another trace is a miss,
   remade and replaced.
@@ -302,8 +312,9 @@ one.
   which otherwise indexes the whole truth database on every run. A
   generation is named for the truth database file's SHA-256, the reference
   sequence's SHA-256, the target profile's repeat windows (each name and
-  bounds, in order), and the index's code identity (`Cargo.lock` and the
-  harness's truth reader, comparison alleles, and index). A run on the same
+  bounds, in order), and the index's code identity (`[forms]`: the build's
+  inputs, the kernel, and the harness's truth reader, comparison alleles,
+  geometry, and index). A run on the same
   inputs reads the index; a renamed or moved window, another reference or
   database, or a change to that code is a new generation, so a stale index
   is never read. An entry that does not decompress or parse is rebuilt and
@@ -316,9 +327,9 @@ one.
   each evidence document's `dna.placed_read/v1` document, written by
   `dna-align`. Entries are keyed by the evidence document's SHA-256, in a
   generation named for the configuration, the placement stage's code
-  identity, and the reference. The code identity is the git object ids of
-  `Cargo.lock`, the kernel, `dna-align`, and the facade's configuration,
-  evidence reading, and writer. Every read is then placed from its document,
+  identity, and the reference. The code identity (`[placement]`) is the git
+  object ids of the build's inputs, the kernel, `dna-align`, and the
+  facade's configuration, evidence reading, and writer. Every read is then placed from its document,
   which `dna-align` re-checks against the read's evidence and the reference.
   A change to the placement stage is a new generation. `run.json` records it
   as `placement_cache`. On development panel v5 the tables are

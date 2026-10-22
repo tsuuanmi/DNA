@@ -706,6 +706,21 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The evaluation harness is the library `dna-eval-lib` under a thin
+  `dna-eval` binary, which keeps the build stamps (revision, dirty state,
+  and each cached stage's code identity): a new commit or `git add` relinks
+  the binary and no longer recompiles the harness. `cargo build -p dna-eval`
+  and `cargo run -p dna-eval` work as before; the harness's sources moved to
+  `crates/dna-eval-lib`. Each cached stage's sources are listed in
+  `crates/dna-eval/stages.txt` instead of the build script, and
+  `validate_module_layers.py` checks each list is closed under the module
+  graph. The read stage's list now also covers the build's own inputs
+  (`Cargo.toml`, `rust-toolchain.toml`), the facade's crate root, error,
+  operation log, plugin composition, pipeline module, artefact writer, and
+  the result models the evidence names, all of which it missed; the forms
+  index's covers the kernel, the geometry, and the manifests it reads.
+  Every existing evidence, placement, and forms cache generation therefore
+  misses once. No DNA output changes; run outputs are byte-identical.
 - A reference confirmation (ADR-0080) is no longer withdrawn because a read
   of the other strand shows the confirming call's own second base standing
   out when that read's modality explains its second too: the confirming
