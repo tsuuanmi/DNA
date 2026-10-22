@@ -23,7 +23,9 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   SHA-256 of every other file of the run (`outputs`), written last; `same`
   checks them against the files, so a file edited after its run is refused.
   `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
-  without them. No DNA output changes.
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,
