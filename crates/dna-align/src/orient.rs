@@ -1017,11 +1017,10 @@ mod tests {
         assert_eq!(metrics.unresolved_query_bases, 1);
         assert!((metrics.callable_identity - 22.0 / 23.0).abs() < 1e-12);
         // The same counts follow from the selected traceback's columns.
-        let canonical = |base: char| "ACGT".contains(base);
         let callable = alignment
             .columns
             .iter()
-            .filter(|column| canonical(column.query_base) && canonical(column.reference_base))
+            .filter(|column| is_canonical(column.query_base) && is_canonical(column.reference_base))
             .collect::<Vec<_>>();
         assert_eq!(callable.len(), metrics.callable_columns);
         assert_eq!(

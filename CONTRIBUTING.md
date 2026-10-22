@@ -47,6 +47,7 @@ uv run python scripts/docs_graph.py check
 uv run python scripts/docs_graph.py sync --check
 uv run python scripts/validate_module_layers.py
 uv run python scripts/validate_workflow_policy.py
+uv run python scripts/validate_configuration_reference.py
 ```
 
 CI additionally runs workflow security analysis, dependency policy/review, MSRV checks,

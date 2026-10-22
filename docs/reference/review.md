@@ -23,9 +23,8 @@ evidence labels that make it quick to settle. It never states the reviewer's
 conclusion.
 
 The authoritative schema is
-[`schemas/review-v1.schema.json`](schemas/review-v1.schema.json); the
-synthetic example is
-[`examples/review-v1.example.json`](examples/review-v1.example.json).
+[`schemas/review-v1.schema.json`](schemas/review-v1.schema.json); the synthetic
+example is [`examples/review-v1.example.json`](examples/review-v1.example.json).
 
 ## Command
 
@@ -254,7 +253,8 @@ site) is a one-position item of its own.
 
 Each label has a rank; an item's priority is the lowest rank of its labels,
 and `5` for a variant without a label. Items are ordered by priority, then
-`first` (position, then ordinal), then `last`.
+`first` (position, then ordinal), then `last`. The schema's `summary.labels`
+carries this table (`x-rank`, and `x-check` for a check); CI checks they agree.
 
 | Rank | Labels |
 |---:|---|
@@ -264,7 +264,7 @@ and `5` for a variant without a label. Items are ordered by priority, then
 | 3 | `one_read`, `one_strand` |
 | 4 | `dephased_end`, `length_not_recorded`, `noisy_signal`, `not_covered`, `phase_shift`, `poor_signal`, `read_edge`, `tract_length`, an `explained` `possible_heteroplasmy` |
 
-## Labels (rules version 33)
+## Labels (rules version 34)
 
 Every label is computed from DNA's own evidence, never from a truth. A read's
 strand is its placement orientation. A difference *rests on one strand* when
@@ -300,9 +300,9 @@ exemption lifts the margin (ADR-0076).
   aligns every position of it and reads the reference positions on both
   sides of it, so that it bounds what it shows; each of those calls, and
   each call inside the item, must be A/C/G/T without a modality reason
-  against its base, and either anchoring or scored and trusted or exempt.
-  One label per such read. Opposing reads are `strands_disagree`'s or
-  `same_strand_dissent`'s.
+  against its base, and either anchoring or scored and trusted, or lifted by
+  a bounded-run exemption as the consensus lifts it (ADR-0076). One label per
+  such read; opposing reads are `strands_disagree`'s or `same_strand_dissent`'s.
   A read also disagrees through one end of an item it does not show whole
   (rules version 8): at a decided item without a length change, from the
   end its strand reaches first (a forward read's first position, a reverse
