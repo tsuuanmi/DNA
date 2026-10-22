@@ -90,7 +90,7 @@ pub fn build(
             &mut observed,
             &decided,
             bases,
-            config.variant_calling.read_end_margin,
+            config.variant_calling.read_end_margin(),
             consensus_config.dissent_edge,
         )
     {

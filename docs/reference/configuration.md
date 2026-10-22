@@ -102,20 +102,20 @@ Unknown keys, missing sections, duplicate TOML keys, unsupported schema versions
 | | `leak_min_calls` | `10` | positive: fewest calls the leakage null needs |
 | | `near_equal_z` | `2.0` | finite and positive: a marginal's top two lengths are near-equal when their margin, in standard errors deflated by the read's residual autocorrelation, is below it; a margin that is not finite is undefined, never clear |
 | `variant_calling` | `max_indel_length` | `50` | `1..=50` |
-| | `read_end_margin` | `12` | non-negative integer; `0` disables |
+| | `read_end_margin` | `12` | non-negative integer, at most the longest supported reference (50,000); `0` disables |
 | `consensus` | `seeded_run` | `4` | integer at least `2`: shortest disputed, unbounded homopolymer grown as one stretch (SRS-CONS-004) |
 | `review` | `run_growth` | `3` | positive: a decided run at least this many bases longer than its reference run is a check when its length rests on an anchored end or on one strand, however many reads |
 | `review` | `edge_zone` | `40` | positions from a reportable region's end that the call does not analyse (SRS-CONS-012) within which any difference is a check (`beside_not_analysed`) |
 | `review` | `deletion_zone` | `20` | positions from a reportable region's first or last position within which a deletion resting on one strand is a check (`edge_deletion`) |
 | `review` | `phase_run` | `4` | at least 2: equal bases in a row after which a read's in-phase end of an item is no longer compared with the decision for `read_disagrees` |
-| `consensus` | `maximum_undecided_gap` | `20` | non-negative integer: undecided positions kept inside a segment as `N` (SRS-CONS-006) |
+| `consensus` | `maximum_undecided_gap` | `20` | non-negative integer, at most the longest supported reference (50,000): undecided positions kept inside a segment as `N` (SRS-CONS-006) |
 | | `minimum_resolved_bases` | `20` | positive: fewest resolved bases of a segment (SRS-CONS-006) |
 | | `site_mismatch_cost` | `2` | positive; `site_mismatch_cost + site_gap_extension_cost > site_gap_open_cost` and `site_mismatch_cost < 2 × site_gap_open_cost` |
 | | `site_gap_open_cost` | `3` | positive: opening an insertion or deletion when a decided site's call is aligned to its interval |
 | | `site_gap_extension_cost` | `2` | positive: extending one |
 | | `dissent_edge` | `40` | positive: calls from a read's ends within which its insertion or deletion against a reference decision is set aside, when a read of the other strand reads the site cleanly at least this far from its own ends (SRS-CONS-011) |
 | | `length_confidence` | `2.326` | finite and positive: standard errors by which every read's share of a window run's length must clear the strands' spread and noise for the two-strand rule to decide it (SRS-CONS-013; one-sided 1 %) |
-| | `length_noise_forward` | `[0.065, 0.111]` | two values in `0..=0.5`, runs 1 and 2: the forward strand's replicate noise τ in a read's share (SRS-CONS-013) |
+| | `length_noise_forward` | `[0.065, 0.111]` | two values in `0..=0.5` (½ is the most a share can clear, `length::MAXIMUM_NOISE`), runs 1 and 2: the forward strand's replicate noise τ in a read's share (SRS-CONS-013) |
 | | `length_noise_reverse` | `[0.111, 0.128]` | two values in `0..=0.5`, runs 1 and 2: the reverse strand's (SRS-CONS-013) |
 | | `length_context_minimum_pairs` | `10` | at least 1: fewest cross-strand pairs of a run in a batch's run context, the sample's own out, for it to rescale τ; below it τ is the configured one (SRS-CONS-014; batches with fewer pairs carry too little evidence, run-calibrated-length research 2026-10-21) |
 | | `length_context_prior_pairs` | `[4.3, 64.0]` | two finite positive values, runs 1 and 2: the corpus prior's weight in pairs when a batch's dispersion is shrunk towards it (SRS-CONS-014). Method of moments over the 1,000 dev v5 batch contexts (every read; batches with at least 10 pairs), from their `sum_z2` and `sum_z4`: n0 = per-pair relative variance of z² / between-batch variance of the relative dispersion. Run 1: 0.452 / 0.104 = 4.3 (739 batches). Run 2: the between-batch variance, 0.004 against a sampling variance of 0.707, is not distinguishable from zero, so 64 is kept from the research's HV3R instrument-run grouping |

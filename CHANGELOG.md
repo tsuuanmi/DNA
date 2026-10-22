@@ -682,6 +682,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- Configuration: `variant_calling.read_end_margin` and
+  `consensus.maximum_undecided_gap` must be at most the longest supported
+  reference (50,000); larger values, which no read or segment can use,
+  are refused. The two-strand rule's model constants (derived lengths 1 to
+  15, the deconvolution cap, the share floor) and τ's bound of ½ are named
+  constants of `dna_consensus::length`, documented under SRS-CONS-013. The
+  validated `[variant_calling]` and `[sample_reconciliation]` records are
+  read through accessors, as the other sections are. No output changes.
 - The review's label set, ranks, and checks are one table in DNA
   (`LabelKind`): the summary counts every label exhaustively (a new label is
   no longer counted as `poor_signal`). The `dna.review/v1` schema's
