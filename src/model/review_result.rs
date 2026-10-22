@@ -248,6 +248,125 @@ pub(crate) enum Decision {
     NotCallable,
 }
 
+/// The rank of a context label: a label that leaves an item assured, and an
+/// `explained` possible heteroplasmy.
+pub(crate) const CONTEXT_RANK: u8 = 4;
+
+/// The kinds of evidence label. [`LabelKind::spec`] is the one table of their
+/// published names, ranks, and whether they make an item a check (PROP-0004);
+/// the schema's summary lists them in [`LabelKind::ALL`] order with the same
+/// ranks and checks (`x-rank`, `x-check`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum LabelKind {
+    StrandsDisagree,
+    ReadDisagrees,
+    SameStrandDissent,
+    PossibleHeteroplasmy,
+    ReferenceSecond,
+    EstimatedLength,
+    LengthUnconfirmed,
+    Undecided,
+    NotCalled,
+    LongRun,
+    EdgeDeletion,
+    RunDeletion,
+    RunIndel,
+    OneStrandInsertion,
+    BesideNotAnalysed,
+    OneRead,
+    OneStrand,
+    NoisySignal,
+    NotCovered,
+    PhaseShift,
+    DephasedEnd,
+    ReadEdge,
+    PoorSignal,
+    LengthNotRecorded,
+    TractLength,
+}
+
+impl LabelKind {
+    /// Every kind, in the order the summary counts them.
+    pub(crate) const ALL: [Self; 25] = [
+        Self::StrandsDisagree,
+        Self::ReadDisagrees,
+        Self::SameStrandDissent,
+        Self::PossibleHeteroplasmy,
+        Self::ReferenceSecond,
+        Self::EstimatedLength,
+        Self::LengthUnconfirmed,
+        Self::Undecided,
+        Self::NotCalled,
+        Self::LongRun,
+        Self::EdgeDeletion,
+        Self::RunDeletion,
+        Self::RunIndel,
+        Self::OneStrandInsertion,
+        Self::BesideNotAnalysed,
+        Self::OneRead,
+        Self::OneStrand,
+        Self::NoisySignal,
+        Self::NotCovered,
+        Self::PhaseShift,
+        Self::DephasedEnd,
+        Self::ReadEdge,
+        Self::PoorSignal,
+        Self::LengthNotRecorded,
+        Self::TractLength,
+    ];
+
+    /// The kind's published name, rank (the lower, the earlier a reviewer
+    /// looks), and whether it leaves its item unassured, so that the item is
+    /// a check: reads that disagree, a possible heteroplasmy, an estimated
+    /// length, an undecided position, or no read. The read labels (one read,
+    /// one strand, noisy signal, read edge, phase shift) are context for the
+    /// reviewer.
+    const fn spec(self) -> (&'static str, u8, bool) {
+        match self {
+            Self::StrandsDisagree => ("strands_disagree", 0, true),
+            Self::ReadDisagrees => ("read_disagrees", 0, true),
+            Self::SameStrandDissent => ("same_strand_dissent", 0, true),
+            Self::PossibleHeteroplasmy => ("possible_heteroplasmy", 1, true),
+            Self::ReferenceSecond => ("reference_second", 1, true),
+            Self::EstimatedLength => ("estimated_length", 2, true),
+            Self::LengthUnconfirmed => ("length_unconfirmed", 2, true),
+            Self::Undecided => ("undecided", 2, true),
+            Self::NotCalled => ("not_called", 2, true),
+            Self::LongRun => ("long_run", 2, true),
+            Self::EdgeDeletion => ("edge_deletion", 2, true),
+            Self::RunDeletion => ("run_deletion", 2, true),
+            Self::RunIndel => ("run_indel", 2, true),
+            Self::OneStrandInsertion => ("one_strand_insertion", 2, true),
+            Self::BesideNotAnalysed => ("beside_not_analysed", 2, true),
+            Self::OneRead => ("one_read", 3, false),
+            Self::OneStrand => ("one_strand", 3, false),
+            Self::NoisySignal => ("noisy_signal", CONTEXT_RANK, false),
+            Self::NotCovered => ("not_covered", CONTEXT_RANK, true),
+            Self::PhaseShift => ("phase_shift", CONTEXT_RANK, false),
+            Self::DephasedEnd => ("dephased_end", CONTEXT_RANK, false),
+            Self::ReadEdge => ("read_edge", CONTEXT_RANK, false),
+            Self::PoorSignal => ("poor_signal", CONTEXT_RANK, false),
+            Self::LengthNotRecorded => ("length_not_recorded", CONTEXT_RANK, false),
+            Self::TractLength => ("tract_length", CONTEXT_RANK, false),
+        }
+    }
+
+    /// The published name.
+    pub(crate) const fn name(self) -> &'static str {
+        self.spec().0
+    }
+
+    /// The rank.
+    pub(crate) const fn rank(self) -> u8 {
+        self.spec().1
+    }
+
+    /// Whether a label of this kind makes its item a check.
+    pub(crate) const fn check(self) -> bool {
+        self.spec().2
+    }
+}
+
 /// One evidence label of an item.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "label", rename_all = "snake_case")]
@@ -380,6 +499,62 @@ pub(crate) enum LabelResult {
         read: String,
     },
     BesideNotAnalysed,
+}
+
+impl LabelResult {
+    /// The label's kind.
+    pub(crate) const fn kind(&self) -> LabelKind {
+        match self {
+            Self::StrandsDisagree { .. } => LabelKind::StrandsDisagree,
+            Self::ReadDisagrees { .. } => LabelKind::ReadDisagrees,
+            Self::SameStrandDissent { .. } => LabelKind::SameStrandDissent,
+            Self::PossibleHeteroplasmy { .. } => LabelKind::PossibleHeteroplasmy,
+            Self::ReferenceSecond { .. } => LabelKind::ReferenceSecond,
+            Self::EstimatedLength { .. } => LabelKind::EstimatedLength,
+            Self::LengthUnconfirmed { .. } => LabelKind::LengthUnconfirmed,
+            Self::Undecided => LabelKind::Undecided,
+            Self::NotCalled => LabelKind::NotCalled,
+            Self::LongRun { .. } => LabelKind::LongRun,
+            Self::EdgeDeletion { .. } => LabelKind::EdgeDeletion,
+            Self::RunDeletion { .. } => LabelKind::RunDeletion,
+            Self::RunIndel { .. } => LabelKind::RunIndel,
+            Self::OneStrandInsertion { .. } => LabelKind::OneStrandInsertion,
+            Self::BesideNotAnalysed => LabelKind::BesideNotAnalysed,
+            Self::OneRead { .. } => LabelKind::OneRead,
+            Self::OneStrand { .. } => LabelKind::OneStrand,
+            Self::NoisySignal { .. } => LabelKind::NoisySignal,
+            Self::NotCovered => LabelKind::NotCovered,
+            Self::PhaseShift { .. } => LabelKind::PhaseShift,
+            Self::DephasedEnd { .. } => LabelKind::DephasedEnd,
+            Self::ReadEdge { .. } => LabelKind::ReadEdge,
+            Self::PoorSignal { .. } => LabelKind::PoorSignal,
+            Self::LengthNotRecorded { .. } => LabelKind::LengthNotRecorded,
+            Self::TractLength { .. } => LabelKind::TractLength,
+        }
+    }
+
+    /// The label's rank: its kind's, and [`CONTEXT_RANK`] for an `explained`
+    /// possible heteroplasmy.
+    pub(crate) const fn rank(&self) -> u8 {
+        match self {
+            Self::PossibleHeteroplasmy {
+                explained: true, ..
+            } => CONTEXT_RANK,
+            _ => self.kind().rank(),
+        }
+    }
+
+    /// Whether the label leaves its item unassured: its kind's, and never
+    /// for an `explained` possible heteroplasmy, whose second peaks are
+    /// context.
+    pub(crate) const fn unassured(&self) -> bool {
+        match self {
+            Self::PossibleHeteroplasmy {
+                explained: true, ..
+            } => false,
+            _ => self.kind().check(),
+        }
+    }
 }
 
 /// A read on one side of a site's disagreement.
@@ -596,32 +771,78 @@ pub(crate) struct ZoneCounts {
     pub(crate) check: usize,
 }
 
-/// Items carrying each label, in label priority order.
-#[derive(Debug, Default, PartialEq, Eq, Serialize)]
-pub(crate) struct LabelCounts {
-    pub(crate) strands_disagree: usize,
-    pub(crate) read_disagrees: usize,
-    pub(crate) same_strand_dissent: usize,
-    pub(crate) possible_heteroplasmy: usize,
-    pub(crate) reference_second: usize,
-    pub(crate) estimated_length: usize,
-    pub(crate) length_unconfirmed: usize,
-    pub(crate) undecided: usize,
-    pub(crate) not_called: usize,
-    pub(crate) long_run: usize,
-    pub(crate) edge_deletion: usize,
-    pub(crate) run_deletion: usize,
-    pub(crate) run_indel: usize,
-    pub(crate) one_strand_insertion: usize,
-    pub(crate) beside_not_analysed: usize,
-    pub(crate) one_read: usize,
-    pub(crate) one_strand: usize,
-    pub(crate) noisy_signal: usize,
-    pub(crate) not_covered: usize,
-    pub(crate) phase_shift: usize,
-    pub(crate) dephased_end: usize,
-    pub(crate) read_edge: usize,
-    pub(crate) poor_signal: usize,
-    pub(crate) length_not_recorded: usize,
-    pub(crate) tract_length: usize,
+/// Items carrying each label, by kind, serialized in [`LabelKind::ALL`]
+/// order.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub(crate) struct LabelCounts([usize; LabelKind::ALL.len()]);
+
+impl LabelCounts {
+    /// Counts one more item carrying a label of `kind`.
+    pub(crate) const fn add(&mut self, kind: LabelKind) {
+        self.0[kind as usize] += 1;
+    }
+
+    /// Items carrying a label of `kind`.
+    #[cfg(test)]
+    pub(crate) const fn get(&self, kind: LabelKind) -> usize {
+        self.0[kind as usize]
+    }
+}
+
+impl Serialize for LabelCounts {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut map = serializer.serialize_map(Some(LabelKind::ALL.len()))?;
+        for kind in LabelKind::ALL {
+            map.serialize_entry(kind.name(), &self.0[kind as usize])?;
+        }
+        map.end()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    use super::*;
+
+    /// The label table agrees with the published schema: the summary lists
+    /// every kind in `ALL` order with its rank and check, and the labels an
+    /// item can carry are exactly those kinds.
+    // SRS-API-014
+    #[test]
+    fn the_label_table_is_the_schemas() -> Result<(), Box<dyn std::error::Error>> {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("docs/reference/schemas/review-v1.schema.json");
+        let schema: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path)?)?;
+        let summary = &schema["$defs"]["summary"]["properties"]["labels"];
+        let required = summary["required"]
+            .as_array()
+            .ok_or("summary labels must list their names")?;
+        assert_eq!(
+            required
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .collect::<Vec<_>>(),
+            LabelKind::ALL.map(LabelKind::name)
+        );
+        for (index, kind) in LabelKind::ALL.into_iter().enumerate() {
+            assert_eq!(kind as usize, index);
+            let entry = &summary["properties"][kind.name()];
+            assert_eq!(entry["x-rank"], u64::from(kind.rank()), "{}", kind.name());
+            assert_eq!(entry["x-check"], kind.check(), "{}", kind.name());
+        }
+        let labels = schema["$defs"]["label"]["oneOf"]
+            .as_array()
+            .ok_or("labels must be a oneOf")?
+            .iter()
+            .filter_map(|label| label["properties"]["label"]["const"].as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            labels,
+            LabelKind::ALL.map(LabelKind::name).into_iter().collect()
+        );
+        Ok(())
+    }
 }
