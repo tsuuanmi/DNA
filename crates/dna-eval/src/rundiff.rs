@@ -2,8 +2,11 @@
 //! same panel, read from the two run directories alone, with a verdict.
 //!
 //! Both runs must measure the same thing: the same manifest body, truth
-//! digest, re-check list, current-data month, review window, and zone
-//! widths, each from a clean build; otherwise the comparison is refused.
+//! digest, re-check list, current-data month, review window, zone widths,
+//! reference, profile, run signal grouping and batch reads, and run
+//! contexts, each from a clean build; otherwise the comparison is refused.
+//! The manifest the base run names is read again for the periods and
+//! sources, and must still hash to the body the run recorded.
 //! The run directories are read strictly ([`rundir`]): a table without a
 //! column `diff` needs, or with a sample twice, is refused. The passes are
 //! counted from `scores.tsv` and `unreviewed.tsv` with the review workload's
@@ -34,7 +37,7 @@ use serde_json::Value;
 use crate::classes::StatusClass;
 use crate::compare::Measure;
 use crate::error::DiffError;
-use crate::manifest;
+use crate::manifest::{self, Month};
 use crate::rundir::{self, RunHeader};
 use crate::workload::{AutoPass, Class, Escaped, PassSample, Passes, Unit};
 
@@ -237,10 +240,42 @@ fn mismatches(base: &Run, run: &Run) -> Vec<String> {
             ),
             (
                 "current-data month",
-                value(serde_json::to_value(&header.current_since)),
+                value(serde_json::to_value(header.current_since)),
             ),
             ("review window", Value::from(header.review_window)),
             ("zone widths", value(serde_json::to_value(header.zones))),
+            (
+                "reference",
+                header
+                    .identities
+                    .iter()
+                    .map(|identity| identity.reference_sha256.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            ),
+            (
+                "profile",
+                header
+                    .identities
+                    .iter()
+                    .map(|identity| identity.profile_sha256.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect(),
+            ),
+            ("run signal", value(serde_json::to_value(header.run_signal))),
+            (
+                "run signal batch reads",
+                value(serde_json::to_value(header.run_signal_batch_reads)),
+            ),
+            (
+                "run contexts",
+                header
+                    .run_context
+                    .as_ref()
+                    .map_or(Value::Null, |context| Value::from(context.sha256.clone())),
+            ),
         ]
     };
     let mut found = Vec::new();
@@ -391,14 +426,14 @@ fn consistent(run: &Run, tally: &Tally, current: &str) -> Result<(), DiffError> 
 type Labels = BTreeMap<String, String>;
 
 /// The label of the current period from `since`.
-fn current(since: &str) -> String {
+fn current(since: Month) -> String {
     format!("current (≥ {since})")
 }
 
 /// The group the gate reads: the current period when the run records a
 /// current-data month, else all samples.
 fn gated(run: &Run) -> String {
-    run.header.current_since.as_deref().map_or_else(
+    run.header.current_since.map_or_else(
         || "all".to_owned(),
         |since| format!("period {}", current(since)),
     )
@@ -410,13 +445,22 @@ fn split(run: &Run) -> Result<(Labels, Labels), DiffError> {
     let path = &run.header.manifest.path;
     let bytes = std::fs::read(path).map_err(|error| failure(path, error))?;
     let manifest = manifest::parse(&bytes).map_err(|error| failure(path, error))?;
-    let since = run.header.current_since.clone();
+    if manifest.body_sha256 != run.header.manifest.body_sha256 {
+        return Err(failure(
+            path,
+            format!(
+                "its body has sha256 {}, the run recorded {}",
+                manifest.body_sha256, run.header.manifest.body_sha256
+            ),
+        ));
+    }
+    let since = run.header.current_since;
     let source = manifest.columns.iter().position(|name| name == "source");
     let mut periods = BTreeMap::new();
     let mut sources = BTreeMap::new();
     for sample in &manifest.samples {
-        if let (Some(since), Some(date)) = (&since, &sample.batch_date) {
-            let period = if date.as_str() >= since.as_str() {
+        if let (Some(since), Some(month)) = (since, sample.batch_month) {
+            let period = if month >= since {
                 current(since)
             } else {
                 format!("earlier (< {since})")
@@ -767,7 +811,10 @@ mod tests {
         let mut header = rundir::tests::fixture();
         header.source.dirty = Some(dirty);
         header.manifest.path = manifest;
-        header.manifest.body_sha256 = "b".to_owned();
+        header.manifest.body_sha256 = format!(
+            "{:x}",
+            <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+        );
         header.truth.digest = "t".to_owned();
         header.recheck = None;
         header.current_since = None;
@@ -824,7 +871,7 @@ mod tests {
     /// Records `since` as the run's current-data month.
     fn dated(directory: &Path, since: &str) -> Result<(), Box<dyn std::error::Error>> {
         let mut header = RunHeader::read(directory)?;
-        header.current_since = Some(since.to_owned());
+        header.current_since = Some(since.parse()?);
         std::fs::write(directory.join("run.json"), header.text()?)?;
         Ok(())
     }
@@ -1014,6 +1061,23 @@ mod tests {
                 .report
                 .contains("WARNING, not comparable")
         );
+        // Another profile, or a manifest edited since the run, is refused.
+        let profile = run(root.path(), "profile", false, &rows, &[], (1, 0, 0))?;
+        let mut header = RunHeader::read(&profile)?;
+        header.identities[0].profile_sha256 = "another".to_owned();
+        std::fs::write(profile.join(rundir::RUN_JSON), header.text()?)?;
+        assert!(matches!(
+            compare(&base, &profile, false),
+            Err(DiffError::Mismatch(message)) if message.starts_with("profile differs")
+        ));
+        let edited = run(root.path(), "edited", false, &rows, &[], (1, 0, 0))?;
+        let mut header = RunHeader::read(&edited)?;
+        header.manifest.body_sha256 = "c".repeat(64);
+        std::fs::write(edited.join(rundir::RUN_JSON), header.text()?)?;
+        assert!(matches!(
+            compare(&edited, &edited, false),
+            Err(DiffError::Run { message, .. }) if message.contains("the run recorded cccc")
+        ));
         let miscounted = run(root.path(), "miscounted", false, &rows, &[], (0, 0, 0))?;
         assert!(matches!(
             compare(&base, &miscounted, false),
@@ -1149,7 +1213,7 @@ mod tests {
         );
         let report = Report::new(&rows, &check, (&Forms::default(), ""))
             .with_review(10, None, Some(zones), None, Vec::new())
-            .with_current_since(Some("2026-01".to_owned()));
+            .with_current_since("2026-01".parse().ok());
         let directory = root.path().join("run");
         std::fs::create_dir_all(&directory)?;
         for (name, contents) in report.files(&[]) {
@@ -1158,8 +1222,12 @@ mod tests {
         let (all, current) = report.passes();
         let mut header = rundir::tests::fixture();
         header.manifest.path = path;
+        header
+            .manifest
+            .body_sha256
+            .clone_from(&manifest.body_sha256);
         header.recheck = None;
-        header.current_since = Some("2026-01".to_owned());
+        header.current_since = "2026-01".parse().ok();
         header.workload = rundir::WorkloadHeader { all, current };
         std::fs::write(directory.join(rundir::RUN_JSON), header.text()?)?;
 

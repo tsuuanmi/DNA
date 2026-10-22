@@ -51,12 +51,12 @@ use sha2::{Digest, Sha256};
 use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
-use crate::manifest::Manifest;
+use crate::manifest::{Manifest, Month};
 use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
 use crate::rundir::{
-    Constants, Counts, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader, Seconds, Source,
-    TruthHeader, WorkloadHeader, ZoneHeader, prepare_output, write,
+    Constants, Counts, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader, Seconds,
+    SignalGrouping, Source, TruthHeader, WorkloadHeader, ZoneHeader, prepare_output, write,
 };
 use crate::runner::{Outcome, Threads};
 use crate::truth::TruthCheck;
@@ -520,13 +520,13 @@ struct RunArgs {
     /// the samples whose manifest `batch_date` is in or after it first, and
     /// `diff` gates on them alone.
     #[arg(long)]
-    current_since: Option<String>,
+    current_since: Option<Month>,
     /// Judge each review against a run signal (PROP-0009) built in process
     /// from the panel: `batch` takes a sample's batch when it has at least
     /// `--run-signal-batch-reads` reads, else its batch month; `month` takes
     /// the month alone. The run takes two passes.
-    #[arg(long, value_parser = ["batch", "month"])]
-    run_signal: Option<String>,
+    #[arg(long, value_enum)]
+    run_signal: Option<SignalGrouping>,
     /// Fewest reads of a batch for `--run-signal batch` to use it.
     #[arg(long, default_value_t = 40)]
     run_signal_batch_reads: usize,
@@ -590,31 +590,17 @@ fn main() -> ExitCode {
     }
 }
 
-/// Whether the harness may read the panel: one its header does not name, or
-/// a development or readiness panel.
+/// Whether the harness may read the panel: a development or readiness panel,
+/// as its header names it. A manifest that names no panel could be a
+/// hold-out's, so it is refused too.
 fn runnable(manifest: &Manifest) -> Result<()> {
     match manifest.header.get("panel") {
-        Some(panel) if !RUNNABLE_PANELS.contains(&panel.as_str()) => Err(Error::HoldOut {
+        Some(panel) if RUNNABLE_PANELS.contains(&panel.as_str()) => Ok(()),
+        Some(panel) => Err(Error::HoldOut {
             panel: panel.clone(),
         }),
-        _ => Ok(()),
+        None => Err(Error::UnnamedPanel),
     }
-}
-
-/// Whether `value` is a month written `YYYY-MM`.
-fn is_month(value: &str) -> bool {
-    value.len() == 7
-        && value.bytes().enumerate().all(|(index, byte)| {
-            if index == 4 {
-                byte == b'-'
-            } else {
-                byte.is_ascii_digit()
-            }
-        })
-        && matches!(
-            &value[5..],
-            "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"
-        )
 }
 
 fn run(cli: &RunArgs) -> Result<String> {
@@ -656,13 +642,6 @@ fn run(cli: &RunArgs) -> Result<String> {
         let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
         Forms::new(corpus.samples.values(), &reference.sequence)
     };
-    if let Some(since) = &cli.current_since
-        && !is_month(since)
-    {
-        return Err(Error::CurrentSince {
-            value: since.clone(),
-        });
-    }
     if cli.review_window < 1 {
         return Err(Error::ReviewWindow {
             window: cli.review_window,
@@ -737,17 +716,17 @@ fn run(cli: &RunArgs) -> Result<String> {
         .run_context
         .as_deref()
         .map(|directory| runner::contexts(directory, &manifest.samples))
-        .transpose()?
-        .unwrap_or_default();
+        .transpose()?;
+    let (contexts, contexts_sha256) = contexts.unwrap_or_default();
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
         (&cli.reference, &reference.sequence_sha256),
         &cli.config,
         threads,
-        cli.run_signal.as_deref().map(|grouping| match grouping {
-            "month" => runner::Grouping::Month,
-            _ => runner::Grouping::Batch {
+        cli.run_signal.map(|grouping| match grouping {
+            SignalGrouping::Month => runner::Grouping::Month,
+            SignalGrouping::Batch => runner::Grouping::Batch {
                 batch_reads: cli.run_signal_batch_reads,
             },
         }),
@@ -812,7 +791,7 @@ fn run(cli: &RunArgs) -> Result<String> {
                 })
                 .collect(),
         )
-        .with_current_since(cli.current_since.clone());
+        .with_current_since(cli.current_since);
 
     let mut header = header(
         cli,
@@ -834,6 +813,7 @@ fn run(cli: &RunArgs) -> Result<String> {
         .map(|directory| RunContextHeader {
             directory: absolute(directory),
             batches: contexts.len(),
+            sha256: contexts_sha256.clone(),
         });
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
@@ -1148,8 +1128,10 @@ fn header(
         reference_path: absolute(&cli.reference),
         identities: identities.into_iter().collect(),
         review_window: cli.review_window,
-        run_signal: cli.run_signal.clone(),
-        current_since: cli.current_since.clone(),
+        run_signal: cli.run_signal,
+        run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
+            .then_some(cli.run_signal_batch_reads),
+        current_since: cli.current_since,
         forced_windows: cli.forced_windows.as_deref().map(absolute),
         recheck: None,
         evidence_cache: None,
@@ -1263,12 +1245,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn current_data_months_are_year_dash_month() {
-        assert!(is_month("2026-01") && is_month("2025-12"));
-        assert!(!is_month("2026-1") && !is_month("2026-13") && !is_month("2026/01"));
-    }
-
     fn panel(name: Option<&str>) -> Manifest {
         Manifest {
             header: name
@@ -1282,9 +1258,10 @@ mod tests {
 
     #[test]
     fn run_reads_development_and_readiness_panels_only() {
-        for name in [None, Some("dev"), Some("readiness")] {
-            assert!(runnable(&panel(name)).is_ok(), "{name:?}");
+        for name in ["dev", "readiness"] {
+            assert!(runnable(&panel(Some(name))).is_ok(), "{name}");
         }
+        assert!(matches!(runnable(&panel(None)), Err(Error::UnnamedPanel)));
         assert!(matches!(
             runnable(&panel(Some("validation"))),
             Err(Error::HoldOut { panel }) if panel == "validation"

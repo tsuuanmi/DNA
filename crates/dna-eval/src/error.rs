@@ -60,9 +60,6 @@ pub(crate) enum Error {
     /// manifest holds.
     #[error("invalid bench case list {path}: {message}")]
     Cases { path: PathBuf, message: String },
-    /// The current-data month is not `YYYY-MM`.
-    #[error("invalid current-data month {value:?}: expected YYYY-MM")]
-    CurrentSince { value: String },
     /// The review window is not a positive number of positions.
     #[error("invalid review window {window}: it must be at least 1")]
     ReviewWindow { window: i64 },
@@ -106,6 +103,10 @@ pub(crate) enum Error {
         "panel {panel:?} is a hold-out panel: it stays reserved, and dna-eval reads development and readiness panels only"
     )]
     HoldOut { panel: String },
+    /// A manifest names no panel (`panel=` in its header), so the harness
+    /// cannot tell it from a hold-out panel.
+    #[error("the manifest names no panel: its header needs panel=dev or panel=readiness")]
+    UnnamedPanel,
 }
 
 /// A panel manifest that does not follow the manifest format.

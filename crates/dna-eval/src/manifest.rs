@@ -15,7 +15,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::path::PathBuf;
+use std::str::FromStr;
 
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::error::ManifestError;
@@ -37,8 +39,73 @@ const TRACES: &str = "trace_paths";
 pub(crate) const RETIRED: &str = "retired";
 /// Optional column: the sample's truth digest when the panel was built.
 pub(crate) const TRUTH_DIGEST: &str = "truth_digest";
-/// Optional column: the batch's run date, `YYYY-MM-DD`.
+/// Optional column: the batch's run date, `YYYY-MM-DD`, or empty when
+/// unknown.
 pub(crate) const BATCH_DATE: &str = "batch_date";
+
+/// A calendar month, written `YYYY-MM`: the unit of the current data
+/// (`--current-since`) and of a batch's run date. Parsed once, here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub(crate) struct Month {
+    year: u16,
+    month: u8,
+}
+
+impl Month {
+    /// The month of a date written `YYYY-MM-DD`, with a day of 01 to 31.
+    pub(crate) fn of_date(date: &str) -> Option<Self> {
+        let (month, day) = date.split_at_checked(7)?;
+        let day = day.strip_prefix('-')?;
+        let valid_day = day.len() == 2
+            && day.bytes().all(|byte| byte.is_ascii_digit())
+            && (1..=31).contains(&day.parse::<u8>().ok()?);
+        valid_day.then(|| month.parse().ok()).flatten()
+    }
+}
+
+impl FromStr for Month {
+    type Err = String;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        let invalid = || format!("{text:?} is not a month written YYYY-MM");
+        let (year, month) = text.split_once('-').ok_or_else(invalid)?;
+        let digits = |part: &str, length: usize| {
+            part.len() == length && part.bytes().all(|byte| byte.is_ascii_digit())
+        };
+        if !digits(year, 4) || !digits(month, 2) {
+            return Err(invalid());
+        }
+        let month = month.parse::<u8>().map_err(|_| invalid())?;
+        if !(1..=12).contains(&month) {
+            return Err(invalid());
+        }
+        Ok(Self {
+            year: year.parse().map_err(|_| invalid())?,
+            month,
+        })
+    }
+}
+
+impl TryFrom<String> for Month {
+    type Error = String;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse()
+    }
+}
+
+impl From<Month> for String {
+    fn from(month: Month) -> Self {
+        month.to_string()
+    }
+}
+
+impl std::fmt::Display for Month {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{:04}-{:02}", self.year, self.month)
+    }
+}
 
 /// One parsed and verified panel manifest.
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +141,8 @@ pub(crate) struct Sample {
     pub(crate) truth_digest: Option<String>,
     /// The batch's run date as written, when the manifest has the column.
     pub(crate) batch_date: Option<String>,
+    /// The month of the batch's run date, when it has one.
+    pub(crate) batch_month: Option<Month>,
     /// The row's fields as written, in column order.
     pub(crate) fields: Vec<String>,
 }
@@ -290,6 +359,17 @@ fn row(
         traces,
         retired,
         truth_digest,
+        batch_month: batch_date
+            .map(|index| fields[index])
+            .filter(|date| !date.is_empty())
+            .map(|date| {
+                Month::of_date(date).ok_or_else(|| ManifestError::Value {
+                    line,
+                    column: BATCH_DATE,
+                    value: date.to_owned(),
+                })
+            })
+            .transpose()?,
         batch_date: batch_date.map(|index| fields[index].to_owned()),
         fields: fields.iter().map(|field| (*field).to_owned()).collect(),
     })
@@ -363,7 +443,63 @@ pub(crate) mod tests {
         );
         let parsed = parse(text.as_bytes())?;
         assert_eq!(parsed.samples[0].batch_date.as_deref(), Some("2025-05-25"));
+        assert_eq!(parsed.samples[0].batch_month, "2025-05".parse().ok());
+        // An empty date is unknown; a malformed one stops the parse.
+        for (date, month) in [("", None), ("2026-01-31", "2026-01".parse().ok())] {
+            let body = format!("S1\tb\t{date}\tclean\t0\t0\t0\t/t/a.ab1\n");
+            let text = format!(
+                "# body_sha256={:x}\n{columns}{body}",
+                Sha256::digest(body.as_bytes())
+            );
+            assert_eq!(parse(text.as_bytes())?.samples[0].batch_month, month);
+        }
+        for date in [
+            "2026-1-01",
+            "2026-13-01",
+            "2026-01",
+            "2026-01-00",
+            "2026/01/01",
+            "20260101",
+        ] {
+            let body = format!("S1\tb\t{date}\tclean\t0\t0\t0\t/t/a.ab1\n");
+            let text = format!(
+                "# body_sha256={:x}\n{columns}{body}",
+                Sha256::digest(body.as_bytes())
+            );
+            assert!(
+                matches!(
+                    parse(text.as_bytes()),
+                    Err(ManifestError::Value {
+                        column: BATCH_DATE,
+                        ..
+                    })
+                ),
+                "{date}"
+            );
+        }
         Ok(())
+    }
+
+    #[test]
+    fn months_are_year_dash_month() {
+        let month = |text: &str| text.parse::<Month>().ok();
+        assert!(month("2026-01").is_some() && month("2025-12").is_some());
+        for text in [
+            "2026-1",
+            "2026-13",
+            "2026/01",
+            "2026-00",
+            "26-01",
+            "2026-01-01",
+            "",
+        ] {
+            assert!(month(text).is_none(), "{text}");
+        }
+        assert!(month("2025-12") < month("2026-01"));
+        assert_eq!(
+            month("2026-01").map(|month| month.to_string()).as_deref(),
+            Some("2026-01")
+        );
     }
 
     #[test]
