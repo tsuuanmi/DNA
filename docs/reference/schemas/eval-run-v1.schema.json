@@ -874,6 +874,16 @@
               "minimum": 0
             }
           }
+        },
+        "outputs": {
+          "description": "The SHA-256 of every other file of the run, by file name: written last, over the files the directory holds, so two runs' outputs compare without reading them (`dna-eval same`). Every run of this revision records it; a run of an earlier harness revision has none, and `same` hashes its files.",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z_]+\\.(tsv|md)$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/sha256"
+          }
         }
       },
       "if": {

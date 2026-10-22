@@ -123,6 +123,23 @@ outside it are a warning. Heteroplasmy is optional (user decision): het
 blocks are reported, beside re-check and truth-`N` blocks, and never gate.
 Otherwise it is `GATE PASS`.
 
+### Same outputs
+
+```bash
+cargo run --release -p dna-eval -- same <run-directory> <run-directory>
+```
+
+`same` says whether two runs' outputs are byte-identical: every file but
+`run.json`, compared by SHA-256. It is the check of a refactor, a cache, or
+a build change that must not change what a run writes. It lists the files
+that differ, with the first line at which each does, and the files only one
+run holds. Each run's `run.json` records the digests of its other files
+(`outputs`); they are checked against the files first, so a file edited
+after its run is refused rather than compared. A run of an earlier revision
+records none, and its files are hashed as found. The exit status is 0 when
+every output is identical, 2 with `DIFFERENT` when one is not, and 1 when a
+run cannot be read.
+
 ### Quick subset (pre-filter)
 
 `subset` writes a deterministic stratified sample of a panel's staying rows
@@ -360,7 +377,7 @@ or to which files a run writes, is a new contract version
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure |
 | `forms.tsv` | always | how the reviewers write each sequence over the whole truth database, keyed by the database file's SHA-256, without sample identifiers; read back with `--forms` |
-| `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-workload.md#review-workload) of the review workload), and timings |
+| `run.json` | always | the run header: harness and source revision, inputs and identities, options, measurement constants, counts per measure, what passes without review (the [passes](evaluation-workload.md#review-workload) of the review workload), timings, and the SHA-256 of every other file (`outputs`, written last, which [`same`](#same-outputs) compares) |
 | `summary.md` | always | the run in aggregate: the panel checked against the truth (truth digest state, changed, retired samples, samples without a record, batch differences, status not `OK`), outcomes and estimates under each measure, primary discordance, discrepancy classes (per class and window, retired samples left out, the causes per class and the samples per cause and evidence), the EMPOP queries, the callable yield per HV region (samples, analysed and callable positions, their share, and the samples short of full yield), coverage gaps, IUPAC alleles, representation (discordant samples a haplotype measure finds concordant, by window, and the blocks of the rest), anchors, and the review workload |
 | `truth_changes.tsv` | when the panel's truth changed | the samples whose truth digest differs from the manifest's record |
 | `signals.tsv` | with `--run-signal` | per run-signal group: reads, calls, and keys |

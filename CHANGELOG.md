@@ -17,6 +17,15 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
+  byte-identical, and which files differ, with the first line at which each
+  does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
+  SHA-256 of every other file of the run (`outputs`), written last; `same`
+  checks them against the files, so a file edited after its run is refused.
+  `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
 - Regression ledger entry `r0001` of regress-v1: the `INITIAL` on the `main`
   revision that introduces `dna-eval regress` (74c9cbaf), one row in
   `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)
