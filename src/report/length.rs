@@ -28,6 +28,7 @@
 
 use dna_consensus::ReadRun;
 use dna_consensus::model::consensus::{ConsensusRun, RunEvidence};
+use dna_consensus::runs::runs_of;
 use dna_kernel::read_evidence::{LengthMarginal, Margin, TractLengths};
 use dna_normalize::length_convention::{RULE as CONVENTION_RULE, ShortestDominant};
 
@@ -47,7 +48,7 @@ pub(super) fn called_runs(haplotype: &str, window: &LengthWindow) -> Option<Vec<
     if haplotype.contains('N') {
         return None;
     }
-    let runs = super::review::runs_of(haplotype);
+    let runs = runs_of(haplotype.chars());
     let split = window.anchor.and_then(|(_, anchor_base)| {
         runs.windows(3).find(|triple| {
             triple[0].0 == window.repeat
@@ -156,16 +157,6 @@ fn floor(reads: &[&Contribution<'_>]) -> Option<usize> {
             std::iter::once(result.length).chain(result.next)
         })
         .min()
-}
-
-const fn complement(base: char) -> char {
-    match base {
-        'A' => 'T',
-        'T' => 'A',
-        'C' => 'G',
-        'G' => 'C',
-        other => other,
-    }
 }
 
 const fn margin_label(margin: Margin) -> &'static str {
@@ -337,7 +328,7 @@ pub(super) fn judge(
     for decode in decodes {
         let tract = decode.tract;
         let forward = decode.strand == Orientation::Forward;
-        let orient = |base: char| if forward { base } else { complement(base) };
+        let orient = |base: char| decode.strand.reference_base(base);
         let Some(position) = decode.reference else {
             continue;
         };

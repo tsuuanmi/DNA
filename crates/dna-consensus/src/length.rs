@@ -29,7 +29,7 @@ use crate::decide::Decision;
 use crate::model::consensus::RunEvidence;
 #[cfg(doc)]
 use crate::read_runs_over;
-use crate::stretch::runs_of;
+use crate::runs::runs_of;
 
 /// Lengths a derived run may take: the shifts the deconvolution fits.
 const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;

@@ -7,7 +7,7 @@ use crate::confirm::withdraw;
 use crate::decide::Decision;
 use crate::model::consensus::SiteState;
 use crate::observe::{Observation, ReadObservations, SiteValue, Trust, junctions};
-use crate::stretch::runs_of;
+use crate::runs::runs_of;
 use dna_kernel::model::nucleotide::is_canonical;
 
 /// Sets aside the dissent from a reference decision that a read of the other

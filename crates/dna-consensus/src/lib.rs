@@ -21,6 +21,7 @@ mod insertion;
 pub mod length;
 pub mod noise;
 mod observe;
+pub mod runs;
 mod segments;
 mod stretch;
 mod unplace;

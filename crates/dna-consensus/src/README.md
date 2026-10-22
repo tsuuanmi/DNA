@@ -11,7 +11,9 @@ stretch as the consensus reads them, with whether each is in phase: the
 review's one source of in-phase run lengths, SRS-API-020),
 `insertion_views` and `InsertionView` (each read's view of a site decided
 with an insertion, the review's one source for `one_strand_insertion`,
-SRS-CONS-015), [length](length.rs)
+SRS-CONS-015), [runs](runs.rs) (`runs_of`, a sequence's runs of one
+base, and `reference_run`, the reference run holding a position: the
+consensus's and the review's one reading of runs), [length](length.rs)
 (the two-strand run-length rule), [noise](noise.rs) (a run's length noise
 statistics and the calibration of τ by them), the `consensus`
 plugin descriptor (it requires `CalledReads`), [decided](decided.rs) (`call_segment` and the `decided`

@@ -36,8 +36,9 @@ use dna_call::model::called_read::CalledRead;
 use dna_call::read_call::CallConfig;
 use dna_consensus::decided::not_analysed;
 use dna_consensus::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
+use dna_consensus::runs::runs_of;
 use dna_consensus::{ConsensusConfig, InsertionView};
-use dna_kernel::model::nucleotide::Nucleotide;
+use dna_kernel::model::nucleotide::{Nucleotide, is_canonical};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::plugin::{Contract, PluginDescriptor, PluginFamily};
 use dna_kernel::profile::{Convention, ConventionKind, ConventionLabel, LengthTract, Profile};
@@ -2122,8 +2123,8 @@ fn long_runs(site: &ConsensusSite, one_strand: bool, growth: usize) -> Vec<Growt
     let Some(call) = site.call.as_deref() else {
         return Vec::new();
     };
-    let reference = runs_of(&site.reference);
-    let called = runs_of(call);
+    let reference = runs_of(site.reference.chars());
+    let called = runs_of(call.chars());
     if reference.len() != called.len()
         || reference
             .iter()
@@ -2186,7 +2187,7 @@ fn near_edge(regions: &[[usize; 2]], first: usize, last: usize, zone: usize) -> 
 /// bases in the same run order, another length), one of them a reference
 /// run of at least `run` equal bases.
 fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
-    let (from, to) = (runs_of(reference), runs_of(call));
+    let (from, to) = (runs_of(reference.chars()), runs_of(call.chars()));
     call.len() != reference.len()
         && from.len() == to.len()
         && from.iter().zip(&to).all(|(left, right)| left.0 == right.0)
@@ -2200,19 +2201,9 @@ fn run_length_change(reference: &str, call: &str, run: usize) -> bool {
 /// reference holds a run of at least `run` equal bases.
 fn run_lost(reference: &str, call: &str, growth: usize, run: usize) -> bool {
     call.len() + growth <= reference.len()
-        && runs_of(reference).iter().any(|(_, length)| *length >= run)
-}
-
-/// A sequence's runs of one base, in order, with their lengths.
-pub(super) fn runs_of(sequence: &str) -> Vec<(char, usize)> {
-    let mut runs: Vec<(char, usize)> = Vec::new();
-    for base in sequence.chars() {
-        match runs.last_mut() {
-            Some((last, length)) if *last == base => *length += 1,
-            _ => runs.push((base, 1)),
-        }
-    }
-    runs
+        && runs_of(reference.chars())
+            .iter()
+            .any(|(_, length)| *length >= run)
 }
 
 /// Whether the consensus left a site undecided: no clean observation, a
@@ -2299,7 +2290,7 @@ fn bounded(
     last: usize,
 ) -> Option<String> {
     let shows_call = |column: &AlignmentColumn| {
-        "ACGT".contains(column.query_base())
+        is_canonical(column.query_base())
             && column
                 .original_call_index_0based()
                 .and_then(|call| trust.get(call))

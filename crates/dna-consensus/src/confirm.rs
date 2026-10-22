@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::decide::Decision;
 use crate::observe::{Observation, ReadObservations, SiteValue};
+use crate::runs::reference_run;
 use dna_kernel::model::nucleotide::is_canonical;
 
 /// Withdraws the reference confirmations a second sequence may hide
@@ -103,20 +104,9 @@ pub(crate) fn withdraw_unobserved_run_junctions(
     bases: &[u8],
     seeded_run: usize,
 ) {
-    // The reference run of one base holding `position`.
+    // The length of the reference run of one base holding `position`.
     let run_length = |position: usize| {
-        let Some(&base) = bases.get(position) else {
-            return 0;
-        };
-        let mut first = position;
-        while first > 0 && bases[first - 1] == base {
-            first -= 1;
-        }
-        let mut last = position;
-        while last + 1 < bases.len() && bases[last + 1] == base {
-            last += 1;
-        }
-        last + 1 - first
+        reference_run(bases, position).map_or(0, |(first, last)| last + 1 - first)
     };
     let observed_cleanly = |position: usize| clean_call_at(observed, position);
     let junction_clean = |before: usize| {
