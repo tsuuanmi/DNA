@@ -15,7 +15,7 @@ modality-neutral core.
   calls, locus profiles, callability, and trim start, and its tract decodes
   ([tract](../tract/README.md), SRS-CALL-025).
   Basecall and Variant Analysis both reuse it.
-- `evidence.rs` is the Sanger modality adapter
+- [evidence](evidence/README.md) is the Sanger modality adapter
   ([ADR-0069](../../../../docs/decisions/adr/0069-plugin-first-modality-core-post-calling.md)).
   It builds the per-read `ReadEvidence` that alignment and variant calling
   consume:
@@ -63,7 +63,7 @@ modality-neutral core.
     SRS-CALL-018; using the peak widths signal processing measures), and every call's second base (SRS-CALL-015,
     computed by [second_cause](../second_cause/README.md)'s `second_base`).
 
-  This file is the only place where Sanger peaks, relative quality,
+  This module is the only place where Sanger peaks, relative quality,
   qualifying channels, and phase states turn into core evidence. `reason`
   maps a published label back onto the plugin's own reason, so a recorded
   `dna.read_evidence/v1` document is read back without new labels
