@@ -400,6 +400,24 @@
             }
           }
         },
+        "inputs": {
+          "description": "With `--inputs`: the inputs file the run's inputs came from, absolute, and its SHA-256. Every file it pins had its pinned SHA-256 when the run read it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
         "evidence_cache": {
           "description": "With `--evidence-cache`: the read evidence cache the run read and filled. Every read was analysed from its `dna.read_evidence/v1` document; the key names the generation, which holds documents made under a configuration with these evidence plugins' sections by this `sanger` version and read-stage code.",
           "type": "object",

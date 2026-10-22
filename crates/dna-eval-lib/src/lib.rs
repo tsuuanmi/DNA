@@ -27,6 +27,7 @@ mod estimate;
 mod geometry;
 mod haplotype;
 mod identity;
+mod inputs;
 mod lod;
 mod manifest;
 mod panel;
@@ -62,12 +63,14 @@ use crate::cause::forms::Forms;
 use crate::compare::Measure;
 use crate::error::{Error, Result};
 use crate::geometry::Geometry;
+use crate::inputs::Inputs;
 use crate::manifest::{Manifest, Month};
 use crate::recheck::Recheck;
 use crate::report::{Report, Row, Status};
 use crate::rundir::{
-    Constants, Counts, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader, Seconds,
-    SignalGrouping, Source, TruthHeader, WorkloadHeader, ZoneHeader, prepare_output, write,
+    Constants, Counts, InputsHeader, ManifestHeader, RecheckHeader, RunContextHeader, RunHeader,
+    Seconds, SignalGrouping, Source, TruthHeader, WorkloadHeader, ZoneHeader, prepare_output,
+    write,
 };
 use crate::runner::{Outcome, Threads};
 use crate::truth::TruthCheck;
@@ -531,18 +534,31 @@ struct SubsetArgs {
 /// Arguments of `dna-eval run`.
 #[derive(Debug, Args)]
 struct RunArgs {
+    /// The run's inputs from a TOML file, every input file pinned by its
+    /// SHA-256 (`manifest`, `truth`, `config`, `reference`, and optional
+    /// `recheck`, `forced_windows`, `current_since`, `evidence_cache`,
+    /// `run_context`); a changed file is refused. Given with none of those
+    /// options.
+    #[arg(
+        long,
+        conflicts_with_all = [
+            "manifest", "truth", "config", "reference", "recheck",
+            "forced_windows", "current_since", "evidence_cache", "run_context",
+        ],
+    )]
+    inputs: Option<PathBuf>,
     /// Panel manifest (TSV with a `#` comment header).
-    #[arg(long)]
-    manifest: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    manifest: Option<PathBuf>,
     /// The lab's statistics database (`statistics.sqlite`), opened read-only.
-    #[arg(long)]
-    truth: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    truth: Option<PathBuf>,
     /// DNA configuration, as given to `dna` through `DNA_CONFIG`.
-    #[arg(long)]
-    config: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    config: Option<PathBuf>,
     /// Reference FASTA, as given to `dna --reference`.
-    #[arg(long)]
-    reference: PathBuf,
+    #[arg(long, required_unless_present = "inputs")]
+    reference: Option<PathBuf>,
     /// New or empty output directory.
     #[arg(long)]
     output: PathBuf,
@@ -656,10 +672,37 @@ fn runnable(manifest: &Manifest) -> Result<()> {
     }
 }
 
+/// The run's inputs: from `--inputs`, or from the options. Clap requires
+/// the four files without `--inputs` and refuses them beside it.
+fn run_inputs(cli: &RunArgs) -> Result<Inputs> {
+    if let Some(path) = &cli.inputs {
+        return Inputs::load(path);
+    }
+    let required = |path: &Option<PathBuf>, name: &str| {
+        path.clone().ok_or_else(|| Error::Inputs {
+            path: PathBuf::from(format!("--{name}")),
+            message: "required without --inputs".to_owned(),
+        })
+    };
+    Ok(Inputs {
+        manifest: required(&cli.manifest, "manifest")?,
+        truth: required(&cli.truth, "truth")?,
+        config: required(&cli.config, "config")?,
+        reference: required(&cli.reference, "reference")?,
+        recheck: cli.recheck.clone(),
+        forced_windows: cli.forced_windows.clone(),
+        current_since: cli.current_since,
+        evidence_cache: cli.evidence_cache.clone(),
+        run_context: cli.run_context.clone(),
+        file: None,
+    })
+}
+
 fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     let started = Instant::now();
     let threads = Threads::new(cli.threads)?;
-    let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
+    let inputs = run_inputs(cli)?;
+    let manifest = manifest::parse(&read(&inputs.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
     runnable(&manifest)?;
 
     // The whole truth of the panel loads before DNA runs, so a database that
@@ -670,21 +713,21 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         .iter()
         .map(|sample| sample.id.as_str())
         .collect::<BTreeSet<_>>();
-    let truth = load_truth(&cli.truth, &wanted)?;
+    let truth = load_truth(&inputs.truth, &wanted)?;
     // The haplotype measures apply alleles to this sequence; a sample DNA
     // analyses on another sequence fails.
-    let reference = dna_kernel::reference::load(&cli.reference, ReferenceTopology::Linear)
+    let reference = dna_kernel::reference::load(&inputs.reference, ReferenceTopology::Linear)
         .map_err(|error| Error::Reference {
-            path: cli.reference.clone(),
+            path: inputs.reference.clone(),
             message: error.to_string(),
         })?;
     // How the reviewers write each window sequence, over the whole truth,
     // for the cause of a representation discrepancy.
     // The geometry the run compares and counts in, from the target profile.
-    let profile = target_profile(&cli.config)?;
+    let profile = target_profile(&inputs.config)?;
     let geometry = Geometry::of(&profile);
     let (forms, forms_cache) = forms(
-        cli,
+        &inputs,
         identity,
         &truth.sha256,
         (&reference.sequence, &reference.sequence_sha256),
@@ -695,7 +738,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
             window: cli.review_window,
         });
     }
-    let forced = cli
+    let forced = inputs
         .forced_windows
         .as_ref()
         .map(|path| -> Result<_> {
@@ -710,7 +753,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
             })
         })
         .transpose()?;
-    let (recheck, recheck_header) = match &cli.recheck {
+    let (recheck, recheck_header) = match &inputs.recheck {
         Some(path) => {
             let failure = |message: String| Error::Recheck {
                 path: path.clone(),
@@ -745,14 +788,19 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     }
     prepare_output(&cli.output)?;
     let dna_started = Instant::now();
-    let cache = cli
+    let cache = inputs
         .evidence_cache
         .as_deref()
         .map(|directory| {
-            cache::Caches::open(directory, &cli.config, &reference.sequence_sha256, identity)
+            cache::Caches::open(
+                directory,
+                &inputs.config,
+                &reference.sequence_sha256,
+                identity,
+            )
         })
         .transpose()?;
-    let contexts = cli
+    let contexts = inputs
         .run_context
         .as_deref()
         .map(|directory| runner::contexts(directory, &manifest.samples))
@@ -761,8 +809,8 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     let mut signal_groups = Vec::new();
     let outcomes = runner::run(
         &manifest.samples,
-        (&cli.reference, &reference.sequence_sha256),
-        &cli.config,
+        (&inputs.reference, &reference.sequence_sha256),
+        &inputs.config,
         threads,
         cli.run_signal.map(|grouping| match grouping {
             SignalGrouping::Month => runner::Grouping::Month,
@@ -782,7 +830,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
         .find(|sha256| *sha256 != analysed)
     {
         return Err(Error::Profile {
-            path: cli.config.clone(),
+            path: inputs.config.clone(),
             message: format!("DNA analysed with profile {other}, not {analysed}"),
         });
     }
@@ -817,10 +865,10 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
             })
             .collect(),
     )
-    .with_current_since(cli.current_since);
+    .with_current_since(inputs.current_since);
 
     let mut header = header(
-        cli,
+        (cli, &inputs),
         identity,
         &manifest,
         &truth,
@@ -835,7 +883,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     header.evidence_cache = cache.as_ref().map(|cache| cache.evidence.usage());
     header.forms_cache = forms_cache;
     header.placement_cache = cache.as_ref().map(|cache| cache.placed.usage());
-    header.run_context = cli
+    header.run_context = inputs
         .run_context
         .as_deref()
         .map(|directory| RunContextHeader {
@@ -846,7 +894,7 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
-    if cli.run_context.is_some() {
+    if inputs.run_context.is_some() {
         write(
             &cli.output,
             rundir::RUN_CONTEXT,
@@ -912,24 +960,24 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
 }
 
 /// The index of how the reviewers write each window sequence, over the
-/// whole truth database at `cli.truth` (whose file SHA-256 is
+/// whole truth database at `inputs.truth` (whose file SHA-256 is
 /// `truth_sha256`), on the reference `sequence` (whose SHA-256 is given),
 /// over the repeat windows of `geometry`. With `--evidence-cache` it is read
 /// from the directory when stored under the same key, and stored when built;
 /// without a code identity for the index, it is built and not stored.
 fn forms(
-    cli: &RunArgs,
+    inputs: &Inputs,
     identity: &Identity,
     truth_sha256: &str,
     (sequence, sequence_sha256): (&str, &str),
     geometry: &Geometry,
 ) -> Result<(Forms, Option<cache::FormsUsage>)> {
     let build = || -> Result<Forms> {
-        let corpus = truth::sample_ids(&cli.truth)?;
-        let corpus = truth::load(&cli.truth, &corpus.iter().map(String::as_str).collect())?;
+        let corpus = truth::sample_ids(&inputs.truth)?;
+        let corpus = truth::load(&inputs.truth, &corpus.iter().map(String::as_str).collect())?;
         Ok(Forms::new(corpus.samples.values(), sequence, geometry))
     };
-    let key = cli.evidence_cache.as_deref().and_then(|root| {
+    let key = inputs.evidence_cache.as_deref().and_then(|root| {
         let windows = geometry
             .window_bounds()
             .map(|(window, first, last)| (window.label().to_owned(), first, last))
@@ -1150,7 +1198,7 @@ struct Times {
 }
 
 fn header(
-    cli: &RunArgs,
+    (cli, inputs): (&RunArgs, &Inputs),
     identity: &Identity,
     manifest: &Manifest,
     truth: &Truth,
@@ -1188,13 +1236,13 @@ fn header(
         source: source(identity),
         threads: cli.threads,
         manifest: ManifestHeader {
-            path: absolute(&cli.manifest),
+            path: absolute(&inputs.manifest),
             fields: manifest.header.clone(),
             body_sha256: manifest.body_sha256.clone(),
             rows: manifest.samples.len(),
         },
         truth: TruthHeader {
-            path: absolute(&cli.truth),
+            path: absolute(&inputs.truth),
             sha256: truth.sha256.clone(),
             info: truth.database.info.clone(),
             digest: check.current.clone(),
@@ -1203,16 +1251,20 @@ fn header(
             changed_samples: check.changed.len(),
             panel_samples_found: truth.database.samples.len(),
         },
-        configuration_path: absolute(&cli.config),
-        reference_path: absolute(&cli.reference),
+        configuration_path: absolute(&inputs.config),
+        reference_path: absolute(&inputs.reference),
         identities: identities.into_iter().collect(),
         review_window: cli.review_window,
         run_signal: cli.run_signal,
         run_signal_batch_reads: (cli.run_signal == Some(SignalGrouping::Batch))
             .then_some(cli.run_signal_batch_reads),
-        current_since: cli.current_since,
-        forced_windows: cli.forced_windows.as_deref().map(absolute),
+        current_since: inputs.current_since,
+        forced_windows: inputs.forced_windows.as_deref().map(absolute),
         recheck: None,
+        inputs: inputs.file.as_ref().map(|(path, sha256)| InputsHeader {
+            path: absolute(path),
+            sha256: sha256.clone(),
+        }),
         evidence_cache: None,
         forms_cache: None,
         placement_cache: None,
@@ -1334,6 +1386,40 @@ mod tests {
             body_sha256: String::new(),
             columns: Vec::new(),
             samples: Vec::new(),
+        }
+    }
+
+    /// `run` takes its inputs from `--inputs` or from the options, never
+    /// both, and needs the four input files without it.
+    #[test]
+    fn run_takes_an_inputs_file_or_the_options() {
+        let parse = |extra: &[&str]| {
+            let mut arguments = vec!["dna-eval", "run", "--output", "out", "--threads", "1"];
+            arguments.extend_from_slice(extra);
+            Cli::try_parse_from(arguments)
+        };
+        let files = [
+            "--manifest",
+            "m",
+            "--truth",
+            "t",
+            "--config",
+            "c",
+            "--reference",
+            "r",
+        ];
+        assert!(parse(&["--inputs", "inputs.toml"]).is_ok());
+        assert!(parse(&files).is_ok());
+        assert!(parse(&files[..6]).is_err());
+        for option in [
+            &["--manifest", "m"][..],
+            &["--recheck", "x"],
+            &["--current-since", "2026-01"],
+            &["--evidence-cache", "x"],
+        ] {
+            let mut arguments = vec!["--inputs", "inputs.toml"];
+            arguments.extend_from_slice(option);
+            assert!(parse(&arguments).is_err(), "{option:?}");
         }
     }
 

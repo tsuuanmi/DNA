@@ -23,6 +23,10 @@ pub(crate) enum Error {
         #[source]
         source: io::Error,
     },
+    /// The run's inputs file cannot be read or parsed, or pins a file whose
+    /// content changed.
+    #[error("inputs {path}: {message}")]
+    Inputs { path: PathBuf, message: String },
     /// An input file is larger than its bound.
     #[error("{kind} {path} has {bytes} bytes, more than the maximum of {maximum}")]
     TooLarge {

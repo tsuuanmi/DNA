@@ -29,6 +29,8 @@ describes them.
 
 - `lib.rs` — command line (`run`, `diff`, `same`, `panel`, `subset`,
   `cache`, `bench`, `sim-bench`) and run orchestration.
+- `inputs.rs` — `run --inputs`: the run's inputs from one TOML file, each
+  input file pinned by its SHA-256 and refused when its content changed.
 - `identity.rs` — what the binary was built from (`Identity`): its name and
   version, the source revision and dirty state, and each cached stage's
   code identity, passed in at run time.

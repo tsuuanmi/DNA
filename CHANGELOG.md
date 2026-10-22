@@ -17,6 +17,13 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval run --inputs <file>`: the run's inputs (manifest, truth,
+  configuration, reference, and optionally the re-check list, forced
+  windows, current period, evidence cache, and run contexts) from one TOML
+  file, every input file pinned by its SHA-256. A changed or replaced file
+  is refused before the run starts, and `run.json` records the inputs file
+  and its SHA-256 (`inputs`, new optional field of `dna.eval_run/v1`). The
+  options stay; a run uses the file or the options, never both.
 - `dna-eval cache list --dir <dir>` and a kind-aware `cache prune`. Each
   cache generation records its kind and key (`key.json`) and the time a run
   last opened it (`last_used`). `list` shows every generation by kind and
