@@ -1,0 +1,2 @@
+# regress-strata series=regress-v1
+entry	stratum	samples	golden_sha256	changed_samples
