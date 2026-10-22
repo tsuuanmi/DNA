@@ -7,7 +7,8 @@ a placed read assert, its variants and the positions it shows? It depends on
 `dna-kernel` and `dna-align`.
 
 Public surface: `call`, `Eligibility` (the one trust rule, which
-`dna-sample` and `dna-consensus` read), `read_trust`, the `[variant_calling]`
+`dna-sample` and `dna-consensus` read; `shows_base` is its test of a call
+that shows its base), `read_trust`, the `[variant_calling]`
 section, [read_call](read_call.rs) (`call_read`, `call_read_placed` (from a placement a
 `dna.placed_read/v1` document gives, ADR-0087, proposed), `CallConfig`, `CoreRun`,
 `ReadIdentity`, `PlacementRejection`, and the descriptor of the `core`

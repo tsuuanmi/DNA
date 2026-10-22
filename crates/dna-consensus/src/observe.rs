@@ -617,7 +617,6 @@ pub(super) fn unreliable_only(
     let mut sound = BTreeSet::new();
     for read in reads {
         let eligibility = Eligibility::new(&read.evidence, config);
-        let calls = read.evidence.calls();
         let spans = read.evidence.unreliable();
         let reason = |call: usize| {
             spans
@@ -651,12 +650,7 @@ pub(super) fn unreliable_only(
                 (Some(reason), _) => {
                     unreliable.entry(position).or_insert(reason);
                 }
-                (None, Some(call))
-                    if eligibility.trusted(call)
-                        && calls.get(call).is_some_and(|call| {
-                            call.placement == Placement::Scored && call.identity.withheld.is_empty()
-                        }) =>
-                {
+                (None, Some(call)) if eligibility.shows_base(call) => {
                     sound.insert(position);
                 }
                 _ => {}
