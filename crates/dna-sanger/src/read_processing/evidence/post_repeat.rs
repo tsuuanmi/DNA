@@ -2,6 +2,7 @@
 
 use crate::read_processing::SangerEvidenceConfig;
 use dna_kernel::model::nucleotide::is_canonical;
+use dna_kernel::model::runs::maximal_runs;
 use dna_kernel::read_evidence::{Bound, CallEvidence, Placement};
 
 /// Marks every run of one base the read bounds right before it loses phase
@@ -51,13 +52,9 @@ pub(super) fn mark_post_repeat_runs(
                 && edge.is_some_and(|edge| after_repeat.get(edge).copied().unwrap_or(false)))
     };
     let mut marked = Vec::new();
-    let mut start = 0;
-    while start < count {
+    for run in maximal_runs(calls, |call| call.base) {
+        let (start, end) = (run.start, run.end - 1);
         let base = calls[start].base;
-        let mut end = start;
-        while end + 1 < count && calls[end + 1].base == base {
-            end += 1;
-        }
         if end > start
             && is_canonical(base)
             && let Some(left) = start.checked_sub(1)
@@ -80,7 +77,6 @@ pub(super) fn mark_post_repeat_runs(
                 marked.push((start, end));
             }
         }
-        start = end + 1;
     }
     for (start, end) in marked {
         for call in &mut calls[start..=end] {
