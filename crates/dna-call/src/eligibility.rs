@@ -25,7 +25,7 @@
 use crate::VariantCallingConfig;
 use crate::model::trust::{CallTrust, TrustScope, Withholder};
 use crate::model::variant::{Variant, VariantCallRole, VariantExclusionReason, VariantKind};
-use dna_align::model::alignment::Orientation;
+use dna_align::model::alignment::{AlignmentColumn, Orientation};
 use dna_kernel::read_evidence::{
     Bound, CallEvidence, EvidenceReason, Placement, ReadEnds, ReadEvidence,
 };
@@ -125,6 +125,20 @@ impl<'a> Eligibility<'a> {
             .calls()
             .get(index)
             .is_some_and(|call| call.post_repeat.bound)
+    }
+
+    /// Whether a bounded-run exemption (ADR-0076) lifts `read_end` from the
+    /// call at `index`, aligned as `aligned`: a run call aligned as a match
+    /// or inserted, or a bound aligned as a match. A substituted call keeps
+    /// `read_end`. The consensus and the review trust an exempt call by this
+    /// alone.
+    #[must_use]
+    pub fn exempt_as(&self, index: usize, aligned: Aligned) -> bool {
+        match aligned {
+            Aligned::Match => self.run_exempt(index) || self.bound_exempt(index),
+            Aligned::Inserted => self.run_exempt(index),
+            Aligned::Other => false,
+        }
     }
 
     /// Whether the run `start..=end` is one the modality marks as bounded
@@ -308,7 +322,7 @@ impl<'a> Eligibility<'a> {
             calls
                 .get(index)
                 .map(|call| call.base)
-                .filter(|base| matches!(base, 'A' | 'C' | 'G' | 'T'))
+                .filter(|&base| dna_kernel::model::nucleotide::is_canonical(base))
         };
         let Some(period) = (1..=length).find(|period| {
             length % period == 0
@@ -424,6 +438,17 @@ impl<'a> Eligibility<'a> {
         self.trusted.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether the call at `index` shows its base: scored, trusted
+    /// ([`Self::trusted`]), and with no modality reason against its base. No
+    /// bounded-run exemption (ADR-0076) lifts `read_end` here.
+    #[must_use]
+    pub fn shows_base(&self, index: usize) -> bool {
+        self.trusted(index)
+            && self.evidence.calls().get(index).is_some_and(|call| {
+                call.placement == Placement::Scored && call.identity.withheld.is_empty()
+            })
+    }
+
     /// The exclusion reason of a masked call, or `None` for an unmasked one.
     pub(super) fn mask_reason(&self, index: usize) -> Option<VariantExclusionReason> {
         let reason = self.evidence.calls().get(index)?.placement.reason()?;
@@ -519,6 +544,31 @@ impl<'a> Eligibility<'a> {
             }
         }
         reasons
+    }
+}
+
+/// How a call is aligned, as a bounded-run exemption reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Aligned {
+    /// Aligned to a reference position whose base it reads.
+    Match,
+    /// Inserted between reference positions.
+    Inserted,
+    /// Substituted, or not aligned.
+    Other,
+}
+
+impl Aligned {
+    /// How the call in `column` is aligned.
+    #[must_use]
+    pub fn of(column: &AlignmentColumn) -> Self {
+        if column.reference_index_0based().is_none() {
+            Self::Inserted
+        } else if column.query_base() == column.reference_base() {
+            Self::Match
+        } else {
+            Self::Other
+        }
     }
 }
 

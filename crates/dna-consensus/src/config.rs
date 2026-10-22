@@ -5,8 +5,9 @@ use serde::Deserialize;
 
 use dna_kernel::bounds;
 use dna_kernel::error::{ConfigError, Result};
+use dna_kernel::reference::MAX_REFERENCE_LENGTH;
 
-use crate::length::RuleParams;
+use crate::length::{MAXIMUM_NOISE, RuleParams};
 use crate::noise::Calibration;
 
 /// The consensus's own settings (SRS-CFG-009).
@@ -32,7 +33,7 @@ pub struct ConsensusConfig {
     /// (SRS-CONS-011).
     pub(crate) dissent_edge: usize,
     /// The two-strand run-length rule's confidence level and replicate
-    /// noise (PROP-0012 increment 4).
+    /// noise (SRS-CONS-013).
     pub(crate) length: RuleParams,
     /// How a run context's length statistics rescale the rule's noise
     /// (PROP-0014, SRS-CONS-014).
@@ -97,6 +98,12 @@ impl RawConsensusConfig {
         if self.seeded_run < 2 {
             return Err(ConfigError::Constraint("consensus.seeded_run must be at least 2").into());
         }
+        if self.maximum_undecided_gap > MAX_REFERENCE_LENGTH {
+            return Err(ConfigError::Constraint(
+                "consensus.maximum_undecided_gap must be at most the longest supported reference",
+            )
+            .into());
+        }
         if self.dissent_edge == 0 {
             return Err(ConfigError::Constraint("consensus.dissent_edge must be positive").into());
         }
@@ -126,7 +133,7 @@ impl RawConsensusConfig {
             .iter()
             .chain(&self.length_noise_reverse)
         {
-            bounds::finite_range("consensus.length_noise", *noise, 0.0, 0.5)?;
+            bounds::finite_range("consensus.length_noise", *noise, 0.0, MAXIMUM_NOISE)?;
         }
         if self.length_context_minimum_pairs == 0 {
             return Err(ConfigError::Constraint(

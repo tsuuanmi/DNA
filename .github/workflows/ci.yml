@@ -197,6 +197,10 @@ jobs:
       - name: Validate result schemas
         working-directory: tools/python
         run: uv run python scripts/validate_result_schemas.py
+      # SRS-CFG-002
+      - name: Validate configuration reference
+        working-directory: tools/python
+        run: uv run python scripts/validate_configuration_reference.py
       - name: Validate configuration template
         run: |
           uv run --project tools/python python -c 'import pathlib, tomllib; config = tomllib.loads(pathlib.Path("config/dna.toml").read_text()); tomllib.loads((pathlib.Path("config") / config["profile"]).read_text())'
