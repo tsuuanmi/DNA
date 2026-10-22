@@ -8,7 +8,7 @@ use super::ranges::inside;
 use super::round;
 use super::sites::dissent;
 use crate::error::{ReportError, Result};
-use crate::model::result::{CallabilitySegmentResult, ScopeResult};
+use crate::model::result::{CallabilitySegmentResult, PhaseStateResult, ScopeResult};
 use crate::model::review_result::{
     EvidencePositionResult, EvidenceReadResult, LabelResult, MaskedSpanResult, Role, SecondResult,
     UnreliableSpanResult,
@@ -21,7 +21,6 @@ use dna_consensus::model::consensus::ConsensusSite;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{Placement, ReadEvidence};
 use dna_sample::model::sample_evidence::{LocusState, SampleLocusObservation};
-use dna_sanger::model::callability::PhaseState;
 use std::collections::{BTreeMap, BTreeSet};
 
 fn evidence(
@@ -226,7 +225,7 @@ pub(super) fn masked_spans(
         };
         // A call the modality vouched for despite its segment (a leading
         // call, SRS-CALL-014) is scored: the read shows that base.
-        if segment.state == PhaseState::InPhase
+        if segment.state == PhaseStateResult::InPhase
             || trust
                 .get(call)
                 .is_none_or(|trust| trust.placement == Placement::Scored)

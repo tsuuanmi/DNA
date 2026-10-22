@@ -74,10 +74,10 @@ pub(super) fn zones(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::result::PhaseStateResult as PhaseState;
     use crate::model::review_result::{LabelResult, MaskedSpanResult, ReviewStatus, ZoneCounts};
     use crate::report::review::labels::summarize;
     use crate::report::review::test_support::{F, item};
-    use dna_sanger::model::callability::PhaseState;
 
     // SRS-API-014
     #[test]
