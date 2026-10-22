@@ -38,6 +38,10 @@ modality-neutral core.
   - the read's phase mixtures (SRS-CALL-023, ADR-0082), as `dna-trace`
     asserted them, and its tract decodes (SRS-CALL-025), as
     [tract](../tract/README.md) turned them into `TractLengths`;
+  - the read's poor start (SRS-CALL-024), an unreliable span with the reason
+    `poor_start_signal` from the read's first call to its first run of
+    `start_identity_margin` sound calls, judged after the edge and start
+    rules; it changes no verdict, mask, or call;
   - the calls beside a junction whose spacing marks a missing or an extra
     peak (callability's `gaps`, SRS-CALL-026), vouched for by their bases only:
     they place no indel and show no run's end;

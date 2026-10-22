@@ -58,7 +58,10 @@ Every object is closed and `schema_version` is `dna.read_evidence/v1`.
     calls of a placement tie unplaced (SRS-ALN-006).
   - `tracts`: the homopolymer tracts the modality decodes from the read's own
     signal (SRS-CALL-025, [[PROP-0012]]), one per distinct first call, in
-    onset order. Evidence only: the core reads none of it. Each tract has:
+    onset order. No verdict, mask, or call of the read reads them; the
+    consensus's two-strand run-length rule (SRS-CONS-013) and the review's
+    window runs (SRS-API-020) read a tract's first call, `run`, `mark`, and
+    marginals. Each tract has:
     - `onset`, the call where the read leaves phase;
     - `calls`, the calls the decode fits from the tract's first call;
     - `extent`, the calls that read the run or the mark;
