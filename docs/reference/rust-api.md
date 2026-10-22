@@ -1,6 +1,6 @@
 ---
 implements: [SRS-API, SRS-CALL, SRS-NOM, SRS-SAMPLE, SRS-VAR, SRS-VN]
-decided-by: [ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079, ADR-0087]
+decided-by: [ADR-0069, ADR-0070, ADR-0076, ADR-0077, ADR-0078, ADR-0079, ADR-0087]
 covers:
   - crates/dna-kernel/src/variant.rs
   - crates/dna-normalize/src/
@@ -8,7 +8,7 @@ covers:
   - src/model/review_result.rs
   - src/pipeline/review.rs
   - src/pipeline/sample_call.rs
-  - src/report/review.rs
+  - src/report/review/
   - src/recorded.rs
   - src/sample_analysis/
   - src/variant_analysis/
@@ -26,7 +26,10 @@ Sample-level analysis (`SampleAnalysis`) is in [[reference/rust-api-sample]].
 The public modules are `cli`, `error`, `profile`, `recorded`,
 `sample_analysis`, `variant`, `variant_analysis`, `variant_normalization`, and
 `variant_nomenclature`, plus
-the CLI dispatcher `dna::run(cli::Cli) -> dna::error::Result<()>`. All other
+the CLI dispatcher `dna::run(cli::Cli) -> dna::error::Result<()>` and
+`dna::plugins() -> Vec<(&'static str, u32)>`, every plugin of the static
+registry as `(id, version)` in registry order ([[ADR-0069]]), which the
+evaluation harness's regression ledger records ([[validation/regression-set]]). All other
 modules, including configuration, internal models, scientific stages, and
 reporting, are private implementation detail.
 

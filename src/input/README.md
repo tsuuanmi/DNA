@@ -37,7 +37,10 @@ resolution differs from the configuration's
 (PROP-0006): the sample, the reference identity, the segments, and the sites
 with their runs, back into the core's consensus model, under the same
 configuration, profile, and reference rules; the segments are named as the
-consensus FASTA names them.
+consensus FASTA names them. It reads its unreliable-only reasons back
+through `modality_reason` in `mod.rs`, which asks the registered modalities'
+adapters (the Sanger adapter's `sanger::reason`), never through a modality
+crate itself.
 
 [`evidence.rs`](evidence.rs) reads `dna.read_evidence/v1` documents for
 `analyze --evidence` (one read, SRS-API-018) and for `sample`, `consensus`,

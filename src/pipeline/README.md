@@ -37,8 +37,10 @@ its FASTA.
 `review.rs` runs the same pass through `sample_analysis::analyze` under the
 operation log, calls the consensus with `SampleAnalysis::call` when a read is
 admitted, and publishes `dna.review/v1` for every sample: called, every read
-rejected, or the call failed. `plugins.rs` composes its workflow by the
-post-calling plugins the profile declares.
+rejected, or the call failed; the review projects each read's phase
+mixtures (`report::review_mixtures`), given the profile notation of a
+component's edits, which `represent.rs` writes. `plugins.rs` composes its
+workflow by the post-calling plugins the profile declares.
 `review.rs` also implements the public `SampleAnalysis::review_list`
 (SRS-API-015): the check items and the noted length tracts of the same review
 list, without writing it.

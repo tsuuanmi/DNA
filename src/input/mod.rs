@@ -6,6 +6,7 @@ use crate::config::{self, Config};
 use crate::error::{KernelError, Result};
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::Profile;
+use dna_kernel::read_evidence::EvidenceReason;
 use dna_kernel::reference;
 
 pub(crate) mod consensus;
@@ -15,6 +16,15 @@ pub(crate) mod sanger;
 pub(crate) mod sequence;
 pub(crate) mod signal;
 pub(crate) mod variants;
+
+/// The reason a published `label` names in the vocabulary of a modality this
+/// build registers, or `None`. Only the Sanger modality raises reasons; the
+/// sequence modality raises none (ADR-0069). A modality-neutral document,
+/// such as a consensus, reads its reasons back through this, never through a
+/// modality crate.
+fn modality_reason(label: &str) -> Option<EvidenceReason> {
+    sanger::reason(label)
+}
 
 fn load_config(path: &Path) -> Result<Config> {
     let config = config::load_path(path)?;

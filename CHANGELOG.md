@@ -32,19 +32,53 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   SHA-256 of every other file of the run (`outputs`), written last; `same`
   checks them against the files, so a file edited after its run is refused.
   `validate_result_schemas.py --eval-run` checks them too. `diff` reads runs
-  without them. No DNA output changes.
-- `dna-eval run --evidence-cache` also caches the index of the truth's
+  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
+  is a new optional `run.json` field, absent from runs of earlier
+  revisions. No DNA output changes.
+- `dna-eval run --evidence-cache` (and `regress check --evidence-cache`)
+  also caches the index of the truth's
   written forms (`forms.tsv`), keyed by the truth database file, the
   reference sequence, the target profile's repeat windows, and the index's
   code identity, so a renamed or moved window, or a change to the index's
   code, is a new generation rather than a stale file. It replaces
-  `run --forms`, which read an earlier run's `forms.tsv` checked against the
-  database alone (Breaking for the harness's command line). `run.json`
-  records `forms_cache` (key, hit). Outputs are byte-identical. No DNA
-  output changes.
-  without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
-  is a new optional `run.json` field, absent from runs of earlier
-  revisions. No DNA output changes.
+  `run --forms` and `regress check --forms`, which read an earlier run's
+  `forms.tsv` checked against the database alone (Breaking for the
+  harness's command line). `run.json` records `forms_cache` (key, hit).
+  Outputs are byte-identical. No DNA output changes.
+- Regression ledger entry `r0001` of regress-v1: the `INITIAL` on the `main`
+  revision that introduces `dna-eval regress` (74c9cbaf), one row in
+  `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)
+  in `regress-v1-strata.tsv`. 589 samples, none failed, 291 clear, 6 non-het
+  blocks in unchecked zones.
+- `dna-eval regress` (`dna.eval_regress/v1`): the versioned regression set
+  (`docs/validation/regression-set.md`).
+  - `regress check` runs DNA on every row of a `panel=regress` manifest as
+    `run` does and writes its golden output (`golden.tsv`): DNA's alleles,
+    callable intervals, check items, notes, review, EMPOP query, and set-aside
+    traces (truth-free), then the unreviewed blocks and statuses (evaluation).
+  - It compares the golden output with the head of the version ledger. Every
+    changed line must match a row of the pull request's committed intent
+    file. A truth-free change needs a new version key (the workspace version,
+    every plugin version, the contract versions, the configuration). New
+    non-het escapes, lost flags on discordant samples, and new or lost
+    failures fail whatever the intents. `--rebase` accepts a new truth or
+    re-check list when DNA's own output is unchanged.
+  - `regress record` appends a checked run of a clean build of
+    `origin/main`'s current commit to the local ledger and one row each to
+    `crates/dna-eval/baselines/regress-v1-ledger.tsv` and
+    `regress-v1-strata.tsv`, which name no sample. It re-judges the run's
+    golden output against the head and the intent file instead of trusting
+    `run.json`, and stages every file before renaming it into place.
+  - A series' first check refuses a truth database other than the one its
+    manifest pins.
+  - `run` and `bench` read `panel=regress` manifests, as development data.
+  - `bench` takes `--run-context`, and `run`, `bench`, and `regress check`
+    share one set of options for running DNA; with `--run-context`,
+    `bench.md` records the contexts' digest. `diff` keeps its own pass
+    classifier until the gate rework, and `--current-since` stays `run`'s.
+  - `dna::plugins()` lists the static plugin registry.
+  - No DNA output changes. The read-evidence cache starts a new generation:
+    the registry's visibility changed in a read-stage source.
 - `dna-eval sim-bench` (PROP-0015 increment 1): the simulated tract-decode
   bench.
   - Each of 3,960 frozen cases (the gating set; 396 in the smoke set,

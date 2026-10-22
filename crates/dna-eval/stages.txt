@@ -80,6 +80,7 @@ src/config/load.rs
 src/config/types.rs
 src/input/mod.rs
 src/input/evidence.rs
+src/input/sanger
 src/model/mod.rs
 src/model/basecall_result.rs
 src/model/read_observation.rs
