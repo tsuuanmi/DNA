@@ -9,8 +9,8 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
 ([review list](../../../docs/reference/review.md)).
 
 - `mod.rs` — the plugin descriptor, building the document (`build`) and the
-  in-process review list (`list`), and the rules over a sample's reads,
-  second peaks, and items.
+  in-process review list (`list`), and the rules over a sample's second
+  peaks and items.
 - `labels.rs` — label order within an item, an item's priority, and the
   summary's counts over the items.
 - `lengths.rs` — the runs of the profile's anchored repeat windows and
@@ -21,6 +21,11 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
 - `ranges.rs` — reference ranges: 1-based inclusive `[first, last]` pairs
   from alignment segments, merged, clipped to the reportable regions, and
   tested for a position.
+- `reads.rs` — what each read shows over an item: its read labels (one
+  read, one strand, noisy signal, phase shift, read edge, poor signal) and
+  evidence, the sequence it shows between two clean flanks, whether it
+  disagrees with the decision, and the stretches where it is masked or
+  unreliable.
 - `sites.rs` — the labels of a decided site: reads that disagree across or
   within a strand, a site resting on one strand (run deletion, run indel,
   edge deletion, one-strand insertion), a long run, an undecided site, and a
