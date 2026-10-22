@@ -10,13 +10,16 @@ Output contract: [`dna.review/v1`](../../../docs/reference/schemas/review-v1.sch
 
 - `mod.rs` — the plugin descriptor, building the document (`build`) and the
   in-process review list (`list`), and the rules over a sample's sites,
-  reads, second peaks, run lengths, items, and zones.
+  reads, second peaks, run lengths, and items.
 - `labels.rs` — label order within an item, an item's priority, and the
   summary's counts over the items.
 - `ranges.rs` — reference ranges: 1-based inclusive `[first, last]` pairs
   from alignment segments, merged, clipped to the reportable regions, and
   tested for a position.
 - `test_support.rs` — helpers the unit tests share.
+- `zones.rs` — the zones a reviewer opens whole: maximal stretches of one
+  kind (repeat window, not callable, dephased, masked, clean) and the check
+  items each touches.
 
 The label table (names, ranks, and checks) is `LabelKind` in
 [`model::review_result`](../../model/README.md). The run-length rules of the
