@@ -198,9 +198,13 @@ the analysed intervals (`intervals`), and the sample's status in its batch
 **Inputs file.** `run --inputs <file>` takes the run's inputs from one TOML
 file instead of the options, so a probe names them once and a changed or
 replaced file is refused before anything runs. `manifest`, `truth`,
-`config`, and `reference` are required and `recheck` and `forced_windows`
-optional, each `{ path = "…", sha256 = "…" }`: the run stops when a file's
-SHA-256 is not the pinned one. `current_since`, `evidence_cache`, and
+`config`, `profile`, and `reference` are required and `recheck` and
+`forced_windows` optional, each `{ path = "…", sha256 = "…" }` with the
+SHA-256 as 64 lowercase hexadecimal digits: the run stops when a file's
+SHA-256 is not the pinned one, and `profile` must be the file the
+configuration's `profile` key names. Every pinned file is checked again
+before the run writes its outputs, and a file that changed during the run
+stops it there, so `run.json` never records a pin that did not hold. `current_since`, `evidence_cache`, and
 `run_context` are optional and not pinned: the caches key themselves, and
 the run records the run contexts' digest. A relative path is resolved
 against the file's directory; unknown keys are refused, and none of these
@@ -213,6 +217,7 @@ evidence_cache = "/data/evidence-cache"
 manifest = { path = "test-panel/dev-v5.tsv", sha256 = "…" }
 truth = { path = "pins/statistics.sqlite", sha256 = "…" }
 config = { path = "dna.toml", sha256 = "…" }
+profile = { path = "profiles/human-mtdna-rcrs.toml", sha256 = "…" }
 reference = { path = "rCRS.fasta", sha256 = "…" }
 recheck = { path = "recheck.tsv", sha256 = "…" }
 ```

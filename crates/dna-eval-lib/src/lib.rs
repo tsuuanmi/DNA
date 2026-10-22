@@ -539,7 +539,8 @@ struct SubsetArgs {
 #[derive(Debug, Args)]
 struct RunArgs {
     /// The run's inputs from a TOML file, every input file pinned by its
-    /// SHA-256 (`manifest`, `truth`, `config`, `reference`, and optional
+    /// SHA-256 (`manifest`, `truth`, `config`, its `profile`, `reference`,
+    /// and optional
     /// `recheck`, `forced_windows`, `current_since`, `evidence_cache`,
     /// `run_context`); a changed file is refused. Given with none of those
     /// options.
@@ -699,6 +700,7 @@ fn run_inputs(cli: &RunArgs) -> Result<Inputs> {
         evidence_cache: cli.evidence_cache.clone(),
         run_context: cli.run_context.clone(),
         file: None,
+        pins: Vec::new(),
     })
 }
 
@@ -895,6 +897,9 @@ fn run(cli: &RunArgs, identity: &Identity) -> Result<String> {
             batches: contexts.len(),
             sha256: contexts_sha256.clone(),
         });
+    // Every pinned input still has its pin, so `run.json` may record the
+    // inputs file.
+    inputs.verify()?;
     for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
@@ -1014,6 +1019,16 @@ fn forms(
 /// The target profile `config` names, resolved against the configuration
 /// file's directory when relative, as DNA resolves it (SRS-CFG-002).
 pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profile> {
+    let path = profile_path(config)?;
+    dna_kernel::profile::Profile::load(&path).map_err(|error| Error::Profile {
+        path,
+        message: error.to_string(),
+    })
+}
+
+/// The path of the target profile `config` names, as [`target_profile`]
+/// resolves it.
+pub(crate) fn profile_path(config: &Path) -> Result<PathBuf> {
     let failure = |message: String| Error::Profile {
         path: config.to_path_buf(),
         message,
@@ -1026,11 +1041,7 @@ pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profi
         .get("profile")
         .and_then(toml::Value::as_str)
         .ok_or_else(|| failure("the configuration names no profile".to_owned()))?;
-    let path = config.parent().unwrap_or(Path::new(".")).join(name);
-    dna_kernel::profile::Profile::load(&path).map_err(|error| Error::Profile {
-        path,
-        message: error.to_string(),
-    })
+    Ok(config.parent().unwrap_or(Path::new(".")).join(name))
 }
 
 /// `dna-eval panel`: writes the new manifest and returns its checksum line.
