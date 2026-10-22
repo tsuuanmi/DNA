@@ -6,14 +6,14 @@ use crate::model::consensus::{ConsensusRun, SiteState};
 
 /// The decision at one site or stretch and the reads behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Decision {
-    pub(super) value: Option<String>,
-    pub(super) state: SiteState,
-    pub(super) supporting: Vec<String>,
-    pub(super) opposing: Vec<String>,
-    pub(super) uninformative: Vec<String>,
+pub(crate) struct Decision {
+    pub(crate) value: Option<String>,
+    pub(crate) state: SiteState,
+    pub(crate) supporting: Vec<String>,
+    pub(crate) opposing: Vec<String>,
+    pub(crate) uninformative: Vec<String>,
     /// The decided runs, for a stretch decided run by run.
-    pub(super) runs: Vec<ConsensusRun>,
+    pub(crate) runs: Vec<ConsensusRun>,
 }
 
 /// What a clean observation votes for: a sequence, or, for a read that
@@ -34,14 +34,14 @@ enum Vote<'a> {
 /// 3. one read against one read: the reference sequence, contested;
 /// 4. any other tie: no sequence, contested;
 /// 5. no clean observation: no sequence, unresolved.
-pub(super) fn decide(observations: &[(&str, Option<String>)], reference: &str) -> Decision {
+pub(crate) fn decide(observations: &[(&str, Option<String>)], reference: &str) -> Decision {
     decide_with_lone(observations, &[], reference)
 }
 
 /// [`decide`], with the reads in `alone` each opposing every sequence with a
 /// clean observation of its own that no other read shares. A lone vote never
 /// decides: when one would lead, the site is contested.
-pub(super) fn decide_with_lone(
+pub(crate) fn decide_with_lone(
     observations: &[(&str, Option<String>)],
     alone: &[&str],
     reference: &str,

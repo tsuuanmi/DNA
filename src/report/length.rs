@@ -16,8 +16,8 @@
 //! same, or when one strand gives none and the other gives one clear length
 //! that a read of it shows in phase; a run whose only views are decodes
 //! needs both strands. A run is confirmed when that length is DNA's call, or
-//! when the consensus decided it by the two-strand rule (PROP-0012
-//! increment 4) and no read's structure differs from DNA's.
+//! when the consensus decided it by the two-strand rule (SRS-CONS-013) and
+//! no read's structure differs from DNA's.
 //! DNA reports a run's length only when every position it must show to
 //! measure the run ([`run_spans`]) is callable; otherwise its
 //! decided length is an estimate, never a reading, and the run instead

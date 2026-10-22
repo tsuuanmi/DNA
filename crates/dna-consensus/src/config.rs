@@ -32,7 +32,7 @@ pub struct ConsensusConfig {
     /// (SRS-CONS-011).
     pub(crate) dissent_edge: usize,
     /// The two-strand run-length rule's confidence level and replicate
-    /// noise (PROP-0012 increment 4).
+    /// noise (SRS-CONS-013).
     pub(crate) length: RuleParams,
     /// How a run context's length statistics rescale the rule's noise
     /// (PROP-0014, SRS-CONS-014).

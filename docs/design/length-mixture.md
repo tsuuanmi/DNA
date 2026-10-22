@@ -256,7 +256,7 @@ view's top is `n`, and every view satisfies
 Otherwise the outcome is `near_equal` (every view's top two are `n` and
 `n + 1`), `strands_differ`, or `one_strand`, and the run keeps its evidence.
 Twelve reference vectors from the research implementation check every view
-and outcome (`crates/dna-consensus/tests/rule_a.rs`).
+and outcome (`crates/dna-consensus/tests/two_strand.rs`).
 
 **Noise τ.** τ measures how far `p` moves between independent sequencing
 reads of the same sample beyond what the decode's own `SE` explains. It is
@@ -292,7 +292,7 @@ batches' folders) by `n0` pseudo-pairs (4.3 and 64: by the method of
 moments from the contexts' `Σz²` and `Σz⁴` for run 1; run 2's batch
 differences are sampling noise, so its weight stays the research's 64).
 The floor `m` = 1 keeps τ at least the replicate estimate, and below 10 pairs
-τ stays the configured one. On development panel v5, rule A's decisions sit
+τ stays the configured one. On development panel v5, the two-strand rule's decisions sit
 far from the τ boundary, and the calibration changes no decision.
 
 **Effect.** On development panel v5 (against increment 3), the rule changed
