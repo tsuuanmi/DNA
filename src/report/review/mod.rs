@@ -74,7 +74,7 @@ use dna_sanger::signal_processing::SignalProcessingConfig;
 pub(crate) const PLUGIN: PluginDescriptor = PluginDescriptor {
     id: "review",
     family: PluginFamily::PostCalling,
-    version: 34,
+    version: 35,
     provides: &[Contract::ReviewList],
     requires: &[
         Contract::ReadEvidence,
@@ -478,6 +478,10 @@ struct Sample<'a> {
     /// difference is the consensus's decision.
     notation: bool,
     sites: &'a [ConsensusSite],
+    /// The consensus's own reading: the positions it shows (1-based and
+    /// inclusive, merged) outside those only reference confirmations observe
+    /// (ADR-0080), which bound no neighbour's run.
+    shown: Vec<[usize; 2]>,
     /// The positions (0-based) reads observe only inside their unreliable
     /// spans (SRS-CONS-012).
     unreliable_only: &'a BTreeMap<usize, EvidenceReason>,
@@ -577,6 +581,15 @@ impl<'a> Sample<'a> {
                 .flat_map(|read| &read.alignment.reference_segments)
                 .map(span),
         ));
+        let shown = merge(segments(
+            analysis
+                .consensus
+                .segments
+                .iter()
+                .flat_map(|segment| segment.start_0based..=segment.end_0based)
+                .filter(|position| !analysis.consensus.reference_only.contains(position))
+                .map(|position| (position, position + 1)),
+        ));
         // The reportable positions outside the analysed `regions`: the
         // stretches the call does not analyse.
         let reportable = clip(&analysis.loaded.profile.regions, reference.len());
@@ -608,6 +621,7 @@ impl<'a> Sample<'a> {
             calls: notation.unwrap_or_default(),
             notation: notation.is_some(),
             sites: &analysis.consensus.sites,
+            shown,
             unreliable_only: &analysis.consensus.unreliable_only,
             reads,
             by_id,

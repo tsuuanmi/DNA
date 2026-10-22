@@ -1,0 +1,6 @@
+# regress-intent series=regress-v1 base=r0001 pr=#299
+id	kind	change	where	match	max_samples	posthoc	reason
+run2-check	check	any	window@HV2	length_unconfirmed	-	0	#299 SRS-API-020 rules 35: run 2 measured beside a shown anchor is reported, so its length_unconfirmed check goes
+run2-note	note	any	303-316	hvs2_c_tract*	-	0	#299 the HVS-II tract note of those samples follows the reported run 2
+run2-review	review	changed	window@HV2	*	-	0	#299 those samples lose the window@HV2 check: clear, zones, and positions to review change
+run2-status	status	any	window@HV2	*	-	0	#299 the pass class of those samples follows their review
