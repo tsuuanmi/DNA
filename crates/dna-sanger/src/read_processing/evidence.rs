@@ -10,20 +10,18 @@
 //! vouches for by their base alone, the bounded runs before a post-repeat
 //! phase loss (ADR-0076), and each call's second base.
 
-use super::SangerEvidenceConfig;
+use super::{ProcessedRead, SangerEvidenceConfig};
 use crate::error::{ProductsError, Result};
 use crate::model::basecalls::BaseCalls;
 use crate::model::callability::{PhaseState, ReadCallability};
 use crate::model::locus_evidence::{LocusEvidence, channel_width};
-use crate::model::quality::QualityControlResult;
 use crate::model::second_cause::{SecondCause, SecondPeak};
-use crate::model::signal::SignalAnalysis;
 use crate::second_cause::second_base;
 use dna_kernel::model::nucleotide::Nucleotide;
 use dna_kernel::model::nucleotide::is_canonical;
 use dna_kernel::read_evidence::{
-    Bound, CallEvidence, EvidenceReason, PhaseMixture, Placement, ReadEvidence, Reasons,
-    SecondBase, TractLengths, UnreliableSpan, Verdict,
+    Bound, CallEvidence, EvidenceReason, Placement, ReadEvidence, Reasons, SecondBase,
+    UnreliableSpan, Verdict,
 };
 
 /// A supporting call's highest A/C/G/T peak is below the configured floor.
@@ -95,17 +93,17 @@ pub fn reason(label: &str) -> Option<EvidenceReason> {
 /// Returns `ProductsError` when the Sanger products disagree
 /// on call count, trim, or call identity, and `EvidenceError` when the evidence
 /// is invalid.
-#[allow(clippy::too_many_arguments)]
-pub fn read_evidence(
-    calls: &BaseCalls,
-    signal: &SignalAnalysis,
-    callability: &ReadCallability,
-    quality: &QualityControlResult,
-    second: &[Option<SecondPeak>],
-    mixtures: &[PhaseMixture],
-    tracts: &[TractLengths],
-    config: &SangerEvidenceConfig,
-) -> Result<ReadEvidence> {
+pub fn read_evidence(read: &ProcessedRead, config: &SangerEvidenceConfig) -> Result<ReadEvidence> {
+    let ProcessedRead {
+        calls,
+        signal,
+        callability,
+        quality,
+        second,
+        mixtures,
+        tracts,
+        warnings: _,
+    } = read;
     let count = quality.per_call.len();
     if callability.mask.len() != count {
         return Err(ProductsError::MaskCountMismatch.into());
@@ -297,9 +295,9 @@ pub fn read_evidence(
     let poor = poor_start(&evidence, config.start_identity_margin);
     Ok(
         ReadEvidence::new(evidence, informative, REASON_ORDER.to_vec())?
-            .with_mixtures(mixtures.to_vec())?
+            .with_mixtures(mixtures.clone())?
             .with_unreliable(poor)?
-            .with_tracts(tracts.to_vec())?,
+            .with_tracts(tracts.clone())?,
     )
 }
 
@@ -1050,9 +1048,9 @@ fn placement(callability: &ReadCallability, index: usize) -> Option<Placement> {
 mod tests {
     use crate::model::basecalls::{BaseCall, ChannelPeak, PeakSource};
     use crate::model::callability::{PhaseSegment, RepeatRun, RepeatUnit};
-    use crate::model::locus_evidence::LocusEvidence;
-    use crate::model::quality::CallQuality;
-    use crate::model::signal::SangerIntegrity;
+    use crate::model::quality::{CallQuality, QualityControlResult};
+    use crate::model::signal::{SangerIntegrity, SignalAnalysis};
+    use crate::read_processing::ReadWarnings;
     use dna_kernel::model::nucleotide::Nucleotide;
 
     use super::*;
@@ -1068,6 +1066,34 @@ mod tests {
     }
 
     /// The evidence settings with every read-edge margin `margin`.
+    /// The evidence of a read with these products and no mixtures or tracts.
+    fn evidence_of(
+        calls: &BaseCalls,
+        signal: &SignalAnalysis,
+        callability: &ReadCallability,
+        quality: &QualityControlResult,
+        second: &[Option<SecondPeak>],
+        config: &SangerEvidenceConfig,
+    ) -> Result<ReadEvidence> {
+        let read = ProcessedRead {
+            calls: calls.clone(),
+            signal: signal.clone(),
+            callability: callability.clone(),
+            quality: quality.clone(),
+            second: second.to_vec(),
+            mixtures: Vec::new(),
+            tracts: Vec::new(),
+            warnings: ReadWarnings {
+                unresolved_primary_calls: 0,
+                multi_channel_unresolved_calls: 0,
+                vendor_disagreements: 0,
+                locus_vendor_length_mismatches: 0,
+                clipped_channel_samples: 0,
+            },
+        };
+        read_evidence(&read, config)
+    }
+
     fn config(margin: usize) -> SangerEvidenceConfig {
         SangerEvidenceConfig {
             minimum_peak_height: 150,
@@ -1280,16 +1306,7 @@ mod tests {
             second
         };
         let evidence = |calls: &BaseCalls, second: &[Option<SecondPeak>]| {
-            read_evidence(
-                calls,
-                &signal,
-                &callability,
-                &quality,
-                second,
-                &[],
-                &[],
-                &config(0),
-            )
+            evidence_of(calls, &signal, &callability, &quality, second, &config(0))
         };
         // A neighbour's tail: withheld as mixed all the same, its run role
         // unchanged, and reference-only; its second base stands out and is
@@ -1366,14 +1383,12 @@ mod tests {
         let (calls, signal, callability, quality) =
             products(&[300; 7], &[40, 40, 40, 30, 40, 40, 40]);
         let evidence = |cause| {
-            read_evidence(
+            evidence_of(
                 &calls,
                 &signal,
                 &callability,
                 &quality,
                 &stand_out(7, 3, cause),
-                &[],
-                &[],
                 &config(0),
             )
         };
@@ -1465,14 +1480,12 @@ mod tests {
                         callability: &ReadCallability,
                         quality: &QualityControlResult,
                         cause| {
-            read_evidence(
+            evidence_of(
                 calls,
                 &signal,
                 callability,
                 quality,
                 &stand_out(5, 2, cause),
-                &[],
-                &[],
                 &config(0),
             )
         };
@@ -1528,16 +1541,7 @@ mod tests {
             samples: 0..1,
             calls: 3..5,
         }];
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         for (index, call) in evidence.calls().iter().enumerate() {
             let inside = (3..5).contains(&index);
             assert_eq!(call.identity.withheld.contains(SIGNAL_SPIKE), inside);
@@ -1553,16 +1557,7 @@ mod tests {
     fn the_calls_beside_a_gap_show_their_base_only() -> Result<()> {
         let (calls, signal, mut callability, quality) = products(&[300; 8], &[40; 8]);
         callability.gaps = vec![3];
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let base_only = evidence
             .calls()
             .iter()
@@ -1581,16 +1576,7 @@ mod tests {
     #[test]
     fn raises_peak_and_quality_vetoes_at_their_boundaries() -> Result<()> {
         let (calls, signal, callability, quality) = products(&[149, 150, 150], &[31, 30, 31]);
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let vetoes = evidence
             .calls()
             .iter()
@@ -1625,16 +1611,7 @@ mod tests {
         for peak in &mut calls.calls[2].peaks[1..] {
             peak.height = 60;
         }
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let withheld = evidence
             .calls()
             .iter()
@@ -1653,16 +1630,7 @@ mod tests {
     fn raises_the_mixed_veto_for_substitutions_only() -> Result<()> {
         let (mut calls, signal, callability, quality) = products(&[200], &[31]);
         calls.calls[0].qualifying_channels = vec![Nucleotide::A, Nucleotide::C];
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let call = evidence.calls()[0];
         assert!(call.identity.withheld.contains(MIXED_SUPPORTING_DNA));
         assert!(!call.indel.withheld.contains(MIXED_SUPPORTING_DNA));
@@ -1693,16 +1661,7 @@ mod tests {
         for &(start, end, state, _) in &segments {
             callability.mask[start..end].fill((state != PhaseState::InPhase).then_some(state));
         }
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         let placements = [0, 7, 12, 17, 22].map(|index| {
             (
                 evidence.calls()[index].placement,
@@ -1751,16 +1710,7 @@ mod tests {
         callability.callable_start_0based = 4;
         quality.trim_start_0based = 4;
         quality.retained_sequence = "A".repeat(4);
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(1),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(1))?;
         let vouched = evidence
             .calls()
             .iter()
@@ -1786,16 +1736,7 @@ mod tests {
         // Masked after a repeat run, the stretch is a dephased tail, not start
         // noise: no call of it is vouched for.
         callability.segments[0].after_repeat = true;
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(1),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(1))?;
         assert!(evidence.calls()[..4].iter().all(|call| {
             call.placement == Placement::Unresolved(POST_HOMOPOLYMER) && !call.base_only()
         }));
@@ -1850,16 +1791,7 @@ mod tests {
         signal.loci[6].channel_widths = [0, 0, 10, 0];
         quality.trim_end_0based_exclusive = 8;
         quality.retained_sequence = "A".repeat(8);
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(2),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(2))?;
         let lifted = evidence
             .calls()
             .iter()
@@ -1903,16 +1835,7 @@ mod tests {
         quality.trim_end_0based_exclusive = 10;
         quality.retained_sequence = "A".repeat(10);
         let lifted = |callability: &ReadCallability| -> Result<Vec<bool>> {
-            let evidence = read_evidence(
-                &calls,
-                &signal,
-                callability,
-                &quality,
-                &[],
-                &[],
-                &[],
-                &config(4),
-            )?;
+            let evidence = evidence_of(&calls, &signal, callability, &quality, &[], &config(4))?;
             Ok(evidence.calls()[6..10]
                 .iter()
                 .map(|call| !call.identity.edge)
@@ -1994,16 +1917,7 @@ mod tests {
                 end_height_fraction: fraction,
                 ..config(6)
             };
-            let evidence = read_evidence(
-                &calls,
-                &signal,
-                &callability,
-                &quality,
-                &[],
-                &[],
-                &[],
-                &config,
-            )?;
+            let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config)?;
             Ok(evidence.calls()[10..16]
                 .iter()
                 .map(|call| !call.identity.edge)
@@ -2076,16 +1990,7 @@ mod tests {
             },
         ];
         callability.mask[13..17].fill(Some(PhaseState::Mixed));
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(4),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(4))?;
         let lifted = evidence.calls()[8..22]
             .iter()
             .map(|call| call.placement == Placement::Scored && !call.identity.edge)
@@ -2165,16 +2070,7 @@ mod tests {
         );
         // Call 5 is broader than the start's peaks.
         signal.loci[5].channel_widths = [0, 10, 0, 0];
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(2),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(2))?;
         let lifted = (4..8)
             .map(|index| !evidence.calls()[index].identity.edge)
             .collect::<Vec<_>>();
@@ -2207,46 +2103,19 @@ mod tests {
         // Call 4 follows start noise reading `T` but not vouched for, so it
         // may be that call's signal one position off; calls 5 and 6 each
         // follow a call reading `T` that is.
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(3),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [false, false, false]);
         // With call 3 reading `G`, call 4 qualifies, and the run chains on.
         let mut bases = bases;
         bases[3] = 'G';
         let (calls, signal, callability, quality) = start_products(bases, heights);
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(3),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [true, true, true]);
         // A broad call 5 breaks the chain: call 6 no longer follows a vouched
         // call of its base.
         let (calls, mut signal, callability, quality) = start_products(bases, heights);
         signal.loci[5].channel_widths = [0, 0, 0, 10];
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(3),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(3))?;
         assert_eq!(lifted(&evidence), [true, false, false]);
         Ok(())
     }
@@ -2258,16 +2127,7 @@ mod tests {
         calls.calls[0].peaks[2].height = 50;
         calls.calls[0].peaks[1].height = 10;
         calls.calls[0].peaks[3].height = 0;
-        let evidence = read_evidence(
-            &calls,
-            &signal,
-            &callability,
-            &quality,
-            &[],
-            &[],
-            &[],
-            &config(0),
-        )?;
+        let evidence = evidence_of(&calls, &signal, &callability, &quality, &[], &config(0))?;
         assert_eq!(
             evidence.calls()[0].second,
             Some(SecondBase {

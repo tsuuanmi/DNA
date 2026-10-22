@@ -100,13 +100,7 @@ fn outcome(inputs: &BasecallInputs) -> Result<Evidenced> {
             Admission::Processed(processed) => {
                 let stage = tracing::info_span!("read_evidence").entered();
                 let evidence = read_processing::read_evidence(
-                    &processed.calls,
-                    &processed.signal,
-                    &processed.callability,
-                    &processed.quality,
-                    &processed.second,
-                    &processed.mixtures,
-                    &processed.tracts,
+                    &processed,
                     &inputs.config.sanger.sanger_evidence,
                 )?;
                 drop(stage);
