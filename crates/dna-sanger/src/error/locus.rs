@@ -1,4 +1,4 @@
-//! Shared Sanger locus-window geometry failures.
+//! Sanger locus-window geometry failures.
 
 /// Why symmetric sample windows could not be built around the trace loci.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

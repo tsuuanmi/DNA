@@ -13,7 +13,7 @@ decided-by:
 verified-by:
   - crates/dna-call/src
   - crates/dna-kernel/src/read_evidence.rs
-  - crates/dna-sanger/src/read_processing/evidence.rs
+  - crates/dna-sanger/src/read_processing/evidence
   - src/input/sequence.rs
 ---
 

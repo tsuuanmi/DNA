@@ -14,7 +14,6 @@ mod config;
 mod consensus_document;
 mod evidence;
 mod fasta;
-mod locus;
 mod profile;
 mod report;
 mod representation;
@@ -32,7 +31,6 @@ pub use config::ConfigError;
 pub use consensus_document::ConsensusDocumentError;
 pub use evidence::EvidenceError;
 pub use fasta::FastaError;
-pub use locus::LocusWindowError;
 pub use profile::ProfileError;
 pub use report::ReportError;
 pub use representation::{NomenclatureError, NormalizationError, RepresentationError};
@@ -263,9 +261,8 @@ mod tests {
                 "sample evidence failed: all 2 reads were rejected and none could be analyzed",
             ),
             (
-                SampleError::CallEvidence(CallEvidenceError::MissingPeakEvidence { index: 7 })
-                    .into(),
-                "sample evidence failed: variant call index 7 lacks primary-event peak evidence",
+                SampleError::CallEvidence(CallEvidenceError::MissingCall { index: 7 }).into(),
+                "sample evidence failed: variant references missing call index 7",
             ),
             (
                 ReportError::DuplicateReadName {

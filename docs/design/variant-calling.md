@@ -16,7 +16,7 @@ covers:
   - crates/dna-call/src/model/variant.rs
   - crates/dna-call/src/read_call.rs
   - crates/dna-kernel/src/read_evidence.rs
-  - crates/dna-sanger/src/read_processing/evidence.rs
+  - crates/dna-sanger/src/read_processing/evidence
   - src/input/sequence.rs
 ---
 

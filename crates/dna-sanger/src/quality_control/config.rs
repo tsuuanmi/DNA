@@ -2,7 +2,8 @@
 
 use serde::Deserialize;
 
-use dna_kernel::error::{ConfigError, Result};
+use dna_kernel::bounds;
+use dna_kernel::error::Result;
 
 /// Relative quality settings.
 #[derive(Debug, Clone)]
@@ -26,18 +27,14 @@ pub struct RawQualityControlConfig {
 impl RawQualityControlConfig {
     /// Validates the section.
     pub(crate) fn validate(self) -> Result<QualityControlConfig> {
-        if self.penalty_window_size == 0 {
-            return Err(ConfigError::Constraint(
-                "quality_control.penalty_window_size must be positive",
-            )
-            .into());
-        }
-        if self.max_relative_quality_score == 0 {
-            return Err(ConfigError::Constraint(
-                "quality_control.max_relative_quality_score must be positive",
-            )
-            .into());
-        }
+        bounds::positive_count(
+            "quality_control.penalty_window_size",
+            self.penalty_window_size,
+        )?;
+        bounds::positive_count(
+            "quality_control.max_relative_quality_score",
+            usize::from(self.max_relative_quality_score),
+        )?;
         Ok(QualityControlConfig {
             penalty_window_size: self.penalty_window_size,
             max_relative_quality_score: self.max_relative_quality_score,

@@ -38,8 +38,8 @@ domain/config/error types rather than outward toward frontends. In particular,
 the CLI may call the pipeline boundary, but pipeline and scientific modules must
 not depend on CLI/`clap` argument types.
 
-The core caller sees a read only as `ReadEvidence`, which `read_processing`
-builds for Sanger and `input::sequence` for reviewed consensus sequences.
+The core caller sees a read only as `ReadEvidence`, which the Sanger plugin's
+adapter (`dna_sanger::read_processing::evidence`) builds for Sanger and `input::sequence` for reviewed consensus sequences.
 
 Scientific stages report operational progress only through `tracing` events and
 per-stage spans; they never select a destination. `operation_log` renders those
