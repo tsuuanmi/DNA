@@ -155,6 +155,62 @@ fn the_run_header_reads_back() -> Result<()> {
 }
 
 #[test]
+fn warnings_list_escape_lines_changed_without_a_rise() {
+    let head = Head {
+        row: ledger::IndexRow {
+            entry: "r0001".into(),
+            kind: "initial".into(),
+            base: "-".into(),
+            revision: "a".repeat(40),
+            golden_sha256: "0".repeat(64),
+            verdict: Verdict::Initial.label().into(),
+            recorded: "2026-10-22".into(),
+        },
+        header: header(),
+    };
+    let escape = |key: &str, change, before: Option<&str>, after: Option<&str>| judge::Changed {
+        sample: 1,
+        kind: Kind::Block,
+        key: key.into(),
+        change,
+        before: before.map(str::to_owned),
+        after: after.map(str::to_owned),
+        label: Label::Unexplained,
+    };
+    let judgement = Judgement {
+        changes: vec![
+            escape(
+                "16-16:A/G",
+                Change::Removed,
+                Some("non_het interior@HV1 no"),
+                None,
+            ),
+            escape(
+                "16-16:A/R",
+                Change::Added,
+                None,
+                Some("non_het interior@HV1 no"),
+            ),
+        ],
+        rules: vec![judge::Rule::Unexplained],
+        verdict: Verdict::Fail,
+        intents: Vec::new(),
+        rebase_escapes: 0,
+        reshaped_escapes: vec![0, 1],
+    };
+    let samples = ["S1".to_owned(), "S2".to_owned()];
+    assert_eq!(
+        warnings(Some(&head), &header(), Some(&judgement), None, &samples),
+        vec![
+            "escape changed, count not risen: S2 block 16-16:A/G removed \
+             non_het interior@HV1 no -> -",
+            "escape changed, count not risen: S2 block 16-16:A/R added \
+             - -> non_het interior@HV1 no",
+        ]
+    );
+}
+
+#[test]
 fn refuses_checks_that_measure_something_else() {
     let head = header();
     assert!(comparable(("r0001", &head), &head, false).is_ok());

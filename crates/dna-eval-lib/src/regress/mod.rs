@@ -920,7 +920,13 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
     );
     judged.record_in(&mut header);
     let (judgement, verdict) = (judged.judgement.as_ref(), judged.verdict);
-    header.warnings = warnings(head.as_ref(), &header, judgement, intents.as_ref());
+    header.warnings = warnings(
+        head.as_ref(),
+        &header,
+        judgement,
+        intents.as_ref(),
+        &golden.samples,
+    );
     header.seconds.total = started.elapsed().as_secs_f64();
 
     let intents = intents.as_ref().map(|(intents, _)| intents);
@@ -947,13 +953,15 @@ fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String
 
 /// What a check reports beside the verdict: a moved version key without a
 /// change, intent rows that matched nothing, rows added after a check, the
-/// version-key fields that moved, the configuration that changed, and
-/// escapes a rebase measures.
+/// version-key fields that moved, the configuration that changed, escapes
+/// a rebase measures, and escape lines that changed while their sample's
+/// escape count in the zone did not rise.
 fn warnings(
     head: Option<&Head>,
     header: &Header,
     judgement: Option<&Judgement>,
     intents: Option<&(Intents, IntentHeader)>,
+    samples: &[String],
 ) -> Vec<String> {
     let mut warnings = Vec::new();
     let (Some(head), Some(judgement)) = (head, judgement) else {
@@ -986,6 +994,20 @@ fn warnings(
         warnings.push(format!(
             "the rebase turns {} block(s) into non-het escapes",
             judgement.rebase_escapes
+        ));
+    }
+    for change in judgement
+        .reshaped_escapes
+        .iter()
+        .filter_map(|index| judgement.changes.get(*index))
+    {
+        warnings.push(format!(
+            "escape changed, count not risen: {} block {} {} {} -> {}",
+            samples[change.sample],
+            change.key,
+            change.change.label(),
+            change.before.as_deref().unwrap_or("-"),
+            change.after.as_deref().unwrap_or("-"),
         ));
     }
     warnings
@@ -1065,6 +1087,7 @@ fn summary(
         verdict: Verdict::Initial,
         intents: Vec::new(),
         rebase_escapes: 0,
+        reshaped_escapes: Vec::new(),
     };
     let judgement = judgement.unwrap_or(&empty);
 

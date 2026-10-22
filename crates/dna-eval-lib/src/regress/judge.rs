@@ -17,7 +17,8 @@ pub(crate) const HEADER: &str = "sample_id\tstratum\tkind\tkey\tchange\tbefore\t
 /// A rule of the verdict, in the order the rules are evaluated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Rule {
-    /// An unreviewed non-het block appears in a zone no check item touches.
+    /// A sample's unreviewed non-het blocks in a zone no check item touches
+    /// rise in number.
     Escape,
     /// A flagged discordant sample becomes clear while still discordant.
     FlagLost,
@@ -200,6 +201,10 @@ pub(crate) struct Judgement {
     /// With `--rebase`: blocks that became non-het escapes (reported; a
     /// rebase changes the truth they are measured against).
     pub(crate) rebase_escapes: usize,
+    /// The changed escape lines, by index into `changes`, of each sample and
+    /// zone that gains an escape line while its escape count does not rise
+    /// (reported: an escape reshaped, never `forbidden:escape`).
+    pub(crate) reshaped_escapes: Vec<usize>,
 }
 
 impl Judgement {
@@ -217,13 +222,27 @@ impl Judgement {
     }
 }
 
-/// Whether a block value is a non-het block in an unchecked zone.
-fn escape(value: Option<&str>) -> bool {
-    value.is_some_and(|value| {
-        let cells = value.split(' ').collect::<Vec<_>>();
-        cells.first().and_then(|class| Class::parse(class)) == Some(Class::NonHet)
-            && cells.get(2) == Some(&"no")
-    })
+/// The zone of a block value that is a non-het block in an unchecked zone.
+fn escape(value: Option<&str>) -> Option<&str> {
+    let cells = value?.split(' ').collect::<Vec<_>>();
+    (cells.first().and_then(|class| Class::parse(class)) == Some(Class::NonHet)
+        && cells.get(2) == Some(&"no"))
+    .then_some(cells.get(1).copied())
+    .flatten()
+}
+
+/// The change of each sample's escape count per zone, candidate against
+/// head; the unchanged lines count alike in both.
+fn escape_counts(changes: &[Changed]) -> BTreeMap<(usize, String), i64> {
+    let mut counts = BTreeMap::<(usize, String), i64>::new();
+    for change in changes.iter().filter(|change| change.kind == Kind::Block) {
+        for (value, step) in [(&change.before, -1), (&change.after, 1)] {
+            if let Some(zone) = escape(value.as_deref()) {
+                *counts.entry((change.sample, zone.to_owned())).or_default() += step;
+            }
+        }
+    }
+    counts
 }
 
 /// The value of `kind` `key` of each sample.
@@ -323,6 +342,39 @@ pub(crate) fn judge(
     let mut rules = BTreeSet::new();
     let mut rebase_escapes = 0;
 
+    // A sample's escapes in a zone that rise in number; an escape whose
+    // text or span changes while the count holds is only reported.
+    let counts = escape_counts(&changes);
+    let rises = |sample: usize, zone: &str| {
+        counts
+            .get(&(sample, zone.to_owned()))
+            .is_some_and(|step| *step > 0)
+    };
+    let reshaped = counts
+        .keys()
+        .filter(|(sample, zone)| {
+            !context.rebase
+                && !rises(*sample, zone)
+                && changes.iter().any(|change| {
+                    change.sample == *sample
+                        && change.kind == Kind::Block
+                        && escape(change.after.as_deref()) == Some(zone.as_str())
+                })
+        })
+        .collect::<BTreeSet<_>>();
+    let reshaped_escapes = changes
+        .iter()
+        .enumerate()
+        .filter(|(_, change)| {
+            change.kind == Kind::Block
+                && [&change.before, &change.after].into_iter().any(|value| {
+                    escape(value.as_deref())
+                        .is_some_and(|zone| reshaped.contains(&(change.sample, zone.to_owned())))
+                })
+        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+
     // A flagged discordant sample that becomes clear while still discordant.
     let lod = |golden| values(golden, Kind::Status, "haplotype_lod");
     let clear = |golden| values(golden, Kind::Review, "clear");
@@ -344,8 +396,7 @@ pub(crate) fn judge(
     for change in &mut changes {
         let forbidden = if !context.rebase
             && change.kind == Kind::Block
-            && escape(change.after.as_deref())
-            && !escape(change.before.as_deref())
+            && escape(change.after.as_deref()).is_some_and(|zone| rises(change.sample, zone))
         {
             Some(Rule::Escape)
         } else if !context.rebase
@@ -365,8 +416,8 @@ pub(crate) fn judge(
         };
         if context.rebase
             && change.kind == Kind::Block
-            && escape(change.after.as_deref())
-            && !escape(change.before.as_deref())
+            && escape(change.after.as_deref()).is_some()
+            && escape(change.before.as_deref()).is_none()
         {
             rebase_escapes += 1;
         }
@@ -432,6 +483,7 @@ pub(crate) fn judge(
             .map(|(lines, samples)| (lines, samples.len()))
             .collect(),
         rebase_escapes,
+        reshaped_escapes,
     }
 }
 
@@ -762,6 +814,64 @@ mod tests {
             judged(&head, &candidate, any, (false, true)).verdict,
             Verdict::Explained
         );
+    }
+
+    #[test]
+    fn escapes_fail_only_when_a_sample_count_rises_in_a_zone() {
+        let any = Some("all\t*\tany\t*\t*\t-\t0\tr\n");
+        let escape = |sample, key| line(sample, Kind::Block, key, "non_het interior@HV1 no");
+        let head = golden(vec![escape(0, "16-16:A/G"), escape(1, "30-30:C/T")]);
+        // The same escape with another text or span, count unchanged: no
+        // forbidden rule, the intents judge the lines, and the changed
+        // escape lines are reported.
+        for key in ["16-16:A/R", "16-17:AG/GA"] {
+            let candidate = golden(vec![escape(0, key), escape(1, "30-30:C/T")]);
+            let judgement = judged(&head, &candidate, any, (false, true));
+            assert_eq!(judgement.verdict, Verdict::Explained, "{key}");
+            assert_eq!(judgement.reshaped_escapes, vec![0, 1], "{key}");
+            let judgement = judged(&head, &candidate, None, (false, true));
+            assert_eq!(judgement.rules, vec![Rule::Unexplained], "{key}");
+        }
+        // A count that rises fails, whatever the intents; only the new
+        // escape lines of the risen zone carry the rule.
+        let risen = golden(vec![
+            escape(0, "16-16:A/G"),
+            escape(0, "20-20:A/G"),
+            escape(1, "30-30:C/T"),
+        ]);
+        let judgement = judged(&head, &risen, any, (false, true));
+        assert_eq!(judgement.rules, vec![Rule::Escape]);
+        assert_eq!(judgement.changes[0].label, Label::Forbidden(Rule::Escape));
+        assert!(judgement.reshaped_escapes.is_empty());
+        // An escape moving into another zone raises that zone's count.
+        let moved = golden(vec![
+            line(0, Kind::Block, "16-16:A/G", "non_het after@HV1 no"),
+            escape(1, "30-30:C/T"),
+        ]);
+        assert_eq!(
+            judged(&head, &moved, any, (false, true)).rules,
+            vec![Rule::Escape]
+        );
+        // One escape removed in one sample and one added in another: the
+        // sample whose count rose fails; the other is no reshape.
+        let swapped = golden(vec![escape(0, "16-16:A/G"), escape(2, "40-40:G/A")]);
+        let judgement = judged(&head, &swapped, any, (false, true));
+        assert_eq!(judgement.rules, vec![Rule::Escape]);
+        let labels = judgement
+            .changes
+            .iter()
+            .map(|change| (change.sample, change.label))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            labels,
+            vec![(1, Label::Intent(0)), (2, Label::Forbidden(Rule::Escape))]
+        );
+        assert!(judgement.reshaped_escapes.is_empty());
+        // A fixed escape is neither forbidden nor reported.
+        let fixed = golden(vec![escape(0, "16-16:A/G")]);
+        let judgement = judged(&head, &fixed, any, (false, true));
+        assert_eq!(judgement.verdict, Verdict::Explained);
+        assert!(judgement.reshaped_escapes.is_empty());
     }
 
     #[test]
