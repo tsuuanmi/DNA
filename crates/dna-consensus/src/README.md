@@ -12,7 +12,7 @@ review's one source of in-phase run lengths, SRS-API-020),
 `insertion_views` and `InsertionView` (each read's view of a site decided
 with an insertion, the review's one source for `one_strand_insertion`,
 SRS-CONS-015), [runs](runs.rs) (`runs_of`, a sequence's runs of one
-base, `reference_run`, the reference run holding a position, and
+base by the kernel's `maximal_runs` scan, `reference_run`, the reference run holding a position, and
 `anchored_pair`, the first two runs of one base around a single anchor
 base: the consensus's and the review's one reading of runs), [length](length.rs)
 (the two-strand run-length rule), [noise](noise.rs) (a run's length noise
