@@ -17,7 +17,7 @@
 //! `k` standard errors. Otherwise a single adjacent pair `n`/`n+1` that every
 //! view holds is near-equal, and anything else is a disagreement.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use dna_align::model::alignment::{AlignmentColumn, Orientation};
 use dna_call::model::called_read::CalledRead;
@@ -25,6 +25,11 @@ use dna_kernel::nnls::nnls;
 use dna_kernel::read_evidence::{LengthMarginal, TractLengths};
 
 use crate::ReadRun;
+use crate::decide::Decision;
+use crate::model::consensus::RunEvidence;
+#[cfg(doc)]
+use crate::read_runs_over;
+use crate::stretch::runs_of;
 
 /// Lengths a derived run may take: the shifts the deconvolution fits.
 const SHIFTS: std::ops::RangeInclusive<usize> = 1..=15;
@@ -160,7 +165,7 @@ pub fn deconvolve(first: &LengthMarginal, total: &LengthMarginal) -> Option<Vec<
             .zip(&marginal.shares)
             .filter(|(_, share)| **share > 0.0)
             .map(|(&length, &share)| (length, share))
-            .collect::<std::collections::BTreeMap<_, _>>()
+            .collect::<BTreeMap<_, _>>()
     };
     let first = positive(first);
     let total = positive(total);
@@ -412,7 +417,7 @@ pub const fn anchor_on(window: &Window, forward: bool) -> char {
 /// The rule's views of a two-run window's runs (run 1 first) from the
 /// reads' tract decodes and, on a strand no decode views a run from, the
 /// reads that show the run in phase (`shown_runs`, by read, as
-/// [`read_runs_over`](crate::read_runs_over) gives them over the window).
+/// [`read_runs_over`] gives them over the window).
 #[must_use]
 pub fn views(
     window: &Window,
@@ -468,6 +473,93 @@ pub fn views(
         }
     }
     runs
+}
+
+/// Decides by the two-strand rule over the reads' tract decodes (SRS-CONS-013,
+/// PROP-0012 increment 4) the runs a stretch's decision left as an estimate
+/// (an anchored end, a phase loss, or the reference frame), in every pair of
+/// runs of one base the stretch splits by a single-base anchor, where its
+/// call keeps the reference's run composition. A run the rule decides takes
+/// its length, with `two_strand` evidence. A run a read shows in phase, or
+/// whose ends two reads confirm, keeps its length whatever the rule says;
+/// the review flags their disagreement. The pattern is the stretch's own
+/// structure, never a position: the rule names no region. `shown` gives each
+/// read's runs over a 0-based reference stretch, as [`read_runs_over`] does.
+pub(crate) fn two_strand(
+    decided: &mut BTreeMap<usize, (usize, Decision)>,
+    reads: &[&CalledRead],
+    bases: &[u8],
+    params: &RuleParams,
+    shown: impl Fn(usize, usize) -> Vec<Option<Vec<ReadRun>>>,
+) {
+    for (&start, (end, decision)) in decided.iter_mut() {
+        if !decision
+            .runs
+            .iter()
+            .any(|run| run.evidence.yields_to_two_strand())
+        {
+            continue;
+        }
+        let reference_runs = runs_of(bases[start..=*end].iter().map(|&base| char::from(base)));
+        if reference_runs.len() != decision.runs.len()
+            || reference_runs
+                .iter()
+                .zip(&decision.runs)
+                .any(|((base, _), run)| *base != run.base)
+        {
+            continue;
+        }
+        // Each reference run's first position, 1-based.
+        let firsts = reference_runs
+            .iter()
+            .scan(start + 1, |position, (_, length)| {
+                let first = *position;
+                *position += length;
+                Some(first)
+            })
+            .collect::<Vec<_>>();
+        let mut changed = false;
+        for index in 0..reference_runs.len().saturating_sub(2) {
+            let (repeat, anchor) = (reference_runs[index], reference_runs[index + 1]);
+            if reference_runs[index + 2].0 != repeat.0
+                || anchor.1 != 1
+                || decision.runs[index + 1].length != 1
+                || !(decision.runs[index].evidence.yields_to_two_strand()
+                    || decision.runs[index + 2].evidence.yields_to_two_strand())
+            {
+                continue;
+            }
+            let window = Window {
+                first: firsts[index],
+                last: firsts[index + 2] + reference_runs[index + 2].1 - 1,
+                anchor: firsts[index + 1],
+                repeat: repeat.0,
+                anchor_base: anchor.0,
+            };
+            let shown = shown(window.first - 1, window.last - 1);
+            let views = views(&window, reads, &shown);
+            for (run, slot) in [(1, index), (2, index + 2)] {
+                if !decision.runs[slot].evidence.yields_to_two_strand() {
+                    continue;
+                }
+                let (Outcome::Decided(length), _) = decide(&views[run - 1], run, params) else {
+                    continue;
+                };
+                decision.runs[slot].length = length;
+                decision.runs[slot].evidence = RunEvidence::TwoStrand;
+                changed = true;
+            }
+        }
+        if changed {
+            decision.value = Some(
+                decision
+                    .runs
+                    .iter()
+                    .map(|run| run.base.to_string().repeat(run.length))
+                    .collect(),
+            );
+        }
+    }
 }
 
 #[cfg(test)]
