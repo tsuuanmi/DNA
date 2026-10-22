@@ -22,9 +22,10 @@ the version key. Nothing else in the harness depends on it.
 - `intents.rs` — the intent file: its header, rows, `where` forms (positions,
   zone, region), and the glob of `match`.
 - `judge.rs` — the changed lines of a candidate against the head, the rules
-  in order (the forbidden rules, the version bump, the intents' bounds,
-  unexplained lines, a rebase's truth-free changes), the verdict, and
-  `changes.tsv`.
+  in order (the forbidden rules, an escape by a rise of a sample's escape
+  count in a zone, the version bump, the intents' bounds, unexplained lines,
+  a rebase's truth-free changes), the escape lines changed without a rise,
+  the verdict, and `changes.tsv`.
 - `ledger.rs` — the local `index.tsv`, the committed baseline files' rows and
   their strict reader, entry ids, and the UTC date of a record.
 - `tests.rs` — the run header, comparability, and `record`'s refusals on

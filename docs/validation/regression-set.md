@@ -197,7 +197,7 @@ that fired. A line a forbidden rule names carries it as its label.
 
 | Rule | Fires when |
 |---|---|
-| `forbidden:escape` | a `block` line of class `non_het` with `zone_checked` `no` is added, or a block changes into that state; whatever the intents. A rebase only reports such blocks, since it changes the truth they are measured against |
+| `forbidden:escape` | a sample's escapes in a zone rise in number: its `block` lines of class `non_het` with `zone_checked` `no` in that zone are more than at the head; whatever the intents. The rule names the risen zone's new escape lines. An escape whose text or span changes while the count holds (`16-16:A/G` to `16-16:A/R`, or `16-16` to `16-17`) fires no rule: the intents judge its lines, and a warning lists them. A rebase only reports blocks that become escapes, since it changes the truth they are measured against |
 | `forbidden:flag_lost` | a sample whose head `haplotype_lod` status is `discordant` goes from `review clear N` to `Y` while still `discordant`; whatever the intents |
 | `forbidden:failures` | a `failure` line is added or removed: the set of failed samples differs |
 | `forbidden:no_bump` | a truth-free line changed while the candidate's version key equals the head's |
@@ -209,8 +209,11 @@ Otherwise the verdict is `REGRESS SAME` when no line changed, `REGRESS
 EXPLAINED` when every changed line is explained, and `REGRESS REBASE` for a
 rebase. Reported, never the verdict: a version key that moved without a
 changed line (the change may lie outside the set), intent rows that matched
-nothing (`unused intent`), `posthoc` rows, and the version-key fields that
-moved.
+nothing (`unused intent`), `posthoc` rows, the version-key fields that
+moved, and the changed escape lines of each sample and zone that gains an
+escape line while its escape count does not rise (`escape changed, count not
+risen: <sample> block <key> <change> <before> -> <after>`; a fixed escape
+alone is not listed).
 
 The **version key** is the workspace version, every plugin `id=version` of
 the static registry ([[ADR-0069]]; [[governance/versioning#Plugins]]), the
@@ -229,8 +232,8 @@ configuration change.
 |---|---|
 | `golden.tsv` | the golden output |
 | `changes.tsv` | the changed lines |
-| `regress.md` | the verdict and the rules that fired, warnings, the head and candidate revisions and version keys, the changes by kind and change, by stratum (changed samples of its members), and by intent row (lines, samples), the first 40 unexplained or forbidden lines, and the counts; the listed lines name samples, so the file stays local |
-| `run.json` | the harness and source revision and dirty flag, the manifest fields, the truth and re-check identities, the configuration, profile, and reference identities, the review options, the run contexts, the version key, cache usage, the head entry, the intent file (blob id, rows, `posthoc` rows), the verdict and rules, the warnings, the golden, kind, and stratum digests, the counts, and the timings |
+| `regress.md` | the verdict and the rules that fired, warnings, the head and candidate revisions and version keys, the changes by kind and change, by stratum (changed samples of its members), and by intent row (lines, samples), the first 40 unexplained or forbidden lines, and the counts; the listed lines and the changed-escape warnings name samples, so the file stays local |
+| `run.json` | the harness and source revision and dirty flag, the manifest fields, the truth and re-check identities, the configuration, profile, and reference identities, the review options, the run contexts, the version key, cache usage, the head entry, the intent file (blob id, rows, `posthoc` rows), the verdict and rules, the warnings (a changed-escape warning names its sample; the file stays local), the golden, kind, and stratum digests, the counts, and the timings |
 
 ## Ledger
 
