@@ -26,6 +26,11 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   without them. `dna.eval_run/v1` changes in place (pre-release): `outputs`
   is a new optional `run.json` field, absent from runs of earlier
   revisions. No DNA output changes.
+- Regression ledger entry `r0001` of regress-v1: the `INITIAL` on the `main`
+  revision that introduces `dna-eval regress` (74c9cbaf), one row in
+  `crates/dna-eval/baselines/regress-v1-ledger.tsv` and one per stratum (37)
+  in `regress-v1-strata.tsv`. 589 samples, none failed, 291 clear, 6 non-het
+  blocks in unchecked zones.
 - `dna-eval regress` (`dna.eval_regress/v1`): the versioned regression set
   (`docs/validation/regression-set.md`).
   - `regress check` runs DNA on every row of a `panel=regress` manifest as
