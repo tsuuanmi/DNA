@@ -306,6 +306,10 @@ one.
   generations of each kind, unlabelled ones being a kind of their own, and
   removes those temporary files; a temporary file is named for its writer's
   process, and one whose process no longer runs on this host is orphaned.
+  The check sees this host's processes in its own PID namespace only, so a
+  run on another host or in another container writing to a shared cache
+  looks orphaned: prune where no such run is writing. `--keep` is at least
+  1.
   `--dry-run` reports what it would remove and removes nothing.
 - **Forms cache.** The same directory caches the index of the truth's
   written forms ([[validation/evaluation-measures#Discrepancy causes|forms]]),
