@@ -425,14 +425,27 @@ struct CacheArgs {
 
 #[derive(Debug, Subcommand)]
 enum CacheAction {
-    /// Removes every generation of the cache but the most recently used.
+    /// Lists the cache's generations (TSV): kind, last use, entries, bytes,
+    /// and key, by kind and most recently used first, and the orphaned
+    /// temporary files.
+    List {
+        /// The cache directory.
+        #[arg(long)]
+        dir: PathBuf,
+    },
+    /// Removes every generation of the cache but the most recently used of
+    /// each kind, and the temporary files of runs no longer alive.
     Prune {
         /// The cache directory.
         #[arg(long)]
         dir: PathBuf,
-        /// Generations to keep.
+        /// Generations to keep of each kind (evidence, placement, forms, and
+        /// unlabelled).
         #[arg(long)]
         keep: usize,
+        /// Report what would be removed, and remove nothing.
+        #[arg(long)]
+        dry_run: bool,
     },
 }
 
@@ -600,16 +613,15 @@ fn main() -> ExitCode {
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
         Command::Cache(CacheArgs {
-            action: CacheAction::Prune { dir, keep },
-        }) => cache::prune(&dir, keep)
+            action: CacheAction::List { dir },
+        }) => cache::list(&dir)
             .map_err(Error::from)
-            .map(|removed| {
-                let bytes = removed.iter().map(|(_, bytes)| bytes).sum::<u64>();
-                format!(
-                    "dna-eval: removed {} cache generation(s), {bytes} bytes",
-                    removed.len()
-                )
-            }),
+            .map(|listing| cache::listing_table(&listing).trim_end().to_owned()),
+        Command::Cache(CacheArgs {
+            action: CacheAction::Prune { dir, keep, dry_run },
+        }) => cache::prune(&dir, keep, dry_run)
+            .map_err(Error::from)
+            .map(|pruned| cache::pruned_summary(&pruned, dry_run)),
     };
     match result {
         Ok(summary) => {

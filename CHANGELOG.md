@@ -17,6 +17,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Added
 
+- `dna-eval cache list --dir <dir>` and a kind-aware `cache prune`. Each
+  cache generation records its kind and key (`key.json`) and the time a run
+  last opened it (`last_used`). `list` shows every generation by kind and
+  last use (TSV) and the temporary files of writers no longer alive.
+  `prune --keep <n>` now keeps the `n` most recently used generations of
+  each kind (evidence, placement, forms, unlabelled) instead of `n` over
+  all kinds by last write, removes those orphaned temporary files, and takes
+  `--dry-run`. No DNA output changes; run outputs are byte-identical.
 - `dna-eval same <run-a> <run-b>`: whether two runs' outputs are
   byte-identical, and which files differ, with the first line at which each
   does (exit 2 with `DIFFERENT`). `dna.eval_run/v1`'s `run.json` records the
