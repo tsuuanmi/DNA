@@ -10,6 +10,8 @@ use super::*;
 use crate::model::consensus::{ConsensusRun, ConsensusSite, RunEvidence, SiteState};
 use crate::observe::{Char, Trust};
 
+mod n_reads;
+
 const REFERENCE: &str = "TTGACGTCAGTACGATCGTACCTGAGTACGAGGACT";
 
 fn reference() -> Reference {
