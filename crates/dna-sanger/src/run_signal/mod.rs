@@ -34,7 +34,7 @@ use crate::model::sanger::Chromatogram;
 use crate::model::second_cause::{SecondCause, SecondPeak};
 use crate::read_processing::evidence::{PEAK_BELOW_MINIMUM, RELATIVE_QUALITY_NOT_ABOVE_THRESHOLD};
 use crate::read_processing::{self, Admission, SangerConfig};
-use crate::signal_processing::{RunSignalParameters, SignalProcessingConfig};
+use crate::signal_processing::{RunSignalParams, SignalProcessingConfig};
 use dna_kernel::model::nucleotide::Nucleotide;
 
 /// Version of the call selection [`contributions`] applies.
@@ -158,7 +158,7 @@ pub struct Contributions {
 pub fn contributions(
     heights: &[[i32; 4]],
     evidence: &ReadEvidence,
-    parameters: &RunSignalParameters,
+    parameters: &RunSignalParams,
 ) -> Contributions {
     let (flank, resolution) = (parameters.flank, f64::from(parameters.resolution));
     let verdicts = evidence.calls();
@@ -266,7 +266,7 @@ impl RunSignal {
         run_id: String,
         traces: BTreeSet<String>,
         reads: impl IntoIterator<Item = Contributions>,
-        parameters: &RunSignalParameters,
+        parameters: &RunSignalParams,
     ) -> Self {
         let mut signal = Self {
             run_id,
@@ -315,10 +315,7 @@ impl RunSignal {
     /// # Errors
     ///
     /// Returns [`RunSignalError::Parameters`] on a mismatch.
-    pub fn check(
-        &self,
-        parameters: &RunSignalParameters,
-    ) -> std::result::Result<(), RunSignalError> {
+    pub fn check(&self, parameters: &RunSignalParams) -> std::result::Result<(), RunSignalError> {
         if self.flank == parameters.flank && self.resolution == parameters.resolution {
             return Ok(());
         }
@@ -335,7 +332,7 @@ impl RunSignal {
     /// fraction. `None` when the run has fewer reads than `minimum_reads` or
     /// the key fewer calls than `minimum_calls`.
     #[must_use]
-    pub fn level(&self, key: &Key, parameters: &RunSignalParameters) -> Option<f64> {
+    pub fn level(&self, key: &Key, parameters: &RunSignalParams) -> Option<f64> {
         if self.reads < parameters.minimum_reads {
             return None;
         }
@@ -420,7 +417,7 @@ mod tests {
     type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
 
     /// The configured parameters: a 5-mer, shares in thousandths.
-    const PARAMETERS: RunSignalParameters = RunSignalParameters {
+    const PARAMETERS: RunSignalParams = RunSignalParams {
         flank: 2,
         resolution: 1000,
         minimum_reads: 40,
@@ -483,7 +480,7 @@ mod tests {
         assert!(!selected.keys.contains_key(&key('T')));
         // With one call of context on each side and shares in hundredths,
         // calls 1, 5, and 7 too have a context, and the share is 20.
-        let coarse = RunSignalParameters {
+        let coarse = RunSignalParams {
             flank: 1,
             resolution: 100,
             ..PARAMETERS
@@ -541,17 +538,17 @@ mod tests {
         let parameters = PARAMETERS;
         // Median 0.020, MAD 0: the margin sets the spread.
         assert!((signal.level(&key, &parameters).unwrap_or(0.0) - 0.07).abs() < 1e-9);
-        let narrow = RunSignalParameters {
+        let narrow = RunSignalParams {
             margin: 0.0001,
             ..parameters
         };
         assert!((signal.level(&key, &narrow).unwrap_or(0.0) - 0.0201).abs() < 1e-9);
-        let few = RunSignalParameters {
+        let few = RunSignalParams {
             minimum_calls: 41,
             ..parameters
         };
         assert_eq!(signal.level(&key, &few), None);
-        let small = RunSignalParameters {
+        let small = RunSignalParams {
             minimum_reads: 51,
             ..parameters
         };
@@ -601,7 +598,7 @@ mod tests {
                 calls: Some(40)
             }
         );
-        let sparse = RunSignalParameters {
+        let sparse = RunSignalParams {
             minimum_calls: 41,
             ..config.run_signal
         };
@@ -618,11 +615,11 @@ mod tests {
         let signal = RunSignal::build("run".into(), BTreeSet::new(), [], &PARAMETERS);
         assert!(signal.check(&PARAMETERS).is_ok());
         for other in [
-            RunSignalParameters {
+            RunSignalParams {
                 flank: 3,
                 ..PARAMETERS
             },
-            RunSignalParameters {
+            RunSignalParams {
                 resolution: 100,
                 ..PARAMETERS
             },
@@ -679,10 +676,10 @@ mod tests {
             SecondCause::SecondTemplate
         );
         // A cause the shape gives stands.
-        let tail = peak(0.30, SecondCause::NeighbourTail);
+        let tail = peak(0.30, SecondCause::NeighborTail);
         assert_eq!(
             refine(&tail, Some(&key), Some(&signal), &config),
-            SecondCause::NeighbourTail
+            SecondCause::NeighborTail
         );
     }
 }

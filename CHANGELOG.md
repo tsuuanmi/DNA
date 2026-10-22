@@ -695,6 +695,10 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   `NotPositive` (from `dna_kernel::bounds::count_range`, `count_at_least`,
   and `positive_count`) instead of `Constraint`, with the same messages;
   most validated Sanger configuration fields become crate-private.
+- **Breaking (Rust API):** Sanger identifiers use `Params` and US spelling:
+  `RunSignalParams`, `SecondCauseParams`, `SpikeParams`, and
+  `SecondCause::{NeighborTail, OffCenter}`. The labels (`neighbour_tail`,
+  `off_centre`) and every document are unchanged.
 - The review's `read_disagrees` reads a call a bounded-run exemption
   covers as showing its base only where the consensus lifts `read_end` from
   it (ADR-0076): a run call aligned as a match or inserted, a bound aligned

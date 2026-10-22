@@ -124,21 +124,21 @@ fn shape(
     if f64::from(peak.height) < parameters.noise_ratio * f64::from(lowest) {
         return SecondCause::Noise;
     }
-    let neighbour = |offset: isize| {
+    let neighbor = |offset: isize| {
         index
             .checked_add_signed(offset)
-            .and_then(|neighbour| calls.calls.get(neighbour))
+            .and_then(|neighbor| calls.calls.get(neighbor))
     };
-    let (previous, next) = (neighbour(-1), neighbour(1));
-    let centre = |call: &BaseCall| {
+    let (previous, next) = (neighbor(-1), neighbor(1));
+    let center = |call: &BaseCall| {
         Nucleotide::from_char(call.primary).map_or(call.locus_position_0based, |base| {
             call.peaks[base.channel_index()].position_0based
         })
     };
     // Signed offset of the second peak from the call's centre, in spacings.
     let offset = previous.zip(next).and_then(|(previous, next)| {
-        let spacing = (centre(next) as f64 - centre(previous) as f64) / 2.0;
-        (spacing > 0.0).then(|| (peak.position_0based as f64 - centre(call) as f64) / spacing)
+        let spacing = (center(next) as f64 - center(previous) as f64) / 2.0;
+        (spacing > 0.0).then(|| (peak.position_0based as f64 - center(call) as f64) / spacing)
     });
     let towards = offset.is_some_and(|offset| {
         (offset > 0.0 && next.is_some_and(|next| next.primary == second))
@@ -146,10 +146,10 @@ fn shape(
     });
     let shifted = offset.is_some_and(|offset| offset.abs() >= parameters.tail_offset);
     if peak.source != PeakSource::LocalMaximum || (shifted && towards) {
-        return SecondCause::NeighbourTail;
+        return SecondCause::NeighborTail;
     }
     if shifted {
-        return SecondCause::OffCentre;
+        return SecondCause::OffCenter;
     }
     if wide(calls, signal, index, other, config) {
         return SecondCause::DyeBlob;
@@ -313,26 +313,26 @@ mod tests {
     }
 
     #[test]
-    fn a_second_peak_without_a_maximum_or_towards_its_base_is_a_neighbour_tail() {
+    fn a_second_peak_without_a_maximum_or_towards_its_base_is_a_neighbor_tail() {
         let rising = cause_at_two(10, |calls, _, _| {
             second(calls, Nucleotide::T, 400, 0);
             calls.calls[2].peaks[Nucleotide::T.channel_index()].source = PeakSource::LocusFallback;
         });
-        assert_eq!(rising, Some(SecondCause::NeighbourTail));
+        assert_eq!(rising, Some(SecondCause::NeighborTail));
         // Half a spacing towards the C before it.
         let shifted = cause_at_two(10, |calls, _, _| second(calls, Nucleotide::C, 400, -5));
-        assert_eq!(shifted, Some(SecondCause::NeighbourTail));
+        assert_eq!(shifted, Some(SecondCause::NeighborTail));
     }
 
     #[test]
-    fn a_shifted_second_peak_towards_no_call_of_its_base_is_off_centre() {
+    fn a_shifted_second_peak_towards_no_call_of_its_base_is_off_center() {
         // Half a spacing towards the G after it, a T.
         let cause = cause_at_two(10, |calls, _, _| second(calls, Nucleotide::T, 400, 5));
-        assert_eq!(cause, Some(SecondCause::OffCentre));
+        assert_eq!(cause, Some(SecondCause::OffCenter));
     }
 
     #[test]
-    fn a_wide_centred_second_peak_is_a_dye_blob() {
+    fn a_wide_centerd_second_peak_is_a_dye_blob() {
         // Eight samples wide against the neighbours' four.
         let cause = cause_at_two(10, |calls, signal, _| {
             second(calls, Nucleotide::T, 400, 0);
@@ -342,13 +342,13 @@ mod tests {
     }
 
     #[test]
-    fn a_centred_second_peak_of_a_neighbours_base_is_a_phase_shift() {
+    fn a_centerd_second_peak_of_a_neighbors_base_is_a_phase_shift() {
         let cause = cause_at_two(10, |calls, _, _| second(calls, Nucleotide::G, 400, 0));
         assert_eq!(cause, Some(SecondCause::PhaseShift));
     }
 
     #[test]
-    fn an_unexplained_centred_second_peak_is_a_second_template() {
+    fn an_unexplained_centerd_second_peak_is_a_second_template() {
         let cause = cause_at_two(10, |calls, _, _| second(calls, Nucleotide::T, 400, 0));
         assert_eq!(cause, Some(SecondCause::SecondTemplate));
         // At the floor's share, 250 against 1000, there is no label.

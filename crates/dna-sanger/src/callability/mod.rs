@@ -137,7 +137,7 @@ mod tests {
                     for &(offset, fraction) in shadows {
                         if let Some(&shadow) = index
                             .checked_add_signed(offset)
-                            .and_then(|neighbour| bases.get(neighbour))
+                            .and_then(|neighbor| bases.get(neighbor))
                         {
                             amplitudes[channel(shadow)] += 1_000.0 * fraction;
                         }

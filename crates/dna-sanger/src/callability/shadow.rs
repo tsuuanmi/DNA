@@ -69,8 +69,8 @@ pub(super) fn fit(
         let templates = OFFSETS.map(|offset| {
             index
                 .checked_add_signed(offset)
-                .and_then(|neighbour| evidence.get(neighbour))
-                .and_then(|neighbour| neighbour.primary)
+                .and_then(|neighbor| evidence.get(neighbor))
+                .and_then(|neighbor| neighbor.primary)
         });
         for (slot, template) in templates.iter().enumerate() {
             let Some(channel) = *template else {
@@ -267,7 +267,7 @@ mod tests {
                 for &(offset, weight) in shadows {
                     if let Some(&shadow) = index
                         .checked_add_signed(offset)
-                        .and_then(|neighbour| channels.get(neighbour))
+                        .and_then(|neighbor| channels.get(neighbor))
                     {
                         amplitudes[shadow] += 1_000.0 * weight;
                     }

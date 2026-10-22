@@ -137,10 +137,10 @@ pub(super) fn gaps(
                 return false;
             }
             let spacing = spacings[index];
-            let neighbours = [index.checked_sub(1), index.checked_add(1)]
+            let neighbors = [index.checked_sub(1), index.checked_add(1)]
                 .into_iter()
                 .flatten()
-                .filter_map(|neighbour| spacings.get(neighbour))
+                .filter_map(|neighbor| spacings.get(neighbor))
                 .copied()
                 .collect::<Vec<_>>();
             // `sign` 1 asks for a span wider than expected, -1 for narrower.
@@ -149,9 +149,9 @@ pub(super) fn gaps(
                     round_metric(sign * (span - expected * median) / median) >= spacing_defect
                 };
                 off(spacing, 1.0)
-                    && neighbours
+                    && neighbors
                         .iter()
-                        .all(|&neighbour| off(spacing + neighbour, 2.0))
+                        .all(|&neighbor| off(spacing + neighbor, 2.0))
             };
             defect(1.0) || defect(-1.0)
         })

@@ -183,14 +183,14 @@ mod tests {
             window: 4,
             rules: RULES,
         };
-        let labelled = segments(&callable, &context);
-        assert_eq!(labelled.len(), 3);
-        assert_eq!(labelled[0].state, PhaseState::Weak);
-        assert_eq!(labelled[0].shadow, None);
-        assert!(!labelled[0].after_repeat);
-        assert_eq!(labelled[1].state, PhaseState::InPhase);
-        assert_eq!(labelled[2].state, PhaseState::Irregular);
-        assert!(labelled[2].after_repeat);
+        let labeled = segments(&callable, &context);
+        assert_eq!(labeled.len(), 3);
+        assert_eq!(labeled[0].state, PhaseState::Weak);
+        assert_eq!(labeled[0].shadow, None);
+        assert!(!labeled[0].after_repeat);
+        assert_eq!(labeled[1].state, PhaseState::InPhase);
+        assert_eq!(labeled[2].state, PhaseState::Irregular);
+        assert!(labeled[2].after_repeat);
     }
 
     // SRS-CALL-003
@@ -216,8 +216,8 @@ mod tests {
             window: 4,
             rules: RULES,
         };
-        let labelled = segments(&callable, &context);
-        assert_eq!(labelled[1].state, PhaseState::Mixed);
-        assert_eq!(labelled[1].shadow, None);
+        let labeled = segments(&callable, &context);
+        assert_eq!(labeled[1].state, PhaseState::Mixed);
+        assert_eq!(labeled[1].shadow, None);
     }
 }

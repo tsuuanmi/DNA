@@ -14,10 +14,12 @@ pub enum SecondCause {
     /// The second channel's signal is the tail of a neighbouring call of that
     /// base: no local maximum in the call's window, or one shifted towards
     /// that neighbour.
-    NeighbourTail,
+    #[serde(rename = "neighbour_tail")]
+    NeighborTail,
     /// A second peak shifted off the call's centre, towards no neighbour of
     /// its base.
-    OffCentre,
+    #[serde(rename = "off_centre")]
+    OffCenter,
     /// A centred second peak much wider than the read's primary peaks there:
     /// a dye artefact.
     DyeBlob,
@@ -39,8 +41,8 @@ impl SecondCause {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Noise => "noise",
-            Self::NeighbourTail => "neighbour_tail",
-            Self::OffCentre => "off_centre",
+            Self::NeighborTail => "neighbour_tail",
+            Self::OffCenter => "off_centre",
             Self::DyeBlob => "dye_blob",
             Self::PhaseShift => "phase_shift",
             Self::Context => "context",
