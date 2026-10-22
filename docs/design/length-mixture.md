@@ -151,7 +151,10 @@ research reference's vectors check every output.
 
 The review judges the runs of each anchored repeat window from the decodes
 (SRS-API-020). It credits each decode to the run its first call is aligned
-to, the run at the tract's start. A forward read gives run 1, the one it
+to, the run at the tract's start; a first call on an inserted column is
+credited to the position the insertion follows, on either strand. The
+consensus's two-strand rule credits a decode by the same function
+(`length::start_reference`). A forward read gives run 1, the one it
 enters first, and a reverse read gives run 2. With the anchor as its mark
 and both marginals clear, a read also gives the next run's length from its
 total.

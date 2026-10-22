@@ -23,9 +23,8 @@ evidence labels that make it quick to settle. It never states the reviewer's
 conclusion.
 
 The authoritative schema is
-[`schemas/review-v1.schema.json`](schemas/review-v1.schema.json); the
-synthetic example is
-[`examples/review-v1.example.json`](examples/review-v1.example.json).
+[`schemas/review-v1.schema.json`](schemas/review-v1.schema.json); the synthetic
+example is [`examples/review-v1.example.json`](examples/review-v1.example.json).
 
 ## Command
 
@@ -254,7 +253,8 @@ site) is a one-position item of its own.
 
 Each label has a rank; an item's priority is the lowest rank of its labels,
 and `5` for a variant without a label. Items are ordered by priority, then
-`first` (position, then ordinal), then `last`.
+`first` (position, then ordinal), then `last`. The schema's `summary.labels`
+carries this table (`x-rank`, and `x-check` for a check); CI checks they agree.
 
 | Rank | Labels |
 |---:|---|
