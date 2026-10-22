@@ -67,7 +67,8 @@ call verbatim, and its run role is unchanged.
    (counting, run ends) stays its call's.
 2. A confirmation is withdrawn where any read shows an unexplained second
    peak at the position, and where a read of the other strand shows the
-   confirming call's own second base standing out.
+   confirming call's own second base standing out (narrowed twice below:
+   one-strand unexplained seconds, and explained seconds on both strands).
 3. A confirmation within or beside a decided site that differs from the
    reference, including a site written partly as `N`, is withdrawn. The
    positions are then decided again, until no confirmation is withdrawn.
@@ -235,6 +236,45 @@ commit (the edge-deletion zone and the missing-peak rule, PR stack on
   LN_25_AA3929 `16182M`. In LN_25_AA2476 the zone of an unreviewed `16266Y`
   loses its check. The gate counts heteroplasmy as optional.
 - **Plugin.** `sanger` 19.
+
+### Explained seconds on both strands
+
+Amended 2026-10-22. Rule 2 also withdrew a confirmation wherever a read of
+the other strand showed the confirming call's own second base standing out,
+whatever its cause. A reference-only call's own second is explained by
+construction (a neighbour's tail or a dye blob, SRS-CALL-022). When the other
+strand's read explains its second too, neither strand shows an unexplained
+second there, and the review's two-strand heteroplasmy rule calls such a
+second `explained` (rules version 19). The guard now withdraws only when the
+other strand leaves the second unexplained, which the unexplained-second
+part of rule 2 already covers; the separate guard is removed.
+
+Census on development panel v5 at `main` af0823d3 (current blocked samples):
+20 undecided positions in 19 samples were held only by this guard, all of
+them reference in the truth, for example 111 between two C neighbours
+(each strand sees the downstream C's tail) and 530. The heteroplasmies the
+guard was kept for (`152Y` in 2563003, LN_26_AA3106, LN_26_AE0209) show an
+unexplained `phase_shift` second on the other strand and stay undecided.
+
+Measured with `dna-eval diff` against `main` af0823d3, GATE PASS on both
+panels:
+
+| Panel | Period | Clear | Unreviewed | Non-het passed zones |
+|---|---|---|---|---|
+| dev v5 | current | 8,813 → 8,827 (+14) | unchanged | unchanged |
+| dev v5 | earlier | 4,049 → 4,065 (+16) | unchanged | unchanged |
+| readiness-v2 | current | 15,158 → 15,165 (+7) | unchanged | unchanged |
+| readiness-v2 | earlier | 2,011 → 2,024 (+13) | unchanged | unchanged |
+
+- **Unchanged.** No unreviewed block, status, or coverage changes on either
+  panel.
+- **Het.** Two newly clear dev v5 samples carry an unreviewed heteroplasmy
+  in an interior zone no check touched before either (LN_26_AB5943 `16301Y`,
+  LN_25_AA9640 `16318R`).
+- **Omission.** No newly clear sample omits a truth allele, except one
+  earlier readiness-v2 sample (2541327) whose `73G` lay in a `not_analysed`
+  stretch before and after; its only check, at 83, is now decided.
+- **Plugin.** `consensus` 22.
 
 ## Alternatives
 
