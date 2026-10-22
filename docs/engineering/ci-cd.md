@@ -110,6 +110,9 @@ The repository-policy job:
 - runs Python tooling tests;
 - validates result schemas and examples;
 - parses the strict TOML configuration template and the target profile it names;
+- checks that the template and the [[reference/configuration|configuration reference]]
+  table list the same keys with the same values, and that the reference's
+  schema version, the template's, and the one the build accepts agree;
 - verifies the documented environment template;
 - verifies the rCRS checksum and reference length.
 
