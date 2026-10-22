@@ -58,4 +58,5 @@ ID.
 | governance/lifecycle | Documentation Lifecycle | Folded into the documentation architecture standard (classes, status vocabulary, promotion) and the DNA policy. | - | 2026-10-19 | `65c221e560e1:docs/governance/lifecycle.md` |
 | governance/ownership | Documentation and Code Ownership | Folded into the DNA policy area table and the standard's change-impact rule. | - | 2026-10-19 | `65c221e560e1:docs/governance/ownership.md` |
 | ADR-0001 | Deliver an End-to-End MVP First | Deliver an end-to-end Sanger MVP first (one AB1, one rCRS FASTA, re-calling, QC, alignment, variants); delivered and since extended by the sample, consensus, and plugin architecture. | - | 2026-10-19 | `65c221e560e1:docs/decisions/adr/0001-mvp-vertical-slice.md` |
+| validation/evaluation-triage | Evaluation of review triage | The draft triage of PROP-0004 phase 0 and its evaluation were removed from dna-eval with approve and power (user decision 2026-10-21); the review workload, estimates, and anchors moved to validation/evaluation-workload. | - | 2026-10-21 | `df008d60c4c3:docs/validation/evaluation-triage.md` |
 <!-- ledger:end -->

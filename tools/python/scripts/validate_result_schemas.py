@@ -1892,22 +1892,6 @@ def validate_eval_run(document: Any, label: str, errors: list[str]) -> None:
     validate_eval_passes(
         header.get("workload", {}), "recheck" in header, scores, label, errors
     )
-    triage = header.get("triage")
-    if isinstance(triage, dict):
-        policies = triage.get("policies")
-        columns = document.get("triage_policies.tsv", {}).get("columns", [])
-        sweep = document.get("triage_sweep.tsv", {}).get("rows", [])
-        if len(columns) - 3 != policies or len(sweep) != policies:
-            errors.append(
-                f"{label}: triage policies disagree with the sweep and policy tables"
-            )
-        names = [row.get("policy") for row in sweep]
-        if names != columns[3:] or not triage.get("policy", "").startswith(
-            f"{names[0] if names else ''}: "
-        ):
-            errors.append(
-                f"{label}: the sweep's policies are not the policy table's, reported first"
-            )
 
 
 # The classes that split the passed units with an unreviewed block.
@@ -2017,16 +2001,8 @@ def rejected_eval_run_shapes(
     row_without_cell["windows.tsv"]["rows"][0].pop("unreviewed_upper95")
     unformatted_rate = copy.deepcopy(example)
     unformatted_rate["estimates.tsv"]["rows"][0]["rate"] = "0.5"
-    diff_without_baseline = copy.deepcopy(example)
-    diff_without_baseline["run.json"]["baseline"] = None
-    baseline_without_diff = copy.deepcopy(example)
-    baseline_without_diff.pop("diff.tsv")
     unchanged_with_changes = copy.deepcopy(example)
     unchanged_with_changes["run.json"]["truth"]["state"] = "unchanged"
-    triage_without_file = copy.deepcopy(example)
-    triage_without_file.pop("triage_leaks.tsv")
-    triage_files_without_triage = copy.deepcopy(example)
-    triage_files_without_triage["run.json"].pop("triage")
     signals_without_run_signal = copy.deepcopy(example)
     signals_without_run_signal["run.json"].pop("run_signal")
     context_table_without_context = copy.deepcopy(example)
@@ -2081,8 +2057,6 @@ def rejected_eval_run_shapes(
     forms_without_database["forms.tsv"]["comments"] = []
     commented_scores = copy.deepcopy(example)
     commented_scores["scores.tsv"]["comments"] = [["note"]]
-    unknown_policy_class = copy.deepcopy(example)
-    unknown_policy_class["triage_policies.tsv"]["rows"][0]["draft"] = "approved"
     return [
         ("eval run without scores.tsv", without_scores),
         ("eval run with a file the contract does not name", unknown_file),
@@ -2090,11 +2064,7 @@ def rejected_eval_run_shapes(
         ("eval scores with a status the harness does not write", unknown_status),
         ("eval windows row without a cell", row_without_cell),
         ("eval estimate rate without four decimals", unformatted_rate),
-        ("eval diff.tsv without a baseline", diff_without_baseline),
-        ("eval baseline without diff.tsv", baseline_without_diff),
         ("eval truth_changes.tsv with an unchanged truth", unchanged_with_changes),
-        ("eval triage without one of its files", triage_without_file),
-        ("eval triage files without the triage header", triage_files_without_triage),
         ("eval signals.tsv without the run signal", signals_without_run_signal),
         ("eval run_context.tsv without run contexts", context_table_without_context),
         ("eval run.json without its constants", run_without_constants),
@@ -2107,7 +2077,6 @@ def rejected_eval_run_shapes(
         ("eval re-check list with negative rows", recheck_with_bad_rows),
         ("eval forms.tsv without its database line", forms_without_database),
         ("eval scores.tsv with a comment line", commented_scores),
-        ("eval policy table with an unknown class", unknown_policy_class),
     ]
 
 

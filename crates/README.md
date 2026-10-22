@@ -18,7 +18,7 @@ registry, and the reports.
 | [dna-trace](dna-trace/src/README.md) | trace signal engineering from plain data: phase-mixture decomposition of the windows a modality flags ([ADR-0084](../docs/decisions/adr/0084-trace-crate.md)); a library, not a plugin | `dna-kernel` |
 | [dna-normalize](dna-normalize/src/README.md) | post-calling representation, normalization, and nomenclature in the lab's reviewer convention ([ADR-0077](../docs/decisions/adr/0077-normalize-and-empop-crates.md)) | `dna-kernel` |
 | [dna-empop](dna-empop/src/README.md) | post-calling conformance to forensic (EMPOP-style) notation conventions, offline | `dna-kernel` |
-| [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, reports, the artefact and simulated benches, and the evidence and placement caches ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna`, `dna-kernel`, `dna-align`, `dna-sample`, `dna-consensus`, `dna-normalize`, `dna-sanger`, `dna-trace` (its `simulate` feature) |
+| [dna-eval](dna-eval/src/README.md) | the evaluation harness: panel manifests, reviewer truth, comparison, reports, the artefact and simulated benches, and the evidence and placement caches ([ADR-0075](../docs/decisions/adr/0075-evaluation-harness-in-workspace.md)) | `dna`, `dna-kernel`, `dna-align`, `dna-sample`, `dna-consensus`, `dna-sanger`, `dna-trace` (its `simulate` feature; tests: `dna-normalize`) |
 
 The core is four crates, one per step, in a chain: each depends only on the
 kernel and the steps before it ([ADR-0079](../docs/decisions/adr/0079-core-crates-by-step.md)).

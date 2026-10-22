@@ -1915,6 +1915,27 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 - Corrected the minimum supported Rust version to match language features used
   by the codebase.
 
+### Removed
+
+- `dna-eval`'s approval-era tooling (user decision 2026-10-21, after the
+  evaluation code and validity reviews): the draft triage (`run --triage`,
+  its nine `triage*.tsv` tables and `triage.md`, and the triage evidence the
+  runner took), `approve` and `power` (the pre-registered sample-level
+  approval of triage pass rules and its projection), `convention`, and
+  `run --baseline` with `diff.tsv`, the baseline sections of `summary.md`,
+  and `anchors.tsv`'s `baseline_status` and `change` columns; `dna-eval
+  diff` compares two runs. `run.json` loses `baseline`, `triage`, and the
+  triage constants (`minor_floor_share`, `minor_noise_calls`,
+  `local_shadow_share`, `noise_ratio`, `upper_bound_alpha`,
+  `triage_window_margin`, `triage_footprint_positions`); the summary loses
+  its `baseline | none` line. `dna.eval_run/v1` changes in place
+  (`docs/governance/versioning.md` now states this practice). Every other
+  output is byte-identical on development panel v5. The hold-out remainder
+  stays reserved: `dna-eval` refuses a hold-out panel, and a new approval
+  path is designed later (PROP-0005, validity review recommendation 5).
+  `docs/validation/evaluation-triage.md` is retired; its review workload,
+  estimates, and anchors move to `docs/validation/evaluation-workload.md`.
+
 ### Fixed
 
 - A read's clean start or end that holds every run of a stretch's

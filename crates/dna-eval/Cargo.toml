@@ -15,7 +15,6 @@ dna-align.workspace = true
 dna-consensus.workspace = true
 dna-sample.workspace = true
 dna-kernel.workspace = true
-dna-normalize.workspace = true
 dna-sanger.workspace = true
 dna-trace = { workspace = true, features = ["simulate"] }
 flate2.workspace = true
@@ -27,6 +26,7 @@ thiserror.workspace = true
 toml.workspace = true
 
 [dev-dependencies]
+dna-normalize.workspace = true
 tempfile.workspace = true
 
 [lints]

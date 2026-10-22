@@ -4,13 +4,11 @@
 //! `dna-eval run` reads a panel manifest, runs the recommended `consensus` then
 //! `call` workflow for every sample in process, compares the calls with the
 //! reviewer truth of the lab's statistics database, and writes the
-//! comparisons, weighted estimates, anchors, the diff against an optional
-//! baseline run, and a summary into a new output directory; with `--triage`
-//! it also scores the draft stage-1 triage of PROP-0004. `dna-eval panel`
-//! derives a new panel version against the database. Nothing in DNA depends on
-//! this crate.
+//! comparisons, weighted estimates, anchors, and a summary into a new output
+//! directory. `dna-eval diff` compares two runs and gates the candidate;
+//! `dna-eval panel` derives a new panel version against the database.
+//! Nothing in DNA depends on this crate.
 
-mod approve;
 mod baseline;
 mod bench;
 mod cache;
@@ -20,10 +18,8 @@ mod compare;
 mod components;
 #[cfg(test)]
 mod contract;
-mod convention;
 mod error;
 mod estimate;
-mod evidence;
 mod haplotype;
 mod lod;
 mod manifest;
@@ -35,7 +31,6 @@ mod runner;
 mod simbench;
 mod subset;
 mod tracts;
-mod triage;
 mod truth;
 mod unrecorded;
 mod workload;
@@ -65,17 +60,13 @@ use crate::runner::{Identity, Outcome, Threads};
 use crate::truth::TruthCheck;
 use crate::workload::Passes;
 
-/// The panels `run` reads: the development panel the rules are tuned on, and
-/// the readiness panel that checks them before a pre-registration. A hold-out
-/// panel is read only by `approve`.
+/// The panels the harness reads: the development panel the rules are tuned
+/// on, and the readiness panels that test them. A hold-out panel stays
+/// reserved for an approval path not yet designed.
 const RUNNABLE_PANELS: [&str; 2] = ["dev", "readiness"];
 
 /// Largest accepted panel manifest.
 const MAX_MANIFEST_BYTES: u64 = 256 * 1024 * 1024;
-/// Largest accepted baseline scores file.
-const MAX_BASELINE_BYTES: u64 = 256 * 1024 * 1024;
-/// Largest accepted development `triage_policies.tsv`.
-const MAX_POLICIES_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted `forms.tsv`.
 const MAX_FORMS_BYTES: u64 = 256 * 1024 * 1024;
 /// Largest accepted forced-window list.
@@ -115,15 +106,6 @@ enum Command {
     /// Writes a quick stratified subset of a panel, for a first-pass `diff`
     /// before the full panel: a pre-filter, never the gate.
     Subset(SubsetArgs),
-    /// Runs the pre-registered approval of triage pass rules on a hold-out
-    /// panel, once.
-    Approve(ApproveArgs),
-    /// Projects the passes and attainable bounds of an approval run from a
-    /// development run, without the panel's truth.
-    Power(PowerArgs),
-    /// Runs every truth sample's written calls through DNA's notation chain
-    /// and reports the conventions DNA writes differently.
-    Convention(ConventionArgs),
     /// Manages a read evidence cache (`run --evidence-cache`).
     Cache(CacheArgs),
     /// Compares a run with a base run of the same panel and gates it: exits
@@ -356,7 +338,6 @@ fn run_bench(args: &BenchArgs) -> Result<bench::Report> {
         (&args.reference, &reference.sequence_sha256),
         &args.config,
         threads,
-        false,
         None,
         (cache.as_ref(), &runner::Contexts::new()),
         &mut Vec::new(),
@@ -465,63 +446,6 @@ fn diff(args: &DiffArgs) -> ExitCode {
     }
 }
 
-/// Arguments of `dna-eval convention`.
-#[derive(Debug, Args)]
-struct ConventionArgs {
-    /// The lab's statistics database (`statistics.sqlite`), opened read-only.
-    #[arg(long)]
-    truth: PathBuf,
-    /// The target profile whose notation chain DNA applies.
-    #[arg(long)]
-    profile: PathBuf,
-    /// The profile's reference FASTA.
-    #[arg(long)]
-    reference: PathBuf,
-    /// New or empty output directory.
-    #[arg(long)]
-    output: PathBuf,
-}
-
-/// Arguments of `dna-eval approve`.
-#[derive(Debug, Args)]
-struct ApproveArgs {
-    /// The committed pre-registration (TOML).
-    #[arg(long)]
-    prereg: PathBuf,
-    /// New output directory under `results/`.
-    #[arg(long)]
-    output: PathBuf,
-    /// Worker threads that run DNA (1 to 256).
-    #[arg(long)]
-    threads: usize,
-}
-
-/// Arguments of `dna-eval power`.
-#[derive(Debug, Args)]
-struct PowerArgs {
-    /// A development or readiness run directory with `triage.tsv`, and with
-    /// `triage_policies.tsv` for `--base` and `--candidate`.
-    #[arg(long)]
-    dev_run: PathBuf,
-    /// The panel manifest whose strata the approval will read.
-    #[arg(long)]
-    manifest: PathBuf,
-    /// The sweep policy a marginal endpoint is measured against.
-    #[arg(long, requires = "candidate")]
-    base: Option<String>,
-    /// The sweep policy whose newly passed samples over `--base` are
-    /// projected.
-    #[arg(long, requires = "base")]
-    candidate: Option<String>,
-    /// A true leak rate among newly passed samples, for the chance that each
-    /// `--bound` is met.
-    #[arg(long, requires_all = ["candidate", "bound"])]
-    true_rate: Option<f64>,
-    /// A candidate marginal upper bound; repeatable.
-    #[arg(long, requires = "true_rate")]
-    bound: Vec<f64>,
-}
-
 /// Arguments of `dna-eval panel`.
 #[derive(Debug, Args)]
 struct PanelArgs {
@@ -580,16 +504,9 @@ struct RunArgs {
     /// New or empty output directory.
     #[arg(long)]
     output: PathBuf,
-    /// Earlier run directory whose `scores.tsv` is the baseline.
-    #[arg(long)]
-    baseline: Option<PathBuf>,
     /// Worker threads that run DNA (1 to 256).
     #[arg(long)]
     threads: usize,
-    /// Also run the draft stage-1 triage of PROP-0004 phase 0 and write its
-    /// `triage*` outputs; research only.
-    #[arg(long)]
-    triage: bool,
     /// An earlier run's `forms.tsv` for the same truth database, read
     /// instead of indexing the whole database.
     #[arg(long)]
@@ -627,9 +544,8 @@ struct RunArgs {
     /// `dna.read_evidence/v1` document, read from the directory or made and
     /// stored there, so a run whose read stage is unchanged skips it. It
     /// needs a harness built from committed read-stage sources; `run.json`
-    /// records its key and hits. Not with `--triage`, which reads the
-    /// traces' own Sanger products.
-    #[arg(long, conflicts_with = "triage")]
+    /// records its key and hits.
+    #[arg(long)]
     evidence_cache: Option<PathBuf>,
     /// A directory of run contexts (PROP-0014), one
     /// `<batch>.run_context.json` per batch, as `dna run-context` writes them
@@ -660,9 +576,6 @@ fn main() -> ExitCode {
         Command::Run(args) => run(&args),
         Command::Panel(args) => derive_panel(&args),
         Command::Subset(args) => write_subset(&args),
-        Command::Approve(args) => approve::approve(&args.prereg, &args.output, args.threads),
-        Command::Power(args) => power(&args),
-        Command::Convention(args) => convention(&args),
         Command::Cache(CacheArgs {
             action: CacheAction::Prune { dir, keep },
         }) => cache::prune(&dir, keep)
@@ -687,8 +600,8 @@ fn main() -> ExitCode {
     }
 }
 
-/// Whether `run` may read the panel: one its header does not name, or a
-/// development or readiness panel.
+/// Whether the harness may read the panel: one its header does not name, or
+/// a development or readiness panel.
 fn runnable(manifest: &Manifest) -> Result<()> {
     match manifest.header.get("panel") {
         Some(panel) if !RUNNABLE_PANELS.contains(&panel.as_str()) => Err(Error::HoldOut {
@@ -719,18 +632,6 @@ fn run(cli: &RunArgs) -> Result<String> {
     let threads = Threads::new(cli.threads)?;
     let manifest = manifest::parse(&read(&cli.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
     runnable(&manifest)?;
-    let baseline = cli
-        .baseline
-        .as_ref()
-        .map(|directory| -> Result<_> {
-            let path = directory.join(baseline::SCORES);
-            Ok(baseline::parse(&read(
-                &path,
-                "baseline scores",
-                MAX_BASELINE_BYTES,
-            )?)?)
-        })
-        .transpose()?;
 
     // The whole truth of the panel loads before DNA runs, so a database that
     // cannot be opened, has another schema, or fails a query stops the run
@@ -854,7 +755,6 @@ fn run(cli: &RunArgs) -> Result<String> {
         (&cli.reference, &reference.sequence_sha256),
         &cli.config,
         threads,
-        cli.triage,
         cli.run_signal.as_deref().map(|grouping| match grouping {
             "month" => runner::Grouping::Month,
             _ => runner::Grouping::Batch {
@@ -905,35 +805,24 @@ fn run(cli: &RunArgs) -> Result<String> {
         &profile.conventions,
     );
     let check = TruthCheck::new(&manifest, &truth.database);
-    let report = Report::new(
-        &rows,
-        baseline.as_ref(),
-        &check,
-        (&forms, reference.sequence.as_str()),
-    )
-    .with_review(
-        cli.review_window,
-        forced,
-        Some(zones),
-        recheck,
-        profile
-            .length_tracts
-            .iter()
-            .map(|tract| workload::Tract {
-                name: tract.name.clone(),
-                first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
-                last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
-                base: char::from(tract.base),
-            })
-            .collect(),
-    )
-    .with_current_since(cli.current_since.clone());
-    let triage_started = Instant::now();
-    let triage = cli
-        .triage
-        .then(|| triage::score::Triage::new(&rows, triage::score::sweep(), &reference.sequence));
-    let triage_files = triage.as_ref().map(triage::score::Triage::files);
-    let triage_seconds = triage_started.elapsed().as_secs_f64();
+    let report = Report::new(&rows, &check, (&forms, reference.sequence.as_str()))
+        .with_review(
+            cli.review_window,
+            forced,
+            Some(zones),
+            recheck,
+            profile
+                .length_tracts
+                .iter()
+                .map(|tract| workload::Tract {
+                    name: tract.name.clone(),
+                    first: i64::try_from(tract.window[0]).unwrap_or(i64::MAX),
+                    last: i64::try_from(tract.window[1]).unwrap_or(i64::MAX),
+                    base: char::from(tract.base),
+                })
+                .collect(),
+        )
+        .with_current_since(cli.current_since.clone());
 
     let mut header = header(
         cli,
@@ -956,19 +845,7 @@ fn run(cli: &RunArgs) -> Result<String> {
             directory: absolute(directory),
             batches: contexts.len(),
         });
-    header.triage = triage.as_ref().map(|triage| TriageHeader {
-        policy: triage
-            .policy()
-            .map(|policy| format!("{}: {}", policy.name, policy.parameters()))
-            .unwrap_or_default(),
-        policies: triage.policies(),
-        seconds: triage_seconds,
-    });
-    for (name, contents) in report
-        .files(&context(&header))
-        .into_iter()
-        .chain(triage_files.into_iter().flatten())
-    {
+    for (name, contents) in report.files(&context(&header)) {
         write(&cli.output, name, &contents)?;
     }
     if cli.run_context.is_some() {
@@ -1094,54 +971,6 @@ pub(crate) fn target_profile(config: &Path) -> Result<dna_kernel::profile::Profi
         path,
         message: error.to_string(),
     })
-}
-
-/// `dna-eval convention`: writes `convention.tsv` and returns the summary.
-fn convention(args: &ConventionArgs) -> Result<String> {
-    let profile =
-        dna_kernel::profile::Profile::load(&args.profile).map_err(|error| Error::Reference {
-            path: args.profile.clone(),
-            message: error.to_string(),
-        })?;
-    let reference = dna_kernel::reference::load(&args.reference, profile.topology)
-        .and_then(|reference| profile.require_reference(&reference).map(|()| reference))
-        .map_err(|error| Error::Reference {
-            path: args.reference.clone(),
-            message: error.to_string(),
-        })?;
-    let ids = truth::sample_ids(&args.truth)?;
-    let wanted = ids.iter().map(String::as_str).collect::<BTreeSet<_>>();
-    let database = truth::load(&args.truth, &wanted)?;
-    prepare_output(&args.output)?;
-    let convention = convention::check(database.samples.values(), &reference, &profile);
-    write(&args.output, "convention.tsv", &convention.table())?;
-    Ok(convention.summary())
-}
-
-/// `dna-eval power`: the projection as Markdown.
-fn power(args: &PowerArgs) -> Result<String> {
-    let manifest = manifest::parse(&read(&args.manifest, "manifest", MAX_MANIFEST_BYTES)?)?;
-    if let (Some(base), Some(candidate)) = (&args.base, &args.candidate) {
-        let path = args.dev_run.join("triage_policies.tsv");
-        let policies = read(&path, "development policy outcomes", MAX_POLICIES_BYTES)?;
-        let target = args.true_rate.map(|true_rate| approve::power::Target {
-            true_rate,
-            bounds: args.bound.clone(),
-        });
-        return approve::power::project_candidate(
-            &String::from_utf8_lossy(&policies),
-            &manifest,
-            base,
-            candidate,
-            target.as_ref(),
-        );
-    }
-    let path = args.dev_run.join("triage.tsv");
-    let triage = read(&path, "development triage", MAX_MANIFEST_BYTES)?;
-    Ok(approve::power::project(
-        &String::from_utf8_lossy(&triage),
-        &manifest,
-    ))
 }
 
 /// `dna-eval panel`: writes the new manifest and returns its checksum line.
@@ -1333,7 +1162,6 @@ struct Header {
     /// Distinct identities DNA reported; one unless the inputs changed during
     /// the run.
     identities: Vec<Identity>,
-    baseline: Option<PathBuf>,
     /// Window of the review workload, in positions.
     review_window: i64,
     /// First batch month of the current data, when given.
@@ -1367,18 +1195,6 @@ struct Header {
     /// What passes without review.
     workload: WorkloadHeader,
     seconds: Seconds,
-    /// The draft triage, when the run asked for it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    triage: Option<TriageHeader>,
-}
-
-/// The draft triage of a run: the reported policy, the policies swept, and
-/// the time to decide and score every policy.
-#[derive(Debug, Serialize)]
-struct TriageHeader {
-    policy: String,
-    policies: usize,
-    seconds: f64,
 }
 
 /// The harness's measurement constants, recorded so that a run's measures can
@@ -1389,24 +1205,8 @@ struct Constants {
     lod_share: u16,
     /// Smallest share of a faint second base, for discrepancy causes.
     faint_share: u16,
-    /// Smallest second-channel weight the triage evidence keeps.
-    minor_floor_share: u16,
-    /// Calls on each side of a call whose second channels give its local
-    /// noise.
-    minor_noise_calls: usize,
-    /// Share of a read's nearby calls showing the same shadow that marks it
-    /// local.
-    local_shadow_share: u16,
-    /// Multiple of its local noise a second channel needs to count.
-    noise_ratio: u16,
-    /// One-sided level of the Clopper–Pearson upper bounds.
-    upper_bound_alpha: f64,
     /// Normal quantile of the two-sided 95 % intervals and Wilson bounds.
     interval_z: f64,
-    /// Positions around a repeat window that count as inside it, for triage.
-    triage_window_margin: i64,
-    /// Clean positions a read observes in a region for its primer to count.
-    triage_footprint_positions: usize,
 }
 
 impl Constants {
@@ -1414,14 +1214,7 @@ impl Constants {
         Self {
             lod_share: lod::LOD,
             faint_share: cause::loci::FAINT,
-            minor_floor_share: evidence::minor::FLOOR,
-            minor_noise_calls: evidence::minor::NOISE_CALLS,
-            local_shadow_share: triage::minor::LOCAL_SHADOW_SHARE,
-            noise_ratio: triage::minor::NOISE_RATIO,
-            upper_bound_alpha: triage::score::ALPHA,
             interval_z: estimate::Z_95,
-            triage_window_margin: triage::repeats::WINDOW_MARGIN,
-            triage_footprint_positions: triage::detect::FOOTPRINT_POSITIONS,
         }
     }
 }
@@ -1641,7 +1434,6 @@ fn header(
         configuration_path: absolute(&cli.config),
         reference_path: absolute(&cli.reference),
         identities: identities.into_iter().collect(),
-        baseline: cli.baseline.as_deref().map(absolute),
         review_window: cli.review_window,
         run_signal: cli.run_signal.clone(),
         current_since: cli.current_since.clone(),
@@ -1670,7 +1462,6 @@ fn header(
             sample_max: seconds(millis.len().saturating_sub(1)),
             sample_sum: millis.iter().sum::<u128>() as f64 / 1000.0,
         },
-        triage: None,
     }
 }
 
@@ -1720,13 +1511,6 @@ fn context(header: &Header) -> Vec<(&'static str, String)> {
                 || "-".to_owned(),
                 |identity| format!("{} ({})", identity.profile_id, identity.profile_sha256),
             ),
-        ),
-        (
-            "baseline",
-            header
-                .baseline
-                .as_ref()
-                .map_or_else(|| "none".to_owned(), |path| path.display().to_string()),
         ),
     ]
     .into_iter()
@@ -1838,7 +1622,6 @@ mod tests {
                 profile_id: "human-mtdna-rcrs".into(),
                 profile_sha256: digest,
             }],
-            baseline: Some(PathBuf::from("/earlier")),
             review_window: report::REVIEW_WINDOW,
             current_since: Some("2026-01".into()),
             run_signal: Some("batch".into()),
@@ -1896,11 +1679,6 @@ mod tests {
                 sample_max: 1.0,
                 sample_sum: 1.5,
             },
-            triage: Some(TriageHeader {
-                policy: "draft: short_calls=100".into(),
-                policies: 2,
-                seconds: 0.25,
-            }),
         };
         contract::check_document("run.json", &serde_json::to_value(&header)?)?;
         let bare = Header {
@@ -1909,12 +1687,10 @@ mod tests {
                 dirty: None,
             },
             identities: Vec::new(),
-            baseline: None,
             current_since: None,
             run_signal: None,
             forced_windows: None,
             recheck: None,
-            triage: None,
             workload: WorkloadHeader {
                 all: header.workload.all,
                 current: None,

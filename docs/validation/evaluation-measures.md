@@ -156,9 +156,7 @@ is discordant:
 
 `class_regions` lists the windows of the discordant positions of the class's
 measure. Whether a representation is DNA's to fix or a minority form in the
-truth is measured on the corpus with `dna-eval convention`, not per sample.
-The class follows from the statuses alone, so a baseline run's classes come
-from its `scores.tsv` when it reports all four measures.
+truth is not decided per sample.
 
 ## Discrepancy causes
 
