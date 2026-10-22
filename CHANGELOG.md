@@ -758,7 +758,8 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   (`dna::recorded::evidence_configuration_sha256`), so editing `[review]`
   or `[consensus]` no longer makes a new 7 GB generation; `run.json` records
   it as `evidence_cache.key.evidence_configuration_sha256` (renamed from
-  `configuration_sha256`, `dna.eval_run/v1` in place). The placement cache
+  `configuration_sha256`, `dna.eval_run/v1` and `dna.eval_regress/v1` in
+  place). The placement cache
   is still keyed by the configuration file, its key's
   `configuration_sha256`. No plugin's output
   changes and no plugin version moves: the documents gain the provenance

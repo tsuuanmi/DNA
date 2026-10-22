@@ -53,7 +53,7 @@
       "directory": "/data/evidence-cache",
       "key": {
         "sanger": 23,
-        "configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1",
+        "evidence_configuration_sha256": "b7d64a9221007dfd5390f7df6cd5b8f3ea4f82faa1237141e35ebf161f5511a1",
         "code_sha256": "a5ac19b4006b91867ae7cb6bf438f22d99fb5062f18d2ff22a0268968034f073"
       },
       "hits": 11,

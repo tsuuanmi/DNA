@@ -353,7 +353,7 @@
                   "additionalProperties": false,
                   "required": [
                     "sanger",
-                    "configuration_sha256",
+                    "evidence_configuration_sha256",
                     "code_sha256"
                   ],
                   "properties": {
@@ -362,7 +362,8 @@
                       "type": "integer",
                       "minimum": 1
                     },
-                    "configuration_sha256": {
+                    "evidence_configuration_sha256": {
+                      "description": "The digest of the configuration the evidence plugins read (`dna::recorded::evidence_configuration_sha256`).",
                       "$ref": "#/$defs/sha256"
                     },
                     "code_sha256": {
