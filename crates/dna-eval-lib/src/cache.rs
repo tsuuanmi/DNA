@@ -58,16 +58,7 @@ use flate2::write::GzEncoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-/// The read stage's code identity this harness was built with:
-/// `path=object;` per read-stage source, empty when a source differed from
-/// its commit or without git.
-const CODE: &str = env!("DNA_EVAL_READ_STAGE");
-
-/// The placement stage's code identity, as [`CODE`] for the read stage.
-const PLACEMENT_CODE: &str = env!("DNA_EVAL_PLACEMENT_STAGE");
-
-/// The forms index's code identity, as [`CODE`] for the read stage.
-const FORMS_CODE: &str = env!("DNA_EVAL_FORMS_STAGE");
+use crate::identity::Identity;
 
 /// An entry's file name suffix.
 const SUFFIX: &str = ".json.gz";
@@ -191,16 +182,9 @@ pub(crate) struct FormsKey {
 impl FormsKey {
     /// The key of the index of the truth database `truth_sha256` on the
     /// reference sequence `reference_sha256` over `windows` (name, first,
-    /// last), or `None` when this build has no code identity for the index.
+    /// last) under the index's code identity `code`, or `None` when the
+    /// build has no code identity for the index (`code` empty).
     pub(crate) fn new<'a>(
-        truth_sha256: &str,
-        reference_sha256: &str,
-        windows: impl IntoIterator<Item = (&'a str, i64, i64)>,
-    ) -> Option<Self> {
-        Self::with_code(truth_sha256, reference_sha256, windows, FORMS_CODE)
-    }
-
-    fn with_code<'a>(
         truth_sha256: &str,
         reference_sha256: &str,
         windows: impl IntoIterator<Item = (&'a str, i64, i64)>,
@@ -311,6 +295,33 @@ pub(crate) struct Caches {
     pub(crate) placed: EvidenceCache,
 }
 
+impl Caches {
+    /// Opens both caches of `root` for the configuration at `config`, the
+    /// reference whose sequence SHA-256 is `reference_sha256`, and the target
+    /// profile file whose SHA-256 is `profile_sha256` (the placement aligns
+    /// on its topology), under the read and placement stages of `identity`.
+    ///
+    /// # Errors
+    ///
+    /// As [`EvidenceCache::open`] and [`EvidenceCache::open_placed`].
+    pub(crate) fn open(
+        root: &Path,
+        config: &Path,
+        (reference_sha256, profile_sha256): (&str, &str),
+        identity: &Identity,
+    ) -> Result<Self, CacheError> {
+        Ok(Self {
+            evidence: EvidenceCache::open(root, config, identity.read_stage)?,
+            placed: EvidenceCache::open_placed(
+                root,
+                config,
+                (reference_sha256, profile_sha256),
+                identity.placement_stage,
+            )?,
+        })
+    }
+}
+
 /// One generation of the cache, filled and read by a run.
 pub(crate) struct EvidenceCache {
     root: PathBuf,
@@ -324,19 +335,20 @@ pub(crate) struct EvidenceCache {
 
 impl EvidenceCache {
     /// Opens the generation of `root` for the configuration at `config`
-    /// under this build's read stage.
+    /// under the read stage's code identity `code`.
     ///
     /// # Errors
     ///
-    /// Returns [`CacheError`] without a code identity, or when the
-    /// directory cannot be created or the configuration read.
-    pub(crate) fn open(root: &Path, config: &Path) -> Result<Self, CacheError> {
-        Self::with_code(root, config, (Kind::Evidence, CODE))
+    /// Returns [`CacheError`] without a code identity (`code` empty), or
+    /// when the directory cannot be created or the configuration read.
+    pub(crate) fn open(root: &Path, config: &Path, code: &str) -> Result<Self, CacheError> {
+        Self::with_code(root, config, (Kind::Evidence, code))
     }
 
     /// Opens the placement cache's generation of `root` for the
-    /// configuration at `config` and the reference whose sequence SHA-256 is
-    /// `reference_sha256`, under this build's placement stage.
+    /// configuration at `config`, the reference whose sequence SHA-256 is
+    /// `reference_sha256`, and the target profile file whose SHA-256 is
+    /// `profile_sha256`, under the placement stage's code identity `code`.
     ///
     /// # Errors
     ///
@@ -344,9 +356,10 @@ impl EvidenceCache {
     pub(crate) fn open_placed(
         root: &Path,
         config: &Path,
-        reference_sha256: &str,
+        (reference_sha256, profile_sha256): (&str, &str),
+        code: &str,
     ) -> Result<Self, CacheError> {
-        if PLACEMENT_CODE.is_empty() {
+        if code.is_empty() {
             return Err(CacheError::NoCodeIdentity);
         }
         Self::with_code(
@@ -354,7 +367,7 @@ impl EvidenceCache {
             config,
             (
                 Kind::Placement,
-                &format!("placement;{PLACEMENT_CODE}reference={reference_sha256};"),
+                &format!("placement;{code}reference={reference_sha256};profile={profile_sha256};"),
             ),
         )
     }
@@ -864,7 +877,7 @@ mod tests {
     fn stores_a_forms_index_per_key() -> Result<(), Box<dyn std::error::Error>> {
         let root = tempfile::tempdir()?;
         let key = |truth: &str, reference: &str, window: (&'static str, i64, i64)| {
-            FormsKey::with_code(truth, reference, [window], "forms.rs=abc;")
+            FormsKey::new(truth, reference, [window], "forms.rs=abc;")
                 .ok_or("a code identity gives a key")
         };
         let hv1 = ("hv1_c_tract", 16184, 16193);
@@ -881,7 +894,7 @@ mod tests {
         ] {
             assert_eq!(FormsCache::open(root.path(), other)?.read(), None);
         }
-        assert_eq!(FormsKey::with_code("t", "r", [hv1], ""), None);
+        assert_eq!(FormsKey::new("t", "r", [hv1], ""), None);
         fs::write(cache.generation.join(FORMS_ENTRY), b"not gzip")?;
         assert_eq!(cache.read(), None);
         Ok(())
@@ -895,7 +908,7 @@ mod tests {
         let root = tempfile::tempdir()?;
         let evidence = cache(root.path(), "crates/dna-sanger=abc;")?;
         evidence.document("aa", || Ok::<_, CacheError>(document("aa")))?;
-        let key = FormsKey::with_code("t", "r", [("w", 1, 2)], "forms.rs=abc;")
+        let key = FormsKey::new("t", "r", [("w", 1, 2)], "forms.rs=abc;")
             .ok_or("a code identity gives a key")?;
         let forms = FormsCache::open(&root.path().join("cache"), key.clone())?;
         forms.store("table\n");

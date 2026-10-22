@@ -343,6 +343,13 @@ dependencies = [
 name = "dna-eval"
 version = "0.1.0"
 dependencies = [
+ "dna-eval-lib",
+]
+
+[[package]]
+name = "dna-eval-lib"
+version = "0.1.0"
+dependencies = [
  "clap",
  "dna",
  "dna-align",

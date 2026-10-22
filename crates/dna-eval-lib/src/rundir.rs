@@ -560,7 +560,7 @@ pub(crate) mod tests {
         );
         let passes = || workload::passes(std::iter::empty(), Some(&zones));
         RunHeader {
-            harness: env!("CARGO_PKG_NAME").to_owned(),
+            harness: "dna-eval".to_owned(),
             harness_version: env!("CARGO_PKG_VERSION").to_owned(),
             source: Source {
                 revision: Some("0".repeat(40)),

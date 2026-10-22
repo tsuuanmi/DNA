@@ -51,8 +51,12 @@ Its outputs equal the release build's: on development panel v5 every table
 about a quarter more CPU. After a first build, rebuilding for an edit to one
 crate takes seconds instead of minutes (3 s against 124 s for an edit to
 `dna-consensus`), so keep one probe worktree and its target directory and switch
-branches in it rather than building a fresh checkout per probe. Approvals,
-readiness uses, and releases use `--release`.
+branches in it rather than building a fresh checkout per probe. A commit
+alone (the clean build a cached probe needs) only relinks the thin
+`dna-eval` binary, which keeps the build stamps, and not the harness
+library `dna-eval-lib`: 0.9 s instead of 7.0 s in the probe profile, 41 s
+instead of 56 s in the release one, whose link-time optimisation dominates.
+Approvals, readiness uses, and releases use `--release`.
 
 A probe that changes nothing of the read stage (the Sanger plugin, `dna-trace`,
 the kernel, or the facade's evidence writer) can skip it with

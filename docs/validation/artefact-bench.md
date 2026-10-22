@@ -1,6 +1,6 @@
 ---
 decided-by: [ADR-0075]
-covers: [crates/dna-eval/src/bench.rs]
+covers: [crates/dna-eval-lib/src/bench.rs]
 ---
 
 # Artefact bench

@@ -1,0 +1,131 @@
+# The sources each cached stage of the evaluation harness depends on.
+#
+# The build script records a stage's code identity from them: the git object
+# id of every listed path at the commit, or nothing when one differs from it.
+# tools/python/scripts/validate_module_layers.py checks the lists are closed:
+# every module a listed source uses, every module file above it, and every
+# workspace crate a listed crate depends on, is listed.
+#
+#   path            a file or directory on the stage's path;
+#   path: a, b      a file on the stage's path for items a and b only: listed
+#                   whole, and what those items use (their definitions and
+#                   impl blocks, through the file's `use` bindings and the
+#                   file's own items they name, transitively) is followed,
+#                   but not what its other items use;
+#   !path           used by a listed source, but not on the stage's path: the
+#                   check fails when nothing listed uses it.
+#
+# Every stage lists the build's own inputs: Cargo.lock, Cargo.toml, and
+# rust-toolchain.toml, and this file, so editing a list is a new identity.
+
+# From a trace to its read evidence document. The read stage reads no
+# profile, no reference, and nothing of the core (ADR-0069).
+[read]
+Cargo.lock
+Cargo.toml
+rust-toolchain.toml
+crates/dna-eval/stages.txt
+crates/dna-kernel
+crates/dna-sanger
+crates/dna-trace
+src/lib.rs: config, error, input, model, operation_log, pipeline, recorded, report
+src/error.rs
+src/recorded.rs: read_evidence_document
+src/config/mod.rs
+src/config/defaults.rs
+src/config/load.rs
+src/config/types.rs
+src/input/mod.rs
+src/input/sanger
+src/model/mod.rs
+src/model/basecall_result.rs
+src/model/evidence_result.rs
+src/model/read_observation.rs
+src/model/result.rs
+src/model/run_context.rs
+src/model/run_context_result.rs
+src/model/sample_result.rs
+src/model/sanger_read.rs
+src/operation_log.rs
+src/pipeline/mod.rs: evidence_document, Operation
+src/pipeline/evidence.rs
+src/pipeline/path.rs
+src/pipeline/plugins.rs: EVIDENCE
+src/report/mod.rs: build_evidence, CompletedEvidence, Evidenced, publish, serialize
+src/report/atomic.rs
+src/report/evidence.rs
+src/report/json.rs
+# The configuration envelope parses every plugin's section, and the result
+# models name the core's types; the read stage writes neither. The plugin
+# registry names every plugin's descriptor, which composing EVIDENCE only
+# checks.
+!crates/dna-empop
+!src/input/sequence.rs
+!src/report/review/mod.rs
+!crates/dna-align
+!crates/dna-call
+!crates/dna-consensus
+!crates/dna-normalize
+!crates/dna-sample
+
+# From a read evidence document to its placed-read document, which the
+# placement cache keys by the evidence document's SHA-256 and the reference.
+[placement]
+Cargo.lock
+Cargo.toml
+rust-toolchain.toml
+crates/dna-eval/stages.txt
+crates/dna-kernel
+crates/dna-align
+src/lib.rs: config, error, input, model, pipeline, recorded
+src/error.rs
+src/recorded.rs: placed_read_document
+src/config/mod.rs
+src/config/defaults.rs
+src/config/load.rs
+src/config/types.rs
+src/input/mod.rs
+src/input/evidence.rs
+src/input/sanger
+src/model/mod.rs
+src/model/basecall_result.rs
+src/model/read_observation.rs
+src/model/result.rs
+src/model/run_context.rs
+src/model/run_context_result.rs
+src/model/sample_result.rs
+src/model/sanger_read.rs
+src/pipeline/mod.rs: plugins
+src/pipeline/plugins.rs: EVIDENCE
+# As the read stage's; the evidence reader also parses the Sanger plugin's
+# fields, whose document the key already names.
+!crates/dna-empop
+!src/input/sequence.rs
+!src/report/review/mod.rs
+!crates/dna-call
+!crates/dna-consensus
+!crates/dna-normalize
+!crates/dna-sample
+!crates/dna-sanger
+
+# The index of the truth's written forms (forms.tsv), which the forms cache
+# keys by the truth, the reference, and the profile's repeat windows.
+[forms]
+Cargo.lock
+Cargo.toml
+rust-toolchain.toml
+crates/dna-eval/stages.txt
+crates/dna-kernel
+crates/dna-eval-lib/Cargo.toml
+crates/dna-eval-lib/src/lib.rs: cause, compare, conventions, error, geometry, haplotype, manifest, truth
+crates/dna-eval-lib/src/cause/mod.rs: forms
+crates/dna-eval-lib/src/cause/forms.rs
+crates/dna-eval-lib/src/compare.rs
+crates/dna-eval-lib/src/conventions.rs
+crates/dna-eval-lib/src/error.rs: Error, Result
+crates/dna-eval-lib/src/geometry.rs
+crates/dna-eval-lib/src/haplotype.rs
+crates/dna-eval-lib/src/manifest.rs
+crates/dna-eval-lib/src/truth.rs
+# The error type names the caches' failures; the index never reaches them.
+!crates/dna-eval-lib/src/cache.rs

@@ -3,25 +3,26 @@
 //! git) and `DNA_EVAL_DIRTY` (`1` when tracked files differ from it, `0` when
 //! they do not, empty without git). Untracked files do not count.
 //!
-//! It also records the read stage's code identity, `DNA_EVAL_READ_STAGE`:
-//! `path=object;` for every source on the path from a trace to its read
-//! evidence document, the object being its git id at `HEAD`. It is empty when one
-//! of them differs from `HEAD` or without git, so the evidence cache is
-//! refused rather than keyed on code that is not the commit's.
-//!
-//! `DNA_EVAL_PLACEMENT_STAGE` records the placement stage's identity the
-//! same way: the sources from a read evidence document to its placed-read
-//! document (`dna.placed_read/v1`), so the placement cache misses when the
-//! placement's code changes.
-//!
-//! `DNA_EVAL_FORMS_STAGE` records the identity of the index of the truth's
-//! written forms (`forms.tsv`) the same way, so a cached index misses when
-//! the code that builds it changes.
+//! It also records the code identity of each cached stage, from the sources
+//! `stages.txt` lists for it: `path=object;` for every listed path, the
+//! object being its git id at `HEAD`. A stage's identity is empty when one of
+//! its sources differs from `HEAD`, or without git, so its cache is refused
+//! (or, for the forms index, not stored) rather than keyed on code that is
+//! not the commit's: `DNA_EVAL_READ_STAGE` (from a trace to its read evidence
+//! document), `DNA_EVAL_PLACEMENT_STAGE` (from a read evidence document to
+//! its placed-read document, `dna.placed_read/v1`), and
+//! `DNA_EVAL_FORMS_STAGE` (the index of the truth's written forms,
+//! `forms.tsv`). `tools/python/scripts/validate_module_layers.py` checks the
+//! lists are closed under the module graph.
 //!
 //! `DNA_EVAL_CONTRACTS` records the result contracts DNA emits, for the
 //! version key of `dna-eval regress`: every `dna.<name>/v<n>` a published
 //! schema under `docs/reference/schemas` declares as a constant, but the
 //! harness's own `dna.eval_*` contracts, sorted and comma-joined.
+//!
+//! The stamps change with every commit, so they live in this thin binary:
+//! the harness itself, `dna-eval-lib`, takes them at run time and is not
+//! recompiled.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -50,28 +51,6 @@ fn main() {
         "cargo:rustc-env=DNA_EVAL_DIRTY={}",
         dirty.map_or("", |status| if status.is_empty() { "0" } else { "1" })
     );
-    // The read stage: the kernel, the Sanger plugin and the trace library it
-    // calls, and the facade's trace loading, configuration, evidence models,
-    // and evidence writer. The read stage reads no profile or reference.
-    let read_stage = [
-        "Cargo.lock",
-        "crates/dna-kernel",
-        "crates/dna-sanger",
-        "crates/dna-trace",
-        "src/config",
-        "src/input/mod.rs",
-        "src/input/sanger",
-        "src/model/basecall_result.rs",
-        "src/model/evidence_result.rs",
-        "src/model/read_observation.rs",
-        "src/model/result.rs",
-        "src/model/sample_result.rs",
-        "src/model/sanger_read.rs",
-        "src/pipeline/evidence.rs",
-        "src/pipeline/plugins.rs",
-        "src/report/evidence.rs",
-        "src/report/json.rs",
-    ];
     let stage_identity = |paths: &[&str]| {
         let pathspecs = paths
             .iter()
@@ -91,36 +70,42 @@ fn main() {
             .filter(|_| clean)
             .unwrap_or_default()
     };
-    let identity = stage_identity(&read_stage);
-    println!("cargo:rustc-env=DNA_EVAL_READ_STAGE={identity}");
-    // The placement stage: the kernel and the aligner, and the facade's
-    // configuration, evidence document reading, and placed-read writer.
-    let placement_stage = [
-        "Cargo.lock",
-        "crates/dna-kernel",
-        "crates/dna-align",
-        "src/config",
-        "src/input/evidence.rs",
-        "src/input/mod.rs",
-        "src/recorded.rs",
-    ];
-    println!(
-        "cargo:rustc-env=DNA_EVAL_PLACEMENT_STAGE={}",
-        stage_identity(&placement_stage)
-    );
-    // The index of the truth's written forms: the truth reader, the alleles
-    // and anchors it compares, and the index. The reference and the
-    // profile's windows it reads are keyed by their content.
-    let forms_stage = [
-        "Cargo.lock",
-        "crates/dna-eval/src/cause/forms.rs",
-        "crates/dna-eval/src/compare.rs",
-        "crates/dna-eval/src/truth.rs",
-    ];
-    println!(
-        "cargo:rustc-env=DNA_EVAL_FORMS_STAGE={}",
-        stage_identity(&forms_stage)
-    );
+    // Each stage's sources, from `stages.txt`: a `[stage]` header, then one
+    // path per line; `path: items` lists the file, and `!path` lists what
+    // the stage does not depend on.
+    let stages = std::fs::read_to_string(crate_directory.join("stages.txt")).unwrap_or_default();
+    let mut paths: Vec<(String, Vec<String>)> = Vec::new();
+    for line in stages.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        if let Some(stage) = line
+            .strip_prefix('[')
+            .and_then(|line| line.strip_suffix(']'))
+        {
+            paths.push((stage.to_owned(), Vec::new()));
+        } else if !line.is_empty() && !line.starts_with('!') {
+            let path = line.split(':').next().unwrap_or_default().trim();
+            if let Some((_, listed)) = paths.last_mut() {
+                listed.push(path.to_owned());
+            }
+        }
+    }
+    for (stage, variable) in [
+        ("read", "DNA_EVAL_READ_STAGE"),
+        ("placement", "DNA_EVAL_PLACEMENT_STAGE"),
+        ("forms", "DNA_EVAL_FORMS_STAGE"),
+    ] {
+        let listed = paths
+            .iter()
+            .find(|(name, _)| name == stage)
+            .map(|(_, listed)| listed.iter().map(String::as_str).collect::<Vec<_>>())
+            .unwrap_or_default();
+        let identity = if listed.is_empty() {
+            String::new()
+        } else {
+            stage_identity(&listed)
+        };
+        println!("cargo:rustc-env={variable}={identity}");
+    }
 
     let schemas = crate_directory.join("../../docs/reference/schemas");
     println!(
@@ -147,6 +132,7 @@ fn main() {
         "crates",
         "Cargo.toml",
         "Cargo.lock",
+        "rust-toolchain.toml",
         "docs/reference/schemas",
     ] {
         watched.push(workspace.join(name));

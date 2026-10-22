@@ -5,6 +5,7 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use super::*;
+use crate::identity::TEST;
 
 #[test]
 fn the_files_follow_the_contract() -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -534,7 +535,7 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     let main = git(&clean());
 
     // The first check seeds the series.
-    let (report, verdict) = check(&set.check("first"), &main)?;
+    let (report, verdict) = check(&set.check("first"), &main, &TEST)?;
     assert_eq!(verdict, Verdict::Initial);
     assert!(report.contains("**Verdict: REGRESS INITIAL**"), "{report}");
     let first = set.directory.path().join("first");
@@ -551,7 +552,7 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     );
     assert_eq!(fs::read_to_string(first.join(CHANGES))?, judge::HEADER);
     // The same check again writes the same golden output.
-    check(&set.check("again"), &main)?;
+    check(&set.check("again"), &main, &TEST)?;
     assert_eq!(
         fs::read_to_string(set.directory.path().join("again").join(GOLDEN))?,
         golden_text
@@ -638,11 +639,11 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     )?;
     // The intent file is checked against the harness's revision, which a
     // build without git does not record.
-    let with_intent = crate::source().revision.is_some();
+    let with_intent = crate::source(&TEST).revision.is_some();
     if with_intent {
         same.intent = Some(intent.clone());
     }
-    let (report, verdict) = check(&same, &main)?;
+    let (report, verdict) = check(&same, &main, &TEST)?;
     assert_eq!(verdict, Verdict::Same);
     if with_intent {
         assert!(report.contains("unused intent hv1"), "{report}");
@@ -668,11 +669,14 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     );
     let mut moved = set.check("moved");
     moved.truth = crate::truth::tests::database(&refreshed, &sql)?;
-    assert!(matches!(check(&moved, &main), Err(Error::Regress(_))));
+    assert!(matches!(
+        check(&moved, &main, &TEST),
+        Err(Error::Regress(_))
+    ));
     let mut first_moved = set.check("first-moved");
     first_moved.truth = moved.truth.clone();
     first_moved.ledger = set.directory.path().join("empty-ledger");
-    let refused = check(&first_moved, &main);
+    let refused = check(&first_moved, &main, &TEST);
     assert!(
         matches!(&refused, Err(Error::Regress(message)) if message.contains("pins")),
         "{refused:?}"
@@ -683,7 +687,7 @@ fn checks_and_records_a_synthetic_set_end_to_end()
     let text = fs::read_to_string(&set.manifest)?.replacen("version=v1", "version=v2", 1);
     v2.manifest = set.directory.path().join("regress-v2.tsv");
     fs::write(&v2.manifest, text)?;
-    let refused = check(&v2, &main);
+    let refused = check(&v2, &main, &TEST);
     assert!(
         matches!(&refused, Err(Error::Regress(message)) if message.contains("another series")),
         "{refused:?}"

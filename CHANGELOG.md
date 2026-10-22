@@ -751,6 +751,26 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
 
 ### Changed
 
+- The evaluation harness is the library `dna-eval-lib` under a thin
+  `dna-eval` binary, which keeps the build stamps (revision, dirty state,
+  and each cached stage's code identity): a new commit or `git add` relinks
+  the binary and no longer recompiles the harness. `cargo build -p dna-eval`
+  and `cargo run -p dna-eval` work as before; the harness's sources moved to
+  `crates/dna-eval-lib`. Each cached stage's sources are listed in
+  `crates/dna-eval/stages.txt` instead of the build script, and
+  `validate_module_layers.py` checks each list is closed under the module
+  graph. The read stage's list now also covers the build's own inputs
+  (`Cargo.toml`, `rust-toolchain.toml`), the facade's crate root, error,
+  operation log, plugin composition, pipeline module, artefact writer, and
+  the result models the evidence names, all of which it missed; the forms
+  index's covers the kernel, the geometry, the manifests it reads, and the
+  harness library's manifest. A file listed for some items only has what
+  those items use checked too, with the same file's helpers they call,
+  transitively; a listed file may not glob-import its own crate; and every
+  list names `stages.txt`. The
+  placement cache's generation also names the target profile file's
+  SHA-256, whose topology the placement aligns on. Every existing evidence,
+  placement, and forms cache generation therefore misses once. No DNA output changes; run outputs are byte-identical.
 - The review measures the two runs of an anchored repeat window beside the
   anchor, not through it, where the consensus shows the anchor (SRS-API-020,
   rules version 35): run 1 from the position before the window to the one

@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use crate::cache::Usage;
 use crate::error::{Error, Result};
 use crate::geometry::{Geometry, Span};
+use crate::identity::Identity;
 use crate::manifest::{self, Manifest};
 use crate::report::{self, Report};
 use crate::rundir::{
@@ -132,9 +133,9 @@ struct RecordArgs {
 
 /// Runs `dna-eval regress`: exits 0 for `SAME`, `EXPLAINED`, `INITIAL`,
 /// `REBASE`, and a recorded entry, 2 for `FAIL`, and 1 for an input error.
-pub(crate) fn main(args: &Args) -> ExitCode {
+pub(crate) fn main(args: &Args, identity: &Identity) -> ExitCode {
     let result = match &args.action {
-        Action::Check(args) => check(args, &System).map(|(report, verdict)| {
+        Action::Check(args) => check(args, &System, identity).map(|(report, verdict)| {
             print!("{report}");
             verdict
         }),
@@ -170,18 +171,19 @@ pub(crate) struct VersionKey {
 }
 
 impl VersionKey {
-    /// This build's key under the configuration of `configuration_sha256`.
-    fn current(configuration_sha256: &str) -> Self {
+    /// The key of the build `identity` records under the configuration of
+    /// `configuration_sha256`.
+    fn current(configuration_sha256: &str, identity: &Identity) -> Self {
         let mut plugins = dna::plugins();
         plugins.sort_unstable();
         Self {
-            dna_version: env!("CARGO_PKG_VERSION").to_owned(),
+            dna_version: identity.version.to_owned(),
             plugins: plugins
                 .iter()
                 .map(|(id, version)| format!("{id}={version}"))
                 .collect::<Vec<_>>()
                 .join(","),
-            contracts: env!("DNA_EVAL_CONTRACTS").to_owned(),
+            contracts: identity.contracts.to_owned(),
             configuration_sha256: configuration_sha256.to_owned(),
         }
     }
@@ -687,13 +689,13 @@ impl Judged {
 }
 
 /// Runs `regress check`: returns `regress.md` and the verdict.
-fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
+fn check(args: &CheckArgs, git: &dyn Git, identity: &Identity) -> Result<(String, Verdict)> {
     let started = Instant::now();
     let mut loaded = Loaded::read(
         (&args.manifest, regress_panel),
         (&args.truth, Some(&args.recheck)),
-        &args.dna,
-        &args.review,
+        (&args.dna, &args.review),
+        identity,
     )?;
     let version = loaded
         .manifest
@@ -720,7 +722,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         ));
     }
     let zones = loaded.zones();
-    let source = crate::source();
+    let source = crate::source(identity);
     let intents = args
         .intent
         .as_deref()
@@ -775,8 +777,8 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
             source,
         })?;
     let mut header = Header {
-        harness: env!("CARGO_PKG_NAME").to_owned(),
-        harness_version: env!("CARGO_PKG_VERSION").to_owned(),
+        harness: identity.name.to_owned(),
+        harness_version: identity.version.to_owned(),
         source,
         threads: args.dna.threads,
         series,
@@ -802,7 +804,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         review_window: args.review.review_window,
         zones: args.review.header(),
         run_context: None,
-        version_key: VersionKey::current(&configuration_sha256),
+        version_key: VersionKey::current(&configuration_sha256, identity),
         evidence_cache: None,
         placement_cache: None,
         head: head.as_ref().map(|head| head.row.entry.clone()),
@@ -846,7 +848,7 @@ fn check(args: &CheckArgs, git: &dyn Git) -> Result<(String, Verdict)> {
         .transpose()?;
     prepare_output(&args.output)?;
 
-    let ran = Ran::run(&loaded, &args.dna, None)?;
+    let ran = Ran::run(&loaded, &args.dna, None, identity)?;
     if let Some(other) = ran
         .outcomes
         .iter()

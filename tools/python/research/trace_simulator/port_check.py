@@ -42,7 +42,7 @@ import model  # noqa: E402
 import realism  # noqa: E402
 import reference  # noqa: E402
 
-# The sim-bench grid (crates/dna-eval/src/simbench.rs, case set version 1).
+# The sim-bench grid (crates/dna-eval-lib/src/simbench.rs, case set version 1).
 TRACTS = {"HV2-F": 9, "HV2-R": 9, "HV1-F": 11, "HV1-R": 11}
 PAIR_VALUES = (0.5, 0.8, 0.9, 1.0, 1.25)
 NOISE = (1.0, 2.0, 4.0)

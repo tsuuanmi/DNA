@@ -1,7 +1,7 @@
 ---
 implements: [SRS-NOM]
 decided-by: [ADR-0069, ADR-0075, ADR-0090]
-covers: [crates/dna-eval/src/regress/, crates/dna-eval/baselines/regress-*]
+covers: [crates/dna-eval-lib/src/regress/, crates/dna-eval-lib/baselines/regress-*]
 ---
 
 # Regression set
@@ -53,13 +53,13 @@ cargo run --release -p dna-eval -- regress check \
   --ledger results/regress/ledger --threads <1-256> \
   [--evidence-cache <dir>] [--run-context <dir>] \
   [--review-window <bp>] [--zone-after <bp>] [--zone-edge <bp>] [--zone-overrun <bp>] \
-  [--intent crates/dna-eval/baselines/regress-intents/<entry>.tsv] [--rebase] \
+  [--intent crates/dna-eval-lib/baselines/regress-intents/<entry>.tsv] [--rebase] \
   --output <new-directory>
 
 cargo run --release -p dna-eval -- regress record \
   --run <check output directory> --ledger results/regress/ledger --entry <rNNNN> \
-  --baseline crates/dna-eval/baselines/regress-v1-ledger.tsv \
-  --strata crates/dna-eval/baselines/regress-v1-strata.tsv
+  --baseline crates/dna-eval-lib/baselines/regress-v1-ledger.tsv \
+  --strata crates/dna-eval-lib/baselines/regress-v1-strata.tsv
 ```
 
 - **`check`** reads only a manifest whose header says `panel=regress`; any
@@ -159,7 +159,7 @@ that matches, `rebase` for an evaluation line of a rebase, `forbidden:<rule>`,
 or `unexplained`. It has its header only when nothing changed.
 
 A pull request that changes output declares the changes in an **intent
-file**, committed as `crates/dna-eval/baselines/regress-intents/<entry>.tsv`.
+file**, committed as `crates/dna-eval-lib/baselines/regress-intents/<entry>.tsv`.
 It names no sample: `check` refuses a file that holds a sample identifier of
 the manifest.
 
@@ -237,7 +237,7 @@ configuration change.
 - **Local**, under `results/regress/ledger/`: `index.tsv` (`entry`, `kind`,
   `base`, `revision`, `golden_sha256`, `verdict`, `recorded`) and one
   directory per entry with a copy of its check and its intent file.
-- **Committed, append-only**: `crates/dna-eval/baselines/regress-v1-ledger.tsv`,
+- **Committed, append-only**: `crates/dna-eval-lib/baselines/regress-v1-ledger.tsv`,
   one row per entry: `entry` (`r0001`, … per series), `date`, `kind`
   (`initial`, `change`, or `rebase`), `base`, `revision`, the version key
   (`dna_version`, `plugins`, `contracts`, `configuration_sha256`),
@@ -248,7 +248,7 @@ configuration change.
   `blocks_non_het`, `escapes`, `blocks_het`, `blocks_length_note`,
   `blocks_truth_n`, `blocks_recheck`), the changes against the base
   (`changed_samples`, `changed_lines`, `explained_lines`, `posthoc_rows`),
-  `intent_blob`, and `verdict`. `crates/dna-eval/baselines/regress-v1-strata.tsv`
+  `intent_blob`, and `verdict`. `crates/dna-eval-lib/baselines/regress-v1-strata.tsv`
   has one row per entry and stratum: `entry`, `stratum`, `samples`,
   `golden_sha256`, `changed_samples`. Each file opens with the comment line
   `# regress-ledger series=regress-v1` or `# regress-strata

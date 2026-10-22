@@ -75,7 +75,7 @@
     },
     "head": "r0004",
     "intent": {
-      "path": "/repo/crates/dna-eval/baselines/regress-intents/r0005.tsv",
+      "path": "/repo/crates/dna-eval-lib/baselines/regress-intents/r0005.tsv",
       "blob": "89abcdef0123456789abcdef0123456789abcdef",
       "pr": "#300",
       "rows": 1,
