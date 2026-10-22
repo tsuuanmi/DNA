@@ -65,6 +65,14 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   samples changed (31 lines: 9 check items removed, 22 review lines changed),
   clear 291 → 295, samples with a check 298 → 294, non-het blocks in
   unchecked zones 6 → 6; version key: plugin `review` 34 → 35.
+- Regression ledger entry `r0003` of regress-v1: the change of #306 (review
+  rules 36, the `not_analysed` check) on `main` 39a2c582, `REGRESS
+  EXPLAINED` against `r0002` by its intent file
+  `crates/dna-eval-lib/baselines/regress-intents/r0003.tsv` (no posthoc
+  row). 37 samples changed (113 lines: 38 check items added, 74 review lines
+  and 1 block changed), clear 295 → 284, samples with a check 294 → 305,
+  non-het blocks in unchecked zones 6 → 6; version key: plugin `review`
+  35 → 36.
 - `dna-eval regress` (`dna.eval_regress/v1`): the versioned regression set
   (`docs/validation/regression-set.md`).
   - `regress check` runs DNA on every row of a `panel=regress` manifest as
