@@ -1020,7 +1020,7 @@ fn call_evidence(call: &RawCall) -> Result<CallEvidence> {
     let second = call
         .second
         .map(|second| {
-            (matches!(second.base, 'A' | 'C' | 'G' | 'T')
+            (dna_kernel::model::nucleotide::is_canonical(second.base)
                 && second.share.is_finite()
                 && (0.0..=0.5).contains(&second.share))
             .then_some(SecondBase {

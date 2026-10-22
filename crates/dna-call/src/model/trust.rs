@@ -42,7 +42,10 @@ pub struct CallTrust {
     /// outside the read-end margin of a read end it does not vouch for
     /// (`read_end`).
     pub trusted: bool,
-    /// A bounded-run exemption lifts `read_end` from the call (ADR-0076).
+    /// A bounded-run exemption (ADR-0076) covers the call, as a call of the
+    /// bounded run or as one of its bounds. The consensus lifts `read_end`
+    /// by it only from a run call aligned as a match or inserted, and from a
+    /// bound aligned as a match; this flag does not say whether it did.
     pub exempt: bool,
     /// What withholds trust, before then after the call in read order; empty
     /// when the call is trusted. An uninformative call is withheld by itself.

@@ -3,6 +3,7 @@
 //! anchored ones a run context gathers its length noise over.
 
 use dna_call::model::called_read::CalledRead;
+use dna_consensus::length::Run;
 use dna_consensus::noise::CrossStrand;
 use dna_kernel::model::reference::Reference;
 use dna_kernel::profile::{ConventionKind, ConventionLabel, Profile, WindowRule};
@@ -192,8 +193,8 @@ pub(crate) fn sample_pairs(
         pairs.extend(
             views
                 .iter()
-                .enumerate()
-                .filter_map(|(index, views)| dna_consensus::noise::cross_strand(views, index + 1)),
+                .zip(Run::BOTH)
+                .filter_map(|(views, run)| dna_consensus::noise::cross_strand(views, run)),
         );
     }
     pairs
