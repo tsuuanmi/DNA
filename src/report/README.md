@@ -3,7 +3,7 @@
 Owns projection of completed scientific state into versioned public contracts,
 deterministic JSON serialization, and atomic no-overwrite publication. It also
 holds the review's labelling rules: the `review` post-calling plugin
-(`review.rs`, with `length.rs` for run lengths) is the one part of this module
+([`review`](review/README.md)) is the one part of this module
 that judges evidence rather than projecting it.
 
 Output contract: every public JSON contract
@@ -25,13 +25,9 @@ Core records carry no Sanger evidence
 `call.rs` projects core-only calls into `dna.variants/v1`, `consensus.rs`
 projects a sample consensus into `dna.consensus/v1` and its FASTA (also
 rendered from the consensus alone, with the same record names),
-`review.rs` derives a sample's review items and labels from its analysis
+[`review`](review/README.md) derives a sample's review items and labels from its analysis
 and call (the `review` plugin it declares, whose version is the labelling
-rules') and projects `dna.review/v1`; `length.rs` judges the runs of the
-profile's anchored repeat windows from the reads' tract decodes and in-phase
-readings for its `length_unconfirmed`, `length_not_recorded`, and
-`tract_length` labels, a profile length tract's run noted when its dominant
-length is determined (SRS-API-020),
+rules') and projects `dna.review/v1`,
 and `notation.rs` renders the per-read notation once (`calls`, with each call's
 reference and called base and the reads containing it) and projects it for sample,
 call, and notation documents and builds `dna.notation/v1`. Every document reads a read's Sanger evidence through `model::sanger_read`

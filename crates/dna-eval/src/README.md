@@ -8,6 +8,8 @@ with them (SRS-COMPAT-003). It depends on the `dna` facade, whose
 `sample_analysis` capability it runs, on `dna-align`, `dna-sample`, and
 `dna-consensus` only to name the evidence types the discrepancy causes read,
 on `dna-sanger` for the plugin version that keys the evidence cache, on
+the facade's `dna::plugins()` for the version key of the regression ledger,
+on
 `dna-kernel` for the reference the haplotype measures apply alleles to and
 the profile, variant, and nucleotide types it reads, and on `dna-trace` with
 its `simulate` feature to render the simulated bench's reads; its tests use
@@ -19,12 +21,20 @@ Output contract: `dna-eval run` writes
 which files a run directory holds, `run.json`, and every table's columns
 ([evaluation harness](../../../docs/validation/evaluation-harness.md#outputs),
 [PROP-0011 increment 3](../../../docs/proposals/0011-step-contracts.md#increment-3-evaluation-contracts)).
+`dna-eval regress check` writes
+[`dna.eval_regress/v1`](../../../docs/reference/schemas/eval-regress-v1.schema.json)
+([regression set](../../../docs/validation/regression-set.md#outputs)).
 The outputs of `diff`, `bench`, and `sim-bench`, and the manifests `panel`
 and `subset` write, have no schema; the evaluation harness document
 describes them.
 
 - `main.rs` — command line (`run`, `diff`, `same`, `panel`, `subset`,
-  `cache`, `bench`, `sim-bench`) and run orchestration.
+  `cache`, `bench`, `sim-bench`, `regress`) and run orchestration: the options that
+  run DNA (`DnaOptions`, shared by `run`, `bench`, and `regress check`) and
+  count the review workload (`ReviewOptions`, shared by `run` and `regress
+  check`), a panel's inputs loaded and checked before DNA runs (`Loaded`),
+  and DNA's outcomes over them with the caches and run contexts it read
+  (`Ran`), which `run` and `regress check` share.
 - `rundir.rs` — the run directory: its file names, the run header
   `run.json` as one typed record (`RunHeader`) that `run` writes and `diff`
   reads back, the tables `run` writes beside the report's (`checks.tsv`,
@@ -42,7 +52,10 @@ describes them.
   the outcome DNA must keep there), judges each case from DNA's alleles,
   check items, and callable intervals for its sample, and reports `BENCH
   FAIL` when a guarded case regresses; known failures are reported, not
-  gated. The case list names samples, so it stays under `results/`.
+  gated. It runs DNA with `run`'s options, the run contexts included. The
+  case list names samples, so it stays under `results/`.
+- `regress/` — `dna-eval regress`: the versioned regression set, its golden
+  output, intents, verdict, and ledger ([regress](regress/README.md)).
 - `simbench.rs` — `dna-eval sim-bench`: the simulated tract-decode bench
   ([PROP-0015](../../../docs/proposals/0015-forward-model-tract-decoder.md)).
   It builds each case's templates from the reference, renders them
@@ -137,7 +150,9 @@ describes them.
   window, after a window, amplicon start and end, interior), the zones a
   check item touches, and the zone instance that holds a position.
 - `report.rs` — scores, estimates, anchors, the unreviewed blocks
-  (`unreviewed.tsv`), and the Markdown summary.
+  (`unreviewed.tsv`), and the Markdown summary; a row's unreviewed blocks
+  and cause cells as these files write them, which the regression set's
+  golden output reads too.
 - `subset.rs` — `dna-eval subset`: a deterministic stratified quick subset
   of a panel as a manifest of its own, every stratum kept, for a first-pass
   `diff`; a pre-filter, never the gate.
@@ -156,7 +171,9 @@ describes them.
   harness writes them.
 
 `build.rs` records the git revision the harness is built from, and whether
-tracked files differed from it, for `run.json`.
+tracked files differed from it, for `run.json`; the read and placement
+stages' code identities, for the caches; and the result contracts the
+published schemas declare, for the regression ledger's version key.
 
 Formats, comparison rules, and outputs are specified in the
 [evaluation harness](../../../docs/validation/evaluation-harness.md) document.

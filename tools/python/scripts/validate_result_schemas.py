@@ -33,7 +33,7 @@ CONSENSUS_EXAMPLE = CONTRACTS / "examples" / "consensus-v1.example.json"
 REVIEW_SCHEMA = CONTRACTS / "schemas" / "review-v1.schema.json"
 REVIEW_EXAMPLE = CONTRACTS / "examples" / "review-v1.example.json"
 # The labelling rules' one source: the `review` plugin's descriptor.
-REVIEW_SOURCE = ROOT / "src" / "report" / "review.rs"
+REVIEW_SOURCE = ROOT / "src" / "report" / "review" / "mod.rs"
 REVIEW_REFERENCE = CONTRACTS / "review.md"
 REVIEW_PLUGIN = re.compile(
     r'PluginDescriptor = PluginDescriptor \{\s*id: "review",[^}]*?version: (\d+),'
@@ -53,6 +53,8 @@ PLACED_SCHEMA = CONTRACTS / "schemas" / "placed-read-v1.schema.json"
 PLACED_EXAMPLE = CONTRACTS / "examples" / "placed-read-v1.example.json"
 EVAL_RUN_SCHEMA = CONTRACTS / "schemas" / "eval-run-v1.schema.json"
 EVAL_RUN_EXAMPLE = CONTRACTS / "examples" / "eval-run-v1.example.json"
+EVAL_REGRESS_SCHEMA = CONTRACTS / "schemas" / "eval-regress-v1.schema.json"
+EVAL_REGRESS_EXAMPLE = CONTRACTS / "examples" / "eval-regress-v1.example.json"
 
 
 def review_label_table(schema_path: Path) -> dict[str, tuple[int, bool]]:
@@ -1474,6 +1476,14 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         metavar="DIRECTORY",
         help="dna-eval run output directory to validate; may be repeated",
     )
+    parser.add_argument(
+        "--eval-regress",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="DIRECTORY",
+        help="dna-eval regress check output directory to validate; may be repeated",
+    )
     return parser.parse_args(argv)
 
 
@@ -1835,6 +1845,85 @@ def read_run(directory: Path) -> dict[str, Any]:
     return document
 
 
+def table_text(table: dict[str, Any]) -> str:
+    """The text of a table read by `read_table` without comment lines."""
+    columns = table["columns"]
+    lines = ["\t".join(columns)]
+    lines.extend("\t".join(row[column] for column in columns) for row in table["rows"])
+    return "\n".join(lines) + "\n"
+
+
+def validate_eval_regress(document: Any, label: str, errors: list[str]) -> None:
+    """Check that a regress check's `run.json` names what its tables hold: the
+    golden output's SHA-256 and per-kind lines, the samples, the changed lines
+    and samples, and a verdict that fails exactly when a rule fired."""
+    if not isinstance(document, dict):
+        return
+    run = document.get("run.json")
+    golden = document.get("golden.tsv")
+    changes = document.get("changes.tsv")
+    if not (
+        isinstance(run, dict) and isinstance(golden, dict) and isinstance(changes, dict)
+    ):
+        return
+    text = table_text(golden)
+    if hashlib.sha256(text.encode()).hexdigest() != run.get("golden_sha256"):
+        errors.append(f"{label}: golden.tsv does not hash to run.json's golden_sha256")
+    kinds: dict[str, int] = {}
+    for row in golden["rows"]:
+        kinds[row["kind"]] = kinds.get(row["kind"], 0) + 1
+    for entry in run.get("kinds", []):
+        if entry["lines"] != kinds.get(entry["kind"], 0):
+            errors.append(
+                f"{label}: run.json counts other {entry['kind']} lines than golden.tsv"
+            )
+    samples = {row["sample_id"] for row in golden["rows"]}
+    if len(samples) > run["counts"]["samples"]:
+        errors.append(f"{label}: golden.tsv names more samples than run.json counts")
+    changed = run.get("changes", {})
+    if len(changes["rows"]) != changed.get("changed_lines"):
+        errors.append(
+            f"{label}: changes.tsv has other rows than run.json's changed_lines"
+        )
+    if len({row["sample_id"] for row in changes["rows"]}) != changed.get(
+        "changed_samples"
+    ):
+        errors.append(
+            f"{label}: changes.tsv names other samples than run.json's changed_samples"
+        )
+    if (run.get("verdict") == "REGRESS FAIL") != bool(run.get("rules")):
+        errors.append(f"{label}: the verdict fails other than when a rule fired")
+    if run.get("head") is None and (
+        changes["rows"] or run.get("verdict") != "REGRESS INITIAL"
+    ):
+        errors.append(f"{label}: a check without a head is INITIAL and changes nothing")
+
+
+def rejected_eval_regress_shapes(
+    example: dict[str, Any],
+) -> list[tuple[str, dict[str, Any]]]:
+    without_golden = copy.deepcopy(example)
+    del without_golden["golden.tsv"]
+    other_panel = copy.deepcopy(example)
+    other_panel["run.json"]["manifest"]["fields"]["panel"] = "dev"
+    unknown_kind = copy.deepcopy(example)
+    unknown_kind["golden.tsv"]["rows"][0]["kind"] = "variant"
+    empty_cell = copy.deepcopy(example)
+    empty_cell["golden.tsv"]["rows"][0]["value"] = ""
+    unknown_rule = copy.deepcopy(example)
+    unknown_rule["run.json"]["rules"] = ["forbidden:anything"]
+    missing_kind = copy.deepcopy(example)
+    missing_kind["run.json"]["kinds"].pop()
+    return [
+        ("eval regress without golden.tsv", without_golden),
+        ("eval regress of another panel", other_panel),
+        ("eval regress golden line of an unknown kind", unknown_kind),
+        ("eval regress golden line with an empty cell", empty_cell),
+        ("eval regress with an unknown rule", unknown_rule),
+        ("eval regress without a kind digest", missing_kind),
+    ]
+
+
 def check_eval_tables(schema: dict[str, Any], errors: list[str]) -> None:
     """Check that every table of the evaluation run schema lists its columns in row order."""
     for name, definition in schema["$defs"].items():
@@ -2160,6 +2249,7 @@ def main(argv: list[str] | None = None) -> int:
     run_context_validator = validator(RUN_CONTEXT_SCHEMA, errors)
     evidence_validator = validator(EVIDENCE_SCHEMA, errors)
     eval_run_validator = validator(EVAL_RUN_SCHEMA, errors)
+    eval_regress_validator = validator(EVAL_REGRESS_SCHEMA, errors)
     placed_validator = validator(PLACED_SCHEMA, errors)
     analysis_paths = args.analysis or [ANALYSIS_EXAMPLE]
     basecall_paths = args.basecalls or [BASECALL_EXAMPLE]
@@ -2200,6 +2290,22 @@ def main(argv: list[str] | None = None) -> int:
         except ValidationError as exc:
             errors.append(f"{label}: invalid: {exc.message} at {exc.json_path}")
         validate_eval_run(document, label, errors)
+    eval_regresses: list[tuple[str, Any]] = []
+    if not args.eval_regress:
+        eval_regresses.append(
+            (str(EVAL_REGRESS_EXAMPLE), load_json(EVAL_REGRESS_EXAMPLE))
+        )
+    for directory in args.eval_regress:
+        try:
+            eval_regresses.append((str(directory), read_run(directory)))
+        except (OSError, ValueError) as exc:
+            errors.append(f"{directory}: not a regress check: {exc}")
+    for label, document in eval_regresses:
+        try:
+            eval_regress_validator.validate(document)
+        except ValidationError as exc:
+            errors.append(f"{label}: invalid: {exc.message} at {exc.json_path}")
+        validate_eval_regress(document, label, errors)
     for path in signal_paths:
         validate_signal(load_json(path), str(path), errors)
     for path in run_context_paths:
@@ -2443,6 +2549,21 @@ def main(argv: list[str] | None = None) -> int:
         if not tract_errors:
             errors.append(f"expected {label} to be rejected, but it validated")
     check_eval_tables(load_json(EVAL_RUN_SCHEMA), errors)
+    check_eval_tables(load_json(EVAL_REGRESS_SCHEMA), errors)
+    eval_regress_example = load_json(EVAL_REGRESS_EXAMPLE)
+    assert_rejected(
+        eval_regress_validator,
+        rejected_eval_regress_shapes(eval_regress_example),
+        errors,
+    )
+    rehashed = copy.deepcopy(eval_regress_example)
+    rehashed["golden.tsv"]["rows"][0]["value"] = "not_recorded"
+    regress_errors: list[str] = []
+    validate_eval_regress(rehashed, "synthetic edited golden output", regress_errors)
+    if not regress_errors:
+        errors.append(
+            "expected a golden.tsv that does not hash to run.json to be rejected"
+        )
     eval_run_example = load_json(EVAL_RUN_EXAMPLE)
     rejected_eval_runs = rejected_eval_run_shapes(eval_run_example)
     assert_rejected(eval_run_validator, rejected_eval_runs, errors)
@@ -2615,7 +2736,7 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(review_paths)} review, {len(signal_paths)} run signal, "
         f"{len(run_context_paths)} run context, "
         f"{len(evidence_paths)} read evidence document(s), 1 placed read, "
-        f"{len(eval_runs)} evaluation run(s), "
+        f"{len(eval_runs)} evaluation run(s), {len(eval_regresses)} regress check(s), "
         f"{len(valid_shapes)} analysis "
         "call shapes; rejected "
         f"{len(rejected_analysis) + len(rejected_basecalls) + len(rejected_samples) + len(rejected_variants) + len(rejected_notation) + len(rejected_consensus) + len(rejected_run_context) + len(rejected_review) + len(rejected_evidence) + len(rejected_eval_runs)} "
