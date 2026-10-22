@@ -163,6 +163,7 @@
       "required": [
         "harness",
         "harness_version",
+        "workload_version",
         "source",
         "threads",
         "manifest",
@@ -185,6 +186,11 @@
           "description": "The harness crate's version.",
           "type": "string",
           "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+        },
+        "workload_version": {
+          "description": "The version of the review workload's counting (which differences are unreviewed, their classes, how a passed unit counts them) the passes and unreviewed.tsv follow; dna-eval diff refuses runs that count otherwise, or a run without it, unless forced.",
+          "type": "integer",
+          "minimum": 1
         },
         "source": {
           "description": "The checkout the harness was built from, recorded by its build script.",
@@ -1064,7 +1070,7 @@
           }
         },
         "regions": {
-          "description": "One region per sample and region of the target profile's zones: `total`, those needing a check (a check item touches one of its zones, `<kind>@<region>`), and the passed ones holding an unreviewed block's first position; overall and per region, in profile order.",
+          "description": "One region per sample and region of the target profile's zones: `total`, those needing a check (a check item touches one of its zones, `<kind>@<region>`), and the passed ones holding an unreviewed difference (a block's unreviewed position, or an omission); overall and per region, in profile order.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -1094,7 +1100,7 @@
           }
         },
         "zones": {
-          "description": "One zone per sample and zone instance of the target profile (a kind in a region): `total`, those a check item touches (the sum of `review_zone_count`), and the passed ones holding an unreviewed block's first position; overall and per zone, in the order of the summary's zone table.",
+          "description": "One zone per sample and zone instance of the target profile (a kind in a region): `total`, those a check item touches (the sum of `review_zone_count`), and the passed ones holding an unreviewed difference (a block's unreviewed position, or an omission); overall and per zone, in the order of the summary's zone table.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -1152,7 +1158,7 @@
           "minimum": 0
         },
         "unreviewed": {
-          "description": "The other samples whose unreviewed blocks start in the region or zone (by first position).",
+          "description": "The other samples with an unreviewed difference in the region or zone.",
           "$ref": "#/$defs/escaped"
         }
       }
@@ -1986,7 +1992,7 @@
                 "$ref": "#/$defs/text"
               },
               "first": {
-                "description": "The block's first anchor, 1-based.",
+                "description": "The block's first anchor, or the omitted allele's anchor, 1-based; a block has one row per zone holding its unreviewed positions.",
                 "$ref": "#/$defs/count"
               },
               "last": {
@@ -2025,7 +2031,7 @@
                 ]
               },
               "zone": {
-                "description": "The review zone (`kind@region`) holding the block's first anchor; `.` outside every zone.",
+                "description": "The review zone (`kind@region`) holding the unreviewed positions this row counts, or the omitted allele's anchor; `.` outside every zone.",
                 "type": "string",
                 "pattern": "^([a-z_]+@([A-Z0-9]+|[0-9]+-[0-9]+)|\\.)$"
               },

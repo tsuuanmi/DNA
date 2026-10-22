@@ -26,6 +26,14 @@ use crate::geometry::Span;
 use crate::haplotype::Block;
 use crate::zones::{Instance, Zones};
 
+/// The version of how the workload counts: which differences are
+/// unreviewed (per differing position), their classes (the omission
+/// classes, a length note of one unit), and how a passed unit counts them.
+/// `run.json` records it, and `dna-eval diff` refuses two runs, or a run and
+/// itself, that count otherwise, since their classes would not compare. A
+/// change to any of these rules is a new version.
+pub(crate) const COUNTING_VERSION: u32 = 1;
+
 /// One window of an HV region, 1-based and inclusive.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Window {
@@ -80,7 +88,8 @@ pub(crate) struct Workload {
     pub(crate) checked: Vec<bool>,
     /// Per window, whether an unreviewed block overlaps it.
     pub(crate) escaped: Vec<bool>,
-    /// Region of each unreviewed block, by its first anchor.
+    /// The regions holding an unreviewed differing position or omission,
+    /// each once.
     pub(crate) regions: Vec<String>,
     /// The zone instances a check item touches.
     pub(crate) zones: BTreeSet<Instance>,
@@ -127,9 +136,10 @@ pub(crate) struct Escape {
 /// intervals leave out is omitted from the report: `OmittedNotAnalysed` in a
 /// stretch DNA did not analyse (a poor read start or end), `OmittedTract` in
 /// a profile length tract under a `tract_length` note whose reading is the
-/// truth's length, `NoteMisread` there when the reading is one unit off or
-/// absent (a length note, user decision 2026-10-22), `NonHet` when it is two
-/// or more units off, and `OmittedOther` anywhere else.
+/// truth's length, `NoteMisread` there when the reading is one unit off (a
+/// length note, user decision 2026-10-22), `NonHet` when it is two or more
+/// units off, and `OmittedOther` anywhere else, under a note without a
+/// reading included.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Class {
     LengthNote,
@@ -349,6 +359,9 @@ pub(crate) fn of(
     let zone_of = |anchor: i64| zones.and_then(|zones| zones.instance(anchor));
     let mut differences_out = Vec::new();
     let mut unreviewed = Vec::new();
+    // The anchors of the unreviewed positions and omissions: the regions
+    // the summary counts a sample's unreviewed differences in.
+    let mut open_anchors = Vec::new();
     for (block, block_positions) in &differences.blocks {
         let open = block_positions
             .iter()
@@ -358,6 +371,7 @@ pub(crate) fn of(
             continue;
         }
         unreviewed.push(*block);
+        open_anchors.extend(open.iter().map(|position| position.anchor));
         let whole = if block.past_interval() {
             Some(Class::TruthN)
         } else if tracts
@@ -396,6 +410,7 @@ pub(crate) fn of(
         if reviewed(omission.reach) {
             continue;
         }
+        open_anchors.push(omission.anchor);
         differences_out.push(Escape {
             first: omission.anchor,
             last: omission.anchor,
@@ -426,14 +441,16 @@ pub(crate) fn of(
                 .any(|block| window.overlaps(block.start, block.end))
         })
         .collect();
-    let regions = unreviewed
+    let regions = open_anchors
         .iter()
-        .filter_map(|block| {
+        .filter_map(|&anchor| {
             windows
                 .iter()
-                .find(|window| window.overlaps(block.start, block.start))
+                .find(|window| window.overlaps(anchor, anchor))
                 .map(|window| window.region.clone())
         })
+        .collect::<BTreeSet<_>>()
+        .into_iter()
         .collect();
     let touched_zones = checks
         .iter()
@@ -543,8 +560,8 @@ pub(crate) struct AutoPass {
 }
 
 /// Regions in all, those with a check item in one of their zones, and the
-/// others (passed) that hold an unreviewed block's first anchor; overall and
-/// per region.
+/// others (passed) that hold an unreviewed difference (a block's unreviewed
+/// position, or an omission); overall and per region.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct Regions {
     pub(crate) total: usize,
@@ -554,8 +571,9 @@ pub(crate) struct Regions {
 }
 
 /// Zone instances in all, those a check item touches, and the others
-/// (passed) that hold an unreviewed block's first anchor; overall and per
-/// instance, in the order of [`Zones::instances`].
+/// (passed) that hold an unreviewed difference (a block's unreviewed
+/// position, or an omission); overall and per instance, in the order of
+/// [`Zones::instances`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct ZonePasses {
     pub(crate) total: usize,
@@ -616,8 +634,8 @@ impl AutoPass {
 
 /// One sample as the pass measures count it, its units keyed by `K`: whether
 /// its review list has no check item, the units its check items touch, and
-/// each unreviewed block's unit (the one that holds its first anchor, if
-/// any) and class.
+/// each unreviewed difference's unit (the one that holds its unreviewed
+/// positions, or the omission's anchor, if any) and class.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PassSample<K> {
     pub(crate) clear: bool,

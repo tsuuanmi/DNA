@@ -1,0 +1,6 @@
+# regress-intent series=regress-v1 base=r0003 pr=#282
+id	kind	change	where	match	max_samples	posthoc	reason
+omitted	block	added	*	omitted_*	-	0	#282 F1: a truth allele the report omits that no check touches is an unreviewed difference (omitted_not_analysed, omitted_tract, omitted_other)
+misread	block	added	*	note_misread *	-	0	#282 F1: an omission under a tract note one unit off is note_misread
+units	block	any	*	non_het *	-	0	#282 rec. 6: a length difference of two or more units, or an omission under a note two or more units off, is non_het
+per-position	block	any	*	*	-	0	#282 F2: a block is reviewed per differing position: one line per zone holding its unreviewed positions, its class from those positions

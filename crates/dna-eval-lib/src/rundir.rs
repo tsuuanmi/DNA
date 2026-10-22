@@ -62,6 +62,12 @@ pub(crate) const NOTES_HEADER: &str =
 pub(crate) struct RunHeader {
     pub(crate) harness: String,
     pub(crate) harness_version: String,
+    /// The version of the workload's counting
+    /// ([`crate::workload::COUNTING_VERSION`]) the run's passes and
+    /// `unreviewed.tsv` classes follow; absent in a run of a harness before
+    /// it, whose classes `diff` cannot compare.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) workload_version: Option<u32>,
     pub(crate) source: Source,
     pub(crate) threads: usize,
     pub(crate) manifest: ManifestHeader,
@@ -590,6 +596,7 @@ pub(crate) mod tests {
         RunHeader {
             harness: "dna-eval".to_owned(),
             harness_version: env!("CARGO_PKG_VERSION").to_owned(),
+            workload_version: Some(workload::COUNTING_VERSION),
             source: Source {
                 revision: Some("0".repeat(40)),
                 dirty: Some(false),

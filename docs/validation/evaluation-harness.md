@@ -72,11 +72,11 @@ their directories alone, and gates it.
 - **Comparability.** Both runs must record the same manifest body, truth
   digest, re-check list, current-data month, review window, zone widths,
   reference and profile (their SHA-256 in `identities`), run signal grouping
-  and batch reads, and run contexts (their digest), each from a clean build;
-  the configuration may differ, since a candidate changes it. The manifest
-  the base run names must still hash to the body it recorded, since the
-  periods and sources are read from it. Otherwise `diff` refuses, or with
-  `--force` it compares and warns at the top of the report.
+  and batch reads, and run contexts (their digest), each from a clean build,
+  and this harness's workload counting version (`workload_version`; a run of
+  an earlier harness records none); the configuration may differ. The
+  manifest the base run names must still hash to the body it recorded.
+  Otherwise `diff` refuses, or with `--force` compares and warns at the top.
 - **Reading.** It reads each run's `run.json`, `scores.tsv`, and
   `unreviewed.tsv` strictly: a missing or unparsable header field, a table
   without a column `diff` reads or with a column twice, a row of another
@@ -125,10 +125,10 @@ recommendation 1, approved 2026-10-21). An escape is a sample's unreviewed
 difference of a gated class in a zone no check item touches, keyed by the
 sample, the zone, the block's text (or the omitted allele), and the class,
 over the samples both runs count. The verdict is `GATE FAIL`, with exit
-status 2, when in that group the run adds more escapes than it removes
-(`b > c`, summed over the zone kinds). Every new escape is listed under
-**Verdict**, to be adjudicated before a merge, also when the gate passes: a
-swap (`b = c`) hides no new class. It also fails when the samples the runs
+status 2, when in that group the run adds more escapes than it removes in
+any zone kind (`b > c`; a removal in one kind never pays for an addition in
+another, user decision 2026-10-22). Every new escape is listed under
+**Verdict**, to be adjudicated before a merge, also when the gate passes. It also fails when the samples the runs
 could not count in that group differ, whatever the cause (the change, a
 side left without an allele, or a transient read error): the group then
 holds different samples. Differences only outside it are a warning.
@@ -478,7 +478,7 @@ or to which files a run writes, is a new contract version
 | `tracts.tsv` | always | per tract decode (SRS-CALL-025, [[PROP-0012]] increment 2): the read's reason for masking the onset call and whether it stays out of phase to its end, where the tract's first call lies on the reference, its chosen structure, and its first-run and total dominant lengths, margins, and margin states; evidence only, not compared with the truth |
 | `checks.tsv` | always | per sample and `dna review` check item: its positions and labels |
 | `notes.tsv` | always | per sample, `dna review` item, and run its `tract_length` label notes: the tract, the run, its status, DNA's length, the reading, and the convention's reading |
-| `unreviewed.tsv` | always | per sample and unreviewed `haplotype_lod` difference block: its anchors and text, its class as the pass measures split it (non-het, het, truth `N`, re-check, length note), the zone that holds its first anchor, and whether a check item touches that zone; `dna-eval diff` counts the passes from it |
+| `unreviewed.tsv` | always | per sample, unreviewed difference (a `haplotype_lod` block, or a truth allele the report omits), and zone holding its unreviewed positions: its anchors and text, its class as the pass measures split it ([[validation/evaluation-workload]]) with and without the re-check list, the zone, and whether a check item touches it; `dna-eval diff` counts the passes from it |
 | `windows.tsv` | always | per review window: the samples it reaches, checks, and unreviewed differences |
 | `estimates.tsv` | always | per weighting, measure, and metric: the stratified rates and interval |
 | `anchors.tsv` | always | the anchor candidates under each measure |

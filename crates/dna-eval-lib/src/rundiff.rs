@@ -12,8 +12,9 @@
 //! counted from `scores.tsv` and `unreviewed.tsv` with the review workload's
 //! own counting ([`crate::workload::PassSample`]): a sample, or a zone of it,
 //! passes when no check item touches it, and a passed unit counts under its
-//! most severe unreviewed block (non-het, then truth `N`, then het, then
-//! re-check, then length note). Before comparing, every count of a run is
+//! most severe unreviewed difference (non-het, omitted elsewhere, omitted
+//! not analysed, truth `N`, het, re-check, note misread, omitted tract,
+//! length note). Before comparing, every count of a run is
 //! checked against the passes its `run.json` records, over all samples and
 //! over the current data.
 //!
@@ -24,7 +25,8 @@
 //! (evaluation validity review, recommendation 1): per zone kind, the
 //! escapes of a gated class in a passed zone that the candidate adds (`b`)
 //! and removes (`c`), and the zones it newly passes (`n_new`). It fails when
-//! `Σb > Σc`, and lists every new escape; it also fails when the samples the
+//! `b > c` in any zone kind (an escape removed in one kind never pays for
+//! one added in another), and lists every new escape; it also fails when the samples the
 //! runs could not count (failed, or one side without an allele) differ in
 //! that group. The gated classes are an option of the comparison, by default
 //! non-het blocks and the truth alleles the report omits outside a noted
@@ -45,7 +47,7 @@ use crate::compare::Measure;
 use crate::error::DiffError;
 use crate::manifest::{self, Month};
 use crate::rundir::{self, RunHeader};
-use crate::workload::{AutoPass, Class, Escaped, PassSample, Passes, Unit};
+use crate::workload::{AutoPass, COUNTING_VERSION, Class, Escaped, PassSample, Passes, Unit};
 
 /// Rows of a sample-change listing shown in the summary; the TSV has all.
 const SHOWN: usize = 40;
@@ -300,6 +302,23 @@ fn mismatches(base: &Run, run: &Run) -> Vec<String> {
         ]
     };
     let mut found = Vec::new();
+    // Runs whose workload counts otherwise class and pass their differences
+    // otherwise, so a set-based comparison of them means nothing.
+    for (label, run) in [("base", base), ("run", run)] {
+        match run.header.workload_version {
+            Some(version) if version == COUNTING_VERSION => {}
+            Some(version) => found.push(format!(
+                "the {label} run counted its workload with version {version}, this harness \
+                 counts with version {COUNTING_VERSION}: its classes and passes do not \
+                 compare; run it again with this harness"
+            )),
+            None => found.push(format!(
+                "the {label} run records no workload counting version: its harness predates \
+                 version {COUNTING_VERSION}, so its classes and passes do not compare; run \
+                 it again with this harness"
+            )),
+        }
+    }
     for ((name, before), (_, after)) in fields(base).into_iter().zip(fields(run)) {
         if before != after {
             found.push(format!("{name} differs ({before} against {after})"));
@@ -544,8 +563,19 @@ impl Gate {
         self.removed.values().sum()
     }
 
+    /// The zone kinds where the run adds more escapes than it removes.
+    fn failing(&self) -> Vec<&str> {
+        self.added
+            .iter()
+            .filter(|(kind, added)| added.len() > self.removed.get(*kind).copied().unwrap_or(0))
+            .map(|(kind, _)| kind.as_str())
+            .collect()
+    }
+
+    /// Whether any zone kind fails: an escape removed in one kind never
+    /// pays for one added in another (user decision 2026-10-22).
     fn failed(&self) -> bool {
-        self.added() > self.removed()
+        !self.failing().is_empty()
     }
 }
 
@@ -871,7 +901,7 @@ pub(crate) fn compare(
     });
     let _ = writeln!(
         report,
-        "\n## Gate\n\nEscapes of a gated class in a zone no check item touches, in {group}, over the samples both runs count: those the run adds (b) and removes (c) per zone kind, and the zones it newly passes (n_new). The gate fails when b > c summed over the zone kinds.\n"
+        "\n## Gate\n\nEscapes of a gated class in a zone no check item touches, in {group}, over the samples both runs count: those the run adds (b) and removes (c) per zone kind, and the zones it newly passes (n_new). The gate fails when b > c in any zone kind.\n"
     );
     gate_table(&mut report, &listed);
     report.push_str(
@@ -1005,11 +1035,11 @@ pub(crate) fn compare(
     for row in listed_rows.iter().take(SHOWN) {
         let _ = writeln!(report, "{row}");
     }
-    if listed.failed() {
+    for kind in listed.failing() {
         failures.push(format!(
-            "new gated escapes outnumber removed ones in {group}: b = {} > c = {}",
-            listed.added(),
-            listed.removed()
+            "new gated escapes outnumber removed ones in {group}, zone kind {kind}: b = {} > c = {}",
+            listed.added.get(kind).map_or(0, Vec::len),
+            listed.removed.get(kind).copied().unwrap_or_default()
         ));
     }
     let _ = write!(report, "```\n\n## Verdict\n\nGated on {group}.\n\n");
@@ -1234,7 +1264,7 @@ mod tests {
         let comparison = compare(&base, &current, false, &policy())?;
         assert!(comparison.gate_failed);
         assert!(comparison.report.contains(
-            "- new gated escapes outnumber removed ones in period current (≥ 2026-01): b = 1 > c = 0"
+            "- new gated escapes outnumber removed ones in period current (≥ 2026-01), zone kind window: b = 1 > c = 0"
         ));
         assert!(
             comparison
@@ -1449,6 +1479,20 @@ mod tests {
                 .report
                 .contains("- S2 interior@HV2 200-200:A/C non_het\n")
         );
+        // A swap across zone kinds fails: an escape removed in one kind
+        // never pays for one added in another.
+        let moved = run(
+            root.path(),
+            "moved",
+            false,
+            &scores,
+            &["S2	75	75	75-75:A/C	non_het	start@HV2	no"],
+            (2, 1, 0),
+        )?;
+        let comparison = compare(&base, &moved, false, &policy())?;
+        assert!(comparison.gate_failed, "{}", comparison.report);
+        assert!(comparison.report.contains("zone kind start: b = 1 > c = 0"));
+        assert!(!comparison.report.contains("zone kind interior"));
         // An omission outside a noted tract gates like a non-het block; a
         // listed one passes unless the re-check list is left out.
         let omitted = run(
@@ -1508,6 +1552,31 @@ mod tests {
         assert!(comparison.report.contains(
             "**WARNING:** clear samples move by 50.00 % of the 2 samples of all (2 → 1)"
         ));
+        Ok(())
+    }
+
+    /// Runs whose workload counts otherwise, or a run of a harness before
+    /// the counting version, are refused, loudly, unless forced.
+    #[test]
+    fn refuses_runs_of_another_workload_counting() -> Result<(), Box<dyn std::error::Error>> {
+        let root = tempfile::tempdir()?;
+        let scores = ["S1	discordant	discordant	Y	0		"];
+        let rows = ["S1	100	100	100-100:A/C	non_het	interior@HV2	no"];
+        let base = run(root.path(), "base", false, &scores, &rows, (1, 1, 0))?;
+        for (name, version) in [("older", None), ("newer", Some(COUNTING_VERSION + 1))] {
+            let other = run(root.path(), name, false, &scores, &rows, (1, 1, 0))?;
+            let mut header = RunHeader::read(&other)?;
+            header.workload_version = version;
+            std::fs::write(other.join(rundir::RUN_JSON), header.text()?)?;
+            let Err(DiffError::Mismatch(message)) = compare(&base, &other, false, &policy()) else {
+                panic!("{name}: a run of another workload counting must be refused");
+            };
+            assert!(message.contains("the run "), "{message}");
+            assert!(message.contains("do not compare"), "{message}");
+            // Forced, it compares and warns at the top.
+            let forced = compare(&base, &other, true, &policy())?;
+            assert!(forced.report.contains("**WARNING, not comparable:**"));
+        }
         Ok(())
     }
 

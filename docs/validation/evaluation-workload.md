@@ -61,7 +61,8 @@ summary gives:
 - the samples with none;
 - the check items that touch more than one zone;
 - the samples with a check in each zone;
-- the unreviewed blocks by the zone kind of their first position.
+- the unreviewed differences by zone kind: a block once per zone holding
+  its unreviewed positions, an omission in the zone of its anchor.
 
 The profile is the one the configuration names, and every analysed sample
 must have used it. The widths are in `run.json`.
@@ -76,13 +77,13 @@ check item touches. Over the same samples, the summary's "Passes" table and
 - regions: one per sample and reportable region of the profile. A region
   needs a check when a check item touches one of its zones; the summary gives
   the regions needing a check and the pass share, overall and per region, and
-  the passed regions that hold an unreviewed block, which counts for the
-  region of its first position;
+  the passed regions that hold an unreviewed difference, which counts for
+  the region of each unreviewed position;
 - zones: one per sample and zone (a kind in a region, as listed above), and
   those a check item touches; the summary gives the zones needing a check and
   the pass share, overall, per zone, and per zone kind (summed over the
-  regions), and the passed zones that hold an unreviewed block, which counts
-  for the zone of its first position. A zone a check item touches is not
+  regions), and the passed zones that hold an unreviewed difference, which
+  counts for the zone of each unreviewed position. A zone a check item touches is not
   passed, even when an unreviewed block in it lies beside the item.
 
 A passed zone may lie in a region that needs a check, so the passed zones
@@ -137,8 +138,8 @@ own, in the zone of its anchor:
   whose reading (or, without one, the convention's reading) is the truth's
   count of the tract's base there;
 - `note misread`: there, when the note's reading is one unit off the
-  truth's count, or the note gives none: a length note (user decision
-  2026-10-22); two or more units off is `non-het`;
+  truth's count: a length note (user decision 2026-10-22); two or more units
+  off is `non-het`, and a note without a reading `omitted (other)`;
 - `omitted (other)`: anywhere else.
 
 The re-check list applies to an omission as to a position.

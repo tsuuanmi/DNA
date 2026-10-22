@@ -157,7 +157,8 @@ pub(crate) struct Identity {
 /// One sample's run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Outcome {
-    /// Distinct traces given to DNA, once duplicates are removed.
+    /// Traces given to DNA; a trace given twice fails the sample
+    /// (`duplicate_trace`, ADR-0090).
     pub(crate) traces: Option<usize>,
     pub(crate) result: std::result::Result<Called, Failure>,
     /// Wall time of the sample, in milliseconds.

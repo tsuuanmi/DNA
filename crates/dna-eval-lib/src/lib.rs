@@ -1539,6 +1539,7 @@ fn header(
     RunHeader {
         harness: identity.name.to_owned(),
         harness_version: identity.version.to_owned(),
+        workload_version: Some(workload::COUNTING_VERSION),
         source: source(identity),
         threads: dna.threads,
         manifest: ManifestHeader {

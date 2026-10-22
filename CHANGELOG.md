@@ -764,9 +764,12 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
   - **Set-based diff gate.** `dna-eval diff` compares, per zone kind in the
     current period, the escapes of a gated class in a zone no check item
     touches that the candidate adds (`b`) and removes (`c`), with the zones
-    it newly passes (`n_new`); it fails when `b > c` and lists every new
-    escape under **Verdict**. A swap no longer passes unseen, and an escape
-    that moves zone no longer fails alone. Passed samples with a non-het
+    it newly passes (`n_new`); it fails when `b > c` in any zone kind (user
+    decision 2026-10-22: a removal in one kind never pays for an addition in
+    another) and lists every new escape under **Verdict**, so a swap no
+    longer passes unseen. `run.json` records the workload's counting version
+    (`workload_version`), and `diff` refuses runs that count otherwise, or a
+    run of an earlier harness without it, unless forced. Passed samples with a non-het
     block, samples with one, and zone counts are reported, not gated. The
     gated classes are `--gate` (default `non_het`, `omitted_other`,
     `omitted_not_analysed`); the gate is also reported without the re-check
@@ -790,7 +793,7 @@ the `nomenclature` 2 of #76, and the bounded deletion trade (#79) shares the
     is acceptable only under a check (#306 adds the `not_analysed` item), so
     `omitted_not_analysed` gates; length notes, omitted tracts, and a note
     one unit off (`note_misread`) are reported, not gated; a note two or
-    more units off is `non_het`.
+    more units off is `non_het`, and one without a reading `omitted_other`.
   - **Length notes** are a one-unit difference only; two or more is non-het,
     for a block and for an omission under a tract note alike.
   - **Duplicate traces** fail the sample typed (`duplicate_trace`,

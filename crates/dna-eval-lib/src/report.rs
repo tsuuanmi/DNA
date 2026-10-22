@@ -1158,7 +1158,7 @@ impl<'a> Report<'a> {
             text,
             "\nPasses (a sample, region, or zone that no check item touches passes unreviewed; \
              a difference is decided per differing position and counts for the zone of each \
-             unreviewed position, and for the region of its first position. A position the \
+             unreviewed position, and for the region holding it. A position the \
              re-check list names is re-check, else truth N when the truth writes `N` there or the \
              block is an insertion past the truth's interval, else length note when the block \
              differs only in the length of a profile length tract by one, else het when the \
@@ -1348,8 +1348,9 @@ impl<'a> Report<'a> {
 
     /// The zones to check of `samples`: per sample (mean, median, 90th
     /// percentile, none), the items that touch more than one zone, the
-    /// samples with a check in each zone, the unreviewed blocks by the zone
-    /// of their first position.
+    /// samples with a check in each zone, the unreviewed differences by zone
+    /// kind (a block once per zone holding its unreviewed positions, an
+    /// omission in the zone of its anchor).
     fn zone_section(&self, text: &mut String, samples: &[(&Row<'_>, &Workload)]) {
         let Some(zones) = &self.review.zones else {
             return;
@@ -2053,13 +2054,15 @@ fn truth_length(tract: &Tract, alleles: &[Allele], reference: &[u8]) -> i64 {
 
 /// The class of a truth allele omitted under a tract note: the note's
 /// `reading` of the tract's length against the truth's `length`. A reading
-/// one unit off, or none, is a length note (user decision 2026-10-22); two
-/// or more units off is a DNA error, as for a block.
+/// one unit off is a length note (user decision 2026-10-22); two or more
+/// units off is a DNA error, as for a block; a note without a reading says
+/// nothing of the length, so the omission is as anywhere else.
 fn noted(reading: Option<i64>, length: i64) -> BlockClass {
     match reading.map(|reading| (reading - length).abs()) {
         Some(0) => BlockClass::OmittedTract,
-        Some(2..) => BlockClass::NonHet,
-        _ => BlockClass::NoteMisread,
+        Some(1) => BlockClass::NoteMisread,
+        Some(_) => BlockClass::NonHet,
+        None => BlockClass::OmittedOther,
     }
 }
 
@@ -2187,7 +2190,7 @@ mod tests {
         assert_eq!(noted(Some(9), 9), BlockClass::OmittedTract);
         assert_eq!(noted(Some(8), 9), BlockClass::NoteMisread);
         assert_eq!(noted(Some(10), 9), BlockClass::NoteMisread);
-        assert_eq!(noted(None, 9), BlockClass::NoteMisread);
+        assert_eq!(noted(None, 9), BlockClass::OmittedOther);
         assert_eq!(noted(Some(7), 9), BlockClass::NonHet);
         assert_eq!(noted(Some(12), 9), BlockClass::NonHet);
     }
@@ -2348,7 +2351,7 @@ mod tests {
             "S01\tb1\tb1\tclean\t10\t10\t0\t0\tdiscordant\tN\t3\t3\t16189C\t16189Y\t\
              shared_position,dna_only,truth_only\t16189\t1\thvs_i\tdiscordant\tN\t\t\
              concordant\tY\tdiscordant\tN\t16189-16189:C/Y\tconcordant\tY\t\tconcordant\tY\t\t1\theteroplasmy\thvs_i\tundetermined\tdefect\tundetermined:one_strand@16189\t\t\t\t\tHV1=342/342 HV2=268/268 HV3=0/0\t2\t1\t",
-            // Duplicate trace content is removed before DNA runs.
+            // Duplicate trace content fails the sample (ADR-0090).
             "S02\tb1\tb1\tclean\t10\t10\t0\t0\tfailed\t\t\t\t\t\t\t\t\t\tfailed\t\t\tfailed\t\tfailed\t\t\tfailed\t\t\tfailed\t\t\t\tfailed\t\tdna\tdefect\tdna:dna_failure\t\t\t\t\t\t\
              2\t\tdna: 2 traces",
             "S03\tb1\tb1\thard\t4.5\t4.5\t0\t0\tnot_applicable\tN/A\t0\t3\t\t263G 16189Y\t\t\t0\t\t\
